@@ -17,14 +17,18 @@ const (
 	user        = "user"
 	password    = "password"
 	accessToken = "access-token"
+	project     = "project"
+
+	// RLM flags keys
+	releaseBundle = "release-bundle"
 
 	// Unique evidence flags
-	evidencePrefix   = "evd-"
-	EvdPredicate     = "predicate"
-	EvdPredicateType = "predicate-type"
-	EvdRepoPath      = "repo-path"
-	EvdKey           = "key"
-	EvdKeyId         = "key-name"
+	evidencePrefix = "evd-"
+	predicate      = "predicate"
+	predicateType  = "predicate-type"
+	repoPath       = "repo-path"
+	key            = "key"
+	keyId          = "key-name"
 )
 
 // Flag keys mapped to their corresponding components.Flag definition.
@@ -35,17 +39,20 @@ var flagsMap = map[string]components.Flag{
 	user:        components.NewStringFlag(user, "JFrog username.", func(f *components.StringFlag) { f.Mandatory = false }),
 	password:    components.NewStringFlag(password, "JFrog password.", func(f *components.StringFlag) { f.Mandatory = false }),
 	accessToken: components.NewStringFlag(accessToken, "JFrog access token.", func(f *components.StringFlag) { f.Mandatory = false }),
+	project:     components.NewStringFlag(project, "Project key associated with the created evidence.", func(f *components.StringFlag) { f.Mandatory = false }),
 
-	EvdPredicate:     components.NewStringFlag(EvdPredicate, "Path to the predicate, arbitrary JSON.", func(f *components.StringFlag) { f.Mandatory = true }),
-	EvdPredicateType: components.NewStringFlag(EvdPredicateType, "Type of the predicate.", func(f *components.StringFlag) { f.Mandatory = true }),
-	EvdRepoPath:      components.NewStringFlag(EvdRepoPath, "Full path to some artifact' location.", func(f *components.StringFlag) { f.Mandatory = true }),
-	EvdKey:           components.NewStringFlag(EvdKey, "Path to a private key that will sign the DSSE. Supported keys: 'ecdsa','rsa' and 'ed25519'.", func(f *components.StringFlag) { f.Mandatory = true }),
-	EvdKeyId:         components.NewStringFlag(EvdKeyId, "KeyId", func(f *components.StringFlag) { f.Mandatory = false }),
+	releaseBundle: components.NewStringFlag(releaseBundle, "Release Bundle name and version. Format: <name>:<version>", func(f *components.StringFlag) { f.Mandatory = false }),
+
+	predicate:     components.NewStringFlag(predicate, "Path to the predicate, arbitrary JSON.", func(f *components.StringFlag) { f.Mandatory = true }),
+	predicateType: components.NewStringFlag(predicateType, "Type of the predicate.", func(f *components.StringFlag) { f.Mandatory = true }),
+	repoPath:      components.NewStringFlag(repoPath, "Full path to some artifact' location.", func(f *components.StringFlag) { f.Mandatory = false }),
+	key:           components.NewStringFlag(key, "Path to a private key that will sign the DSSE. Supported keys: 'ecdsa','rsa' and 'ed25519'.", func(f *components.StringFlag) { f.Mandatory = true }),
+	keyId:         components.NewStringFlag(keyId, "KeyId", func(f *components.StringFlag) { f.Mandatory = false }),
 }
 
 var commandFlags = map[string][]string{
 	CreateEvidence: {
-		url, user, password, accessToken, ServerId, EvdPredicate, EvdPredicateType, EvdRepoPath, EvdKey, EvdKeyId,
+		url, user, password, accessToken, ServerId, project, releaseBundle, predicate, predicateType, repoPath, key, keyId,
 	},
 }
 
