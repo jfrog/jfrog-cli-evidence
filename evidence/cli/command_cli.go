@@ -26,12 +26,10 @@ func GetCommands() []components.Command {
 	}
 }
 
-var execFunc = func(command commands.Command) error {
-	return commands.Exec(command)
-}
+var execFunc = commands.Exec
 
 func createEvidence(c *components.Context) error {
-	if err := validateCreateEvidenceContext(c); err != nil {
+	if err := validateCreateEvidenceCommonContext(c); err != nil {
 		return err
 	}
 	subject, err := getAndValidateSubject(c)
@@ -45,20 +43,20 @@ func createEvidence(c *components.Context) error {
 
 	var command EvidenceCommands
 	switch subject {
-	case repoPath:
+	case subjectRepoPath:
 		command = NewEvidenceCustomCommand(c, execFunc)
 	case releaseBundle:
 		command = NewEvidenceReleaseBundleCommand(c, execFunc)
-	case build:
+	case buildName:
 		command = NewEvidenceBuildCommand(c, execFunc)
 	default:
 		return errors.New("unsupported subject")
 	}
 
-	return command.CreateEvidence(serverDetails)
+	return command.CreateEvidence(c, serverDetails)
 }
 
-func validateCreateEvidenceContext(c *components.Context) error {
+func validateCreateEvidenceCommonContext(c *components.Context) error {
 	if show, err := pluginsCommon.ShowCmdHelpIfNeeded(c, c.Arguments); show || err != nil {
 		return err
 	}
@@ -68,13 +66,13 @@ func validateCreateEvidenceContext(c *components.Context) error {
 	}
 
 	if !c.IsFlagSet(predicate) || assertValueProvided(c, predicate) != nil {
-		return errorutils.CheckErrorf("'predicate' is a mandatory field for creating a custom evidence: --%s", predicate)
+		return errorutils.CheckErrorf("'predicate' is a mandatory field for creating evidence: --%s", predicate)
 	}
 	if !c.IsFlagSet(predicateType) || assertValueProvided(c, predicateType) != nil {
-		return errorutils.CheckErrorf("'predicate-type' is a mandatory field for creating a custom evidence: --%s", predicateType)
+		return errorutils.CheckErrorf("'predicate-type' is a mandatory field for creating evidence: --%s", predicateType)
 	}
 	if !c.IsFlagSet(key) || assertValueProvided(c, key) != nil {
-		return errorutils.CheckErrorf("'key' is a mandatory field for creating a custom evidence: --%s", key)
+		return errorutils.CheckErrorf("'key' is a mandatory field for creating evidence: --%s", key)
 	}
 	return nil
 }
@@ -88,7 +86,7 @@ func getAndValidateSubject(c *components.Context) (string, error) {
 	}
 
 	if len(foundSubjects) == 0 {
-		return "", errorutils.CheckErrorf("Subject must be one of the fields: [%s]", strings.Join(subjectTypes, ", "))
+		return "", errorutils.CheckErrorf("subject must be one of the fields: [%s]", strings.Join(subjectTypes, ", "))
 	}
 	if len(foundSubjects) > 1 {
 		return "", errorutils.CheckErrorf("multiple subjects found: [%s]", strings.Join(foundSubjects, ", "))
