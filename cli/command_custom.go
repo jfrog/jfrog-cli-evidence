@@ -17,14 +17,14 @@ func NewEvidenceCustomCommand(ctx *components.Context, execute execCommandFunc) 
 		execute: execute,
 	}
 }
-
-func (ecc *evidenceCustomCommand) CreateEvidence(serverDetails *coreConfig.ServerDetails) error {
+func (ecc *evidenceCustomCommand) CreateEvidence(_ *components.Context, serverDetails *coreConfig.ServerDetails) error {
 	createCmd := evidence.NewCreateEvidenceCustom(
 		serverDetails,
 		ecc.ctx.GetStringFlagValue(predicate),
 		ecc.ctx.GetStringFlagValue(predicateType),
 		ecc.ctx.GetStringFlagValue(key),
 		ecc.ctx.GetStringFlagValue(keyId),
-		ecc.ctx.GetStringFlagValue(repoPath))
+		ecc.ctx.GetStringFlagValue(subjectRepoPath),
+		ecc.ctx.GetStringFlagValue(subjectSha256))
 	return ecc.execute(createCmd)
 }
