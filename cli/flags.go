@@ -36,6 +36,12 @@ const (
 	keyAlias        = "key-alias"
 )
 
+const (
+	// Evidence environments vars
+	evdSigningKey = "evd_signing_key"
+	evdKeyAlias   = "evd_key_alias"
+)
+
 // Flag keys mapped to their corresponding components.Flag definition.
 var flagsMap = map[string]components.Flag{
 	// Common commands flags
@@ -57,7 +63,7 @@ var flagsMap = map[string]components.Flag{
 	predicateType:   components.NewStringFlag(predicateType, "Type of the predicate.", func(f *components.StringFlag) { f.Mandatory = true }),
 	subjectRepoPath: components.NewStringFlag(subjectRepoPath, "Full path to some subject' location.", func(f *components.StringFlag) { f.Mandatory = false }),
 	subjectSha256:   components.NewStringFlag(subjectSha256, "Subject checksum sha256.", func(f *components.StringFlag) { f.Mandatory = false }),
-	key:             components.NewStringFlag(key, "Path to a private key that will sign the DSSE. Supported keys: 'ecdsa','rsa' and 'ed25519'.", func(f *components.StringFlag) { f.Mandatory = true }),
+	key:             components.NewStringFlag(key, "Path to a private key that will sign the DSSE. Supported keys: 'ecdsa','rsa' and 'ed25519'.", func(f *components.StringFlag) { f.Mandatory = false }),
 	keyAlias:        components.NewStringFlag(keyAlias, "Key alias", func(f *components.StringFlag) { f.Mandatory = false }),
 }
 

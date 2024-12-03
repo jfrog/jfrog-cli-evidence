@@ -70,13 +70,40 @@ func validateCreateEvidenceCommonContext(ctx *components.Context) error {
 	if !ctx.IsFlagSet(predicate) || assertValueProvided(ctx, predicate) != nil {
 		return errorutils.CheckErrorf("'predicate' is a mandatory field for creating evidence: --%s", predicate)
 	}
+
 	if !ctx.IsFlagSet(predicateType) || assertValueProvided(ctx, predicateType) != nil {
 		return errorutils.CheckErrorf("'predicate-type' is a mandatory field for creating evidence: --%s", predicateType)
 	}
-	if !ctx.IsFlagSet(key) || assertValueProvided(ctx, key) != nil {
-		return errorutils.CheckErrorf("'key' is a mandatory field for creating evidence: --%s", key)
+
+	if err := ensureKeyExists(ctx, key); err != nil {
+		return err
 	}
+
+	if !ctx.IsFlagSet(keyAlias) {
+		setKeyAliasIfProvided(ctx, keyAlias)
+	}
+
 	return nil
+}
+
+func ensureKeyExists(ctx *components.Context, key string) error {
+	if ctx.IsFlagSet(key) && assertValueProvided(ctx, key) == nil {
+		return nil
+	}
+
+	signingKeyValue, _ := getEnvVariable(evdSigningKey)
+	if signingKeyValue == "" {
+		return errorutils.CheckErrorf("'key' or EVD_SIGNING_KEY must be provided when creating evidence: --%s", key)
+	}
+	ctx.AddStringFlag(key, signingKeyValue)
+	return nil
+}
+
+func setKeyAliasIfProvided(ctx *components.Context, keyAlias string) {
+	evdKeyAliasValue, _ := getEnvVariable(evdKeyAlias)
+	if evdKeyAliasValue != "" {
+		ctx.AddStringFlag(keyAlias, evdKeyAliasValue)
+	}
 }
 
 func getAndValidateSubject(ctx *components.Context) (string, error) {

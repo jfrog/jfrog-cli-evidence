@@ -7,12 +7,16 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/urfave/cli"
 	"go.uber.org/mock/gomock"
+	"os"
 	"testing"
 )
 
 func TestCreateEvidence_Context(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
+
+	assert.NoError(t, os.Setenv(evdSigningKey, "PGP"), "Failed to set env: "+evdSigningKey)
+	defer os.Unsetenv(evdSigningKey)
 
 	app := cli.NewApp()
 	app.Commands = []cli.Command{
@@ -99,6 +103,18 @@ func TestCreateEvidence_Context(t *testing.T) {
 				setDefaultValue(predicate, predicate),
 				setDefaultValue(predicateType, "InToto"),
 				setDefaultValue(key, "PGP"),
+				setDefaultValue(packageName, packageName),
+				setDefaultValue(packageVersion, packageVersion),
+				setDefaultValue(packageRepoName, packageRepoName),
+				setDefaultValue("url", "url"),
+			},
+			expectErr: false,
+		},
+		{
+			name: "ValidContext With Key As Env Var- Package",
+			flags: []components.Flag{
+				setDefaultValue(predicate, predicate),
+				setDefaultValue(predicateType, "InToto"),
 				setDefaultValue(packageName, packageName),
 				setDefaultValue(packageVersion, packageVersion),
 				setDefaultValue(packageRepoName, packageRepoName),
