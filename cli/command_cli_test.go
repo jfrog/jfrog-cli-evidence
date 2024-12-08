@@ -16,7 +16,9 @@ func TestCreateEvidence_Context(t *testing.T) {
 	defer ctrl.Finish()
 
 	assert.NoError(t, os.Setenv(evdSigningKey, "PGP"), "Failed to set env: "+evdSigningKey)
+	assert.NoError(t, os.Setenv("JFROG_CLI_BUILD_NAME", buildName), "Failed to set env: JFROG_CLI_BUILD_NAME")
 	defer os.Unsetenv(evdSigningKey)
+	defer os.Unsetenv("JFROG_CLI_BUILD_NAME")
 
 	app := cli.NewApp()
 	app.Commands = []cli.Command{
@@ -96,6 +98,28 @@ func TestCreateEvidence_Context(t *testing.T) {
 				setDefaultValue("url", "url"),
 			},
 			expectErr: false,
+		},
+		{
+			name: "ValidContext - Build With BuildNumber As Env Var",
+			flags: []components.Flag{
+				setDefaultValue(predicate, predicate),
+				setDefaultValue(predicateType, "InToto"),
+				setDefaultValue(key, "PGP"),
+				setDefaultValue(buildNumber, buildNumber),
+				setDefaultValue("url", "url"),
+			},
+			expectErr: false,
+		},
+		{
+			name: "InvalidContext - Build",
+			flags: []components.Flag{
+				setDefaultValue(predicate, predicate),
+				setDefaultValue(predicateType, "InToto"),
+				setDefaultValue(key, "PGP"),
+				setDefaultValue(buildName, buildName),
+				setDefaultValue("url", "url"),
+			},
+			expectErr: true,
 		},
 		{
 			name: "ValidContext - Package",
