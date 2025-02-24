@@ -147,6 +147,10 @@ func createAndSignEnvelope(payloadJson []byte, key string, keyId string) (*dsse.
 		return nil, err
 	}
 
+	if privateKey == nil {
+		return nil, errors.New("failed to load private key. please verify provided key")
+	}
+
 	privateKey.KeyID = keyId
 
 	signers, err := createSigners(privateKey)
