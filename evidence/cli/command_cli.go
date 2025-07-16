@@ -3,6 +3,9 @@ package cli
 import (
 	"errors"
 	"fmt"
+	"os"
+	"strings"
+
 	"github.com/jfrog/jfrog-cli-artifactory/evidence/cli/docs/create"
 	"github.com/jfrog/jfrog-cli-artifactory/evidence/cli/docs/verify"
 	jfrogArtClient "github.com/jfrog/jfrog-cli-artifactory/evidence/utils"
@@ -15,8 +18,6 @@ import (
 	"github.com/jfrog/jfrog-client-go/utils"
 	"github.com/jfrog/jfrog-client-go/utils/errorutils"
 	"golang.org/x/exp/slices"
-	"os"
-	"strings"
 )
 
 func GetCommands() []components.Command {
@@ -118,6 +119,13 @@ func validateCreateEvidenceCommonContext(ctx *components.Context) error {
 		return pluginsCommon.WrongNumberOfArgumentsHandler(ctx)
 	}
 
+	if ctx.IsFlagSet(sigstoreBundle) && assertValueProvided(ctx, sigstoreBundle) == nil {
+		if err := validateSigstoreBundleArgsConflicts(ctx); err != nil {
+			return err
+		}
+		return nil
+	}
+
 	if (!ctx.IsFlagSet(predicate) || assertValueProvided(ctx, predicate) != nil) && !ctx.IsFlagSet(typeFlag) {
 		return errorutils.CheckErrorf("'predicate' is a mandatory field for creating evidence: --%s", predicate)
 	}
@@ -133,6 +141,29 @@ func validateCreateEvidenceCommonContext(ctx *components.Context) error {
 	if !ctx.IsFlagSet(keyAlias) {
 		setKeyAliasIfProvided(ctx, keyAlias)
 	}
+	return nil
+}
+
+func validateSigstoreBundleArgsConflicts(ctx *components.Context) error {
+	var conflictingParams []string
+
+	if ctx.IsFlagSet(key) && ctx.GetStringFlagValue(key) != "" {
+		conflictingParams = append(conflictingParams, "--"+key)
+	}
+	if ctx.IsFlagSet(keyAlias) && ctx.GetStringFlagValue(keyAlias) != "" {
+		conflictingParams = append(conflictingParams, "--"+keyAlias)
+	}
+	if ctx.IsFlagSet(predicate) && ctx.GetStringFlagValue(predicate) != "" {
+		conflictingParams = append(conflictingParams, "--"+predicate)
+	}
+	if ctx.IsFlagSet(predicateType) && ctx.GetStringFlagValue(predicateType) != "" {
+		conflictingParams = append(conflictingParams, "--"+predicateType)
+	}
+
+	if len(conflictingParams) > 0 {
+		return errorutils.CheckErrorf("The following parameters cannot be used with --%s: %s. These values are extracted from the bundle itself:", sigstoreBundle, strings.Join(conflictingParams, ", "))
+	}
+
 	return nil
 }
 
@@ -165,6 +196,9 @@ func getAndValidateSubject(ctx *components.Context) ([]string, error) {
 	}
 
 	if len(foundSubjects) == 0 {
+		if ctx.IsFlagSet(sigstoreBundle) && assertValueProvided(ctx, sigstoreBundle) == nil {
+			return []string{subjectRepoPath}, nil // Return subjectRepoPath as the type for routing
+		}
 		// If we have no subject - we will try to create EVD on build
 		if !attemptSetBuildNameAndNumber(ctx) {
 			return nil, errorutils.CheckErrorf("subject must be one of the fields: [%s]", strings.Join(subjectTypes, ", "))
@@ -204,7 +238,7 @@ func validateKeys(ctx *components.Context) error {
 	providedKeys := ctx.GetStringsArrFlagValue(publicKeys)
 	if signingKeyValue == "" {
 		if len(providedKeys) == 0 && !ctx.GetBoolFlagValue(useArtifactoryKeys) {
-			return errorutils.CheckErrorf("JFROG_CLI_SIGNING_KEY env variable or --public-keys flag or --use-artifactory-publicKeys must be provided when verifying evidence")
+			return errorutils.CheckErrorf("JFROG_CLI_SIGNING_KEY env variable or --%s flag or --%s must be provided when verifying evidence", publicKeys, useArtifactoryKeys)
 		}
 		return nil
 	}
@@ -258,7 +292,7 @@ func platformToEvidenceUrls(rtDetails *config.ServerDetails) {
 
 func assertValueProvided(c *components.Context, fieldName string) error {
 	if c.GetStringFlagValue(fieldName) == "" {
-		return errorutils.CheckErrorf("the --%s option is mandatory", fieldName)
+		return errorutils.CheckErrorf("the argument --%s can not be empty", fieldName)
 	}
 	return nil
 }
