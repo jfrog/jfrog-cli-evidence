@@ -25,7 +25,7 @@ func TestNewCreateEvidencePackage(t *testing.T) {
 	packageVersion := "1.0.0"
 	packageRepoName := "test-repo"
 
-	cmd := NewCreateEvidencePackage(serverDetails, predicateFilePath, predicateType, markdownFilePath, key, keyId, packageName, packageVersion, packageRepoName, "", false)
+	cmd := NewCreateEvidencePackage(serverDetails, predicateFilePath, predicateType, markdownFilePath, key, keyId, packageName, packageVersion, packageRepoName, "", "")
 	createCmd, ok := cmd.(*createEvidencePackage)
 	assert.True(t, ok)
 
@@ -94,7 +94,7 @@ func TestCreateEvidencePackage_RecordSummary(t *testing.T) {
 		packageVersion,
 		repoName,
 		"",
-		false,
+		"",
 	)
 	c, ok := evidence.(*createEvidencePackage)
 	if !ok {
@@ -143,17 +143,17 @@ func TestCreateEvidencePackage_ProviderId(t *testing.T) {
 		expectedProviderId string
 	}{
 		{
-			name:               "With custom provider ID",
-			providerId:         "custom-provider",
-			expectedProviderId: "custom-provider",
+			name:               "With custom integration ID",
+			providerId:         "custom-integration",
+			expectedProviderId: "custom-integration",
 		},
 		{
-			name:               "With empty provider ID",
+			name:               "With empty integration ID",
 			providerId:         "",
 			expectedProviderId: "",
 		},
 		{
-			name:               "With sonar provider ID",
+			name:               "With sonar integration ID",
 			providerId:         "sonar",
 			expectedProviderId: "sonar",
 		},
@@ -174,13 +174,13 @@ func TestCreateEvidencePackage_ProviderId(t *testing.T) {
 				"1.0.0",
 				"test-repo",
 				tt.providerId,
-				false,
+				"",
 			)
 
 			createCmd, ok := cmd.(*createEvidencePackage)
 			assert.True(t, ok)
 
-			// Verify that the provider ID is correctly set in the base struct
+			// Verify that the integration ID is correctly set in the base struct
 			assert.Equal(t, tt.expectedProviderId, createCmd.providerId)
 		})
 	}

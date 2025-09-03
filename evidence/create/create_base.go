@@ -25,6 +25,8 @@ import (
 	"github.com/jfrog/jfrog-client-go/utils/log"
 )
 
+const sonarProviderId = "sonar"
+
 type createEvidenceBase struct {
 	serverDetails     *config.ServerDetails
 	predicateFilePath string
@@ -35,7 +37,7 @@ type createEvidenceBase struct {
 	providerId        string
 	stage             string
 	flagType          FlagType
-	useSonarPredicate bool
+	integration       string
 }
 
 const EvdDefaultUser = "JFrog CLI"
@@ -43,7 +45,7 @@ const EvdDefaultUser = "JFrog CLI"
 func (c *createEvidenceBase) createEnvelope(subject, subjectSha256 string) ([]byte, error) {
 	var statementJson []byte
 	var err error
-	if c.useSonarPredicate {
+	if evidenceUtils.IsSonarIntegration(c.integration) {
 		statementJson, err = c.buildSonarStatement(subject, subjectSha256)
 	} else {
 		statementJson, err = c.buildIntotoStatementJson(subject, subjectSha256)
@@ -84,7 +86,7 @@ func (c *createEvidenceBase) buildSonarStatement(subject, subjectSha256 string) 
 	if err != nil {
 		return nil, err
 	}
-	c.providerId = "sonar"
+	c.providerId = sonarProviderId
 	return extendedStatement, nil
 }
 
