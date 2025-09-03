@@ -60,7 +60,7 @@ func TestNewCreateEvidenceReleaseBundle(t *testing.T) {
 	releaseBundle := "test-bundle"
 	releaseBundleVersion := "1.0.0"
 
-	cmd := NewCreateEvidenceReleaseBundle(serverDetails, predicateFilePath, predicateType, markdownFilePath, key, keyId, project, releaseBundle, releaseBundleVersion, "", false)
+	cmd := NewCreateEvidenceReleaseBundle(serverDetails, predicateFilePath, predicateType, markdownFilePath, key, keyId, project, releaseBundle, releaseBundleVersion, "", "")
 	createCmd, ok := cmd.(*createEvidenceReleaseBundle)
 	assert.True(t, ok)
 
@@ -211,7 +211,7 @@ func TestStageIntegrationInConstructor(t *testing.T) {
 		releaseBundle := "test-bundle"
 		releaseBundleVersion := "1.0.0"
 
-		cmd := NewCreateEvidenceReleaseBundle(serverDetails, predicateFilePath, predicateType, markdownFilePath, key, keyId, project, releaseBundle, releaseBundleVersion, "", false)
+		cmd := NewCreateEvidenceReleaseBundle(serverDetails, predicateFilePath, predicateType, markdownFilePath, key, keyId, project, releaseBundle, releaseBundleVersion, "", "")
 		createCmd, ok := cmd.(*createEvidenceReleaseBundle)
 		assert.True(t, ok)
 
@@ -318,7 +318,7 @@ func TestCreateEvidenceReleaseBundle_RecordSummary(t *testing.T) {
 		"testBundle",
 		"2.0.0",
 		"",
-		false,
+		"",
 	)
 	c, ok := evidence.(*createEvidenceReleaseBundle)
 	if !ok {
@@ -369,17 +369,17 @@ func TestCreateEvidenceReleaseBundle_ProviderId(t *testing.T) {
 		expectedProviderId string
 	}{
 		{
-			name:               "With custom provider ID",
-			providerId:         "custom-provider",
-			expectedProviderId: "custom-provider",
+			name:               "With custom integration ID",
+			providerId:         "custom-integration",
+			expectedProviderId: "custom-integration",
 		},
 		{
-			name:               "With empty provider ID",
+			name:               "With empty integration ID",
 			providerId:         "",
 			expectedProviderId: "",
 		},
 		{
-			name:               "With sonar provider ID",
+			name:               "With sonar integration ID",
 			providerId:         "sonar",
 			expectedProviderId: "sonar",
 		},
@@ -400,13 +400,13 @@ func TestCreateEvidenceReleaseBundle_ProviderId(t *testing.T) {
 				"test-bundle",
 				"1.0.0",
 				tt.providerId,
-				false,
+				"",
 			)
 
 			createCmd, ok := cmd.(*createEvidenceReleaseBundle)
 			assert.True(t, ok)
 
-			// Verify that the provider ID is correctly set in the base struct
+			// Verify that the integration ID is correctly set in the base struct
 			assert.Equal(t, tt.expectedProviderId, createCmd.providerId)
 		})
 	}
