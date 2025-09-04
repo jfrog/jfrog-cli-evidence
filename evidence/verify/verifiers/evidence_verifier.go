@@ -5,6 +5,7 @@ import (
 
 	"github.com/jfrog/jfrog-cli-artifactory/evidence/model"
 	"github.com/jfrog/jfrog-client-go/artifactory"
+	ioUtils "github.com/jfrog/jfrog-client-go/utils/io"
 )
 
 type EvidenceVerifierInterface interface {
@@ -18,22 +19,29 @@ type evidenceVerifier struct {
 	parser             evidenceParserInterface
 	dsseVerifier       dsseVerifierInterface
 	sigstoreVerifier   sigstoreVerifierInterface
+	progressMgr        ioUtils.ProgressMgr
 }
 
-func NewEvidenceVerifier(keys []string, useArtifactoryKeys bool, client *artifactory.ArtifactoryServicesManager) EvidenceVerifierInterface {
+func NewEvidenceVerifier(keys []string, useArtifactoryKeys bool, client *artifactory.ArtifactoryServicesManager, progressMgr ioUtils.ProgressMgr) EvidenceVerifierInterface {
 	return &evidenceVerifier{
 		keys:               keys,
 		artifactoryClient:  *client,
 		useArtifactoryKeys: useArtifactoryKeys,
-		parser:             newEvidenceParser(client),
+		parser:             newEvidenceParser(client, progressMgr),
 		dsseVerifier:       newDsseVerifier(keys, useArtifactoryKeys),
 		sigstoreVerifier:   newSigstoreVerifier(),
+		progressMgr:        progressMgr,
 	}
 }
 
 func (v *evidenceVerifier) Verify(subjectSha256 string, evidenceMetadata *[]model.SearchEvidenceEdge, subjectPath string) (*model.VerificationResponse, error) {
 	if evidenceMetadata == nil || len(*evidenceMetadata) == 0 {
 		return nil, fmt.Errorf("no evidence metadata provided")
+	}
+	evidenceNumber := len(*evidenceMetadata)
+	if v.progressMgr != nil {
+		v.progressMgr.InitProgressReaders()
+		v.progressMgr.IncGeneralProgressTotalBy(int64(evidenceNumber))
 	}
 	verificationResponse := &model.VerificationResponse{
 		SchemaVersion: model.SchemaVersion,
@@ -43,7 +51,7 @@ func (v *evidenceVerifier) Verify(subjectSha256 string, evidenceMetadata *[]mode
 		},
 		OverallVerificationStatus: model.Success,
 	}
-	evidenceVerifications := make([]model.EvidenceVerification, 0, len(*evidenceMetadata))
+	evidenceVerifications := make([]model.EvidenceVerification, 0, evidenceNumber)
 	for i := range *evidenceMetadata {
 		evidence := &(*evidenceMetadata)[i]
 		verification, err := v.verifyEvidence(evidence, subjectSha256)

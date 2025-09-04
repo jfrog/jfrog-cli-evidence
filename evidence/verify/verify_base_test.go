@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"testing"
 
 	"github.com/jfrog/jfrog-cli-artifactory/evidence/model"
@@ -12,6 +13,7 @@ import (
 	"github.com/jfrog/jfrog-cli-core/v2/utils/coreutils"
 	"github.com/jfrog/jfrog-client-go/artifactory"
 	"github.com/jfrog/jfrog-client-go/onemodel"
+	ioUtils "github.com/jfrog/jfrog-client-go/utils/io"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -118,7 +120,7 @@ func TestVerifyEvidenceBase_UnknownFormat_DefaultsToText(t *testing.T) {
 }
 
 func TestVerifyEvidenceBase_CreateArtifactoryClient_Success(t *testing.T) {
-	serverDetails := &config.ServerDetails{Url: "http://test.com"}
+	serverDetails := &config.ServerDetails{Url: "test.com"}
 	v := &verifyEvidenceBase{serverDetails: serverDetails}
 
 	// First call should create client
@@ -217,7 +219,7 @@ func TestVerifyEvidenceBase_QueryEvidenceMetadata_NoEdges(t *testing.T) {
 func TestVerifyEvidenceBase_QueryEvidenceMetadata_CreateOneModelClient(t *testing.T) {
 	// Test case where oneModelClient is nil and needs to be created
 	v := &verifyEvidenceBase{
-		serverDetails:  &config.ServerDetails{Url: "http://test.com"},
+		serverDetails:  &config.ServerDetails{Url: "test.com"},
 		oneModelClient: nil,
 	}
 
@@ -251,13 +253,13 @@ func TestVerifyEvidenceBase_SearchEvidenceQueryExactMatch(t *testing.T) {
 func TestVerifyEvidenceBase_Integration(t *testing.T) {
 	// Test the integration of verifyEvidenceBase components
 	v := &verifyEvidenceBase{
-		serverDetails: &config.ServerDetails{Url: "http://test.com"},
+		serverDetails: &config.ServerDetails{Url: "test.com"},
 		format:        "json",
 		keys:          []string{"key1"},
 	}
 
 	// Verify the structure is correct
-	assert.Equal(t, "http://test.com", v.serverDetails.Url)
+	assert.Equal(t, "test.com", v.serverDetails.Url)
 	assert.Equal(t, "json", v.format)
 	assert.Equal(t, []string{"key1"}, v.keys)
 	assert.Nil(t, v.artifactoryClient)
@@ -564,7 +566,8 @@ func TestVerifyEvidence_ReturnsCliErrorOnFailedStatus(t *testing.T) {
 	metadata := []model.SearchEvidenceEdge{{}}
 	err := v.verifyEvidence(nil, &metadata, "sha-000", "subject")
 	if assert.Error(t, err) {
-		_, ok := err.(coreutils.CliError)
+		var cliError coreutils.CliError
+		ok := errors.As(err, &cliError)
 		assert.True(t, ok, "error should be of type CliError when overall status is failed")
 	}
 }
@@ -574,9 +577,49 @@ func TestVerifyEvidence_InitializesVerifierWhenNil_EmptyMetadataError(t *testing
 	client := &mgr
 
 	v := &verifyEvidenceBase{verifier: nil, format: "json"}
-	emptyMetadata := []model.SearchEvidenceEdge{}
+	var emptyMetadata []model.SearchEvidenceEdge
 
 	err := v.verifyEvidence(client, &emptyMetadata, "sha-empty", "subject")
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "no evidence metadata provided")
+}
+
+// fakeProgress implements ioUtils.ProgressMgr for testing headlines/totals/quit without side effects
+type fakeProgress struct {
+	headlines       []string
+	totalIncrements int64
+	quitCalled      bool
+	initialized     bool
+}
+
+type fakeBar struct{ id int }
+
+func (f *fakeProgress) NewProgressReader(_ int64, _, _ string) ioUtils.Progress {
+	return &fakeBar{id: 1}
+}
+func (f *fakeProgress) SetMergingState(id int, _ bool) ioUtils.Progress {
+	return &fakeBar{id: id}
+}
+func (f *fakeProgress) GetProgress(id int) ioUtils.Progress { return &fakeBar{id: id} }
+func (f *fakeProgress) RemoveProgress(_ int)                {}
+func (f *fakeProgress) IncrementGeneralProgress()           {}
+func (f *fakeProgress) Quit() error                         { f.quitCalled = true; return nil }
+func (f *fakeProgress) IncGeneralProgressTotalBy(n int64)   { f.totalIncrements += n }
+func (f *fakeProgress) SetHeadlineMsg(msg string)           { f.headlines = append(f.headlines, msg) }
+func (f *fakeProgress) ClearHeadlineMsg()                   {}
+func (f *fakeProgress) InitProgressReaders()                { f.initialized = true }
+func (f *fakeProgress) ClearProgress()                      {}
+
+func (b *fakeBar) ActionWithProgress(reader io.Reader) io.Reader { return reader }
+func (b *fakeBar) SetProgress(_ int64)                           {}
+func (b *fakeBar) Abort()                                        {}
+func (b *fakeBar) GetId() int                                    { return b.id }
+
+func TestVerifyEvidenceBase_Progress_QueryEvidenceMetadata(t *testing.T) {
+	pm := &fakeProgress{}
+	mockManager := &MockOneModelManagerWithQueryCapture{GraphqlResponse: []byte(`{"data":{"evidence":{"searchEvidence":{"edges":[{"cursor":"c","node":{"downloadPath":"p","predicateType":"t","createdAt":"now","createdBy":"me","subject":{"sha256":"abc"}}}]}}}}`)}
+	v := &verifyEvidenceBase{oneModelClient: mockManager, progressMgr: pm}
+	_, err := v.queryEvidenceMetadata("repo", "p", "n")
+	assert.NoError(t, err)
+	assert.True(t, len(pm.headlines) >= 1)
 }
