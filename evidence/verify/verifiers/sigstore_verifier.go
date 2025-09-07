@@ -3,9 +3,9 @@ package verifiers
 import (
 	"fmt"
 
-	"github.com/jfrog/jfrog-cli-artifactory/evidence/verify/verifiers/ca"
+	"github.com/jfrog/jfrog-cli-evidence/evidence/verify/verifiers/ca"
 
-	"github.com/jfrog/jfrog-cli-artifactory/evidence/model"
+	"github.com/jfrog/jfrog-cli-evidence/evidence/model"
 	"github.com/pkg/errors"
 	"github.com/sigstore/sigstore-go/pkg/bundle"
 	"github.com/sigstore/sigstore-go/pkg/verify"

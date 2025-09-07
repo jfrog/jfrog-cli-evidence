@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/jfrog/jfrog-cli-artifactory/evidence/model"
+	"github.com/jfrog/jfrog-cli-evidence/evidence/model"
 	"github.com/jfrog/jfrog-client-go/artifactory"
 	"github.com/jfrog/jfrog-client-go/artifactory/services"
 	"github.com/jfrog/jfrog-client-go/metadata"

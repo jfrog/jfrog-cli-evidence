@@ -1,12 +1,12 @@
 package cli
 
 import (
-	"github.com/jfrog/jfrog-cli-artifactory/commonutils"
-	"github.com/jfrog/jfrog-cli-artifactory/evidence/create"
-	"github.com/jfrog/jfrog-cli-artifactory/evidence/get"
-	"github.com/jfrog/jfrog-cli-artifactory/evidence/verify"
 	"github.com/jfrog/jfrog-cli-core/v2/plugins/components"
 	"github.com/jfrog/jfrog-cli-core/v2/utils/config"
+	"github.com/jfrog/jfrog-cli-evidence/evidence/create"
+	"github.com/jfrog/jfrog-cli-evidence/evidence/get"
+	"github.com/jfrog/jfrog-cli-evidence/evidence/utils"
+	"github.com/jfrog/jfrog-cli-evidence/evidence/verify"
 	"github.com/jfrog/jfrog-client-go/utils/errorutils"
 )
 
@@ -88,7 +88,7 @@ func (erc *evidenceReleaseBundleCommand) validateEvidenceReleaseBundleContext(ct
 	if !ctx.IsFlagSet(releaseBundleVersion) || assertValueProvided(ctx, releaseBundleVersion) != nil {
 		return errorutils.CheckErrorf("--%s is a mandatory field for creating a Release Bundle evidence", releaseBundleVersion)
 	}
-	if ctx.IsFlagSet(artifactsLimit) && !commonutils.IsFlagPositiveNumber(ctx.GetStringFlagValue(artifactsLimit)) {
+	if ctx.IsFlagSet(artifactsLimit) && !utils.IsFlagPositiveNumber(ctx.GetStringFlagValue(artifactsLimit)) {
 		return errorutils.CheckErrorf("--%s must be a positive number", artifactsLimit)
 	}
 	return nil

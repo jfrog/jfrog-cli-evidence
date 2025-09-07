@@ -7,10 +7,10 @@ import (
 	"io"
 	"testing"
 
-	"github.com/jfrog/jfrog-cli-artifactory/evidence/model"
-	"github.com/jfrog/jfrog-cli-artifactory/evidence/verify/reports"
 	"github.com/jfrog/jfrog-cli-core/v2/utils/config"
 	"github.com/jfrog/jfrog-cli-core/v2/utils/coreutils"
+	"github.com/jfrog/jfrog-cli-evidence/evidence/model"
+	"github.com/jfrog/jfrog-cli-evidence/evidence/verify/reports"
 	"github.com/jfrog/jfrog-client-go/artifactory"
 	"github.com/jfrog/jfrog-client-go/onemodel"
 	ioUtils "github.com/jfrog/jfrog-client-go/utils/io"

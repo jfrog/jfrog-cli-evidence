@@ -3,8 +3,8 @@ package verify
 import (
 	"fmt"
 
-	"github.com/jfrog/jfrog-cli-artifactory/evidence"
-	"github.com/jfrog/jfrog-cli-artifactory/evidence/utils"
+	"github.com/jfrog/jfrog-cli-evidence/evidence"
+	"github.com/jfrog/jfrog-cli-evidence/evidence/utils"
 
 	"github.com/jfrog/jfrog-cli-core/v2/utils/config"
 )

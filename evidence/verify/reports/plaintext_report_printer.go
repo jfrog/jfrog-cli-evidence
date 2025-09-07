@@ -4,7 +4,7 @@ import (
 	"fmt"
 
 	"github.com/gookit/color"
-	"github.com/jfrog/jfrog-cli-artifactory/evidence/model"
+	"github.com/jfrog/jfrog-cli-evidence/evidence/model"
 )
 
 var PlaintextReportPrinter = &plaintextReportPrinter{

@@ -4,7 +4,7 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/jfrog/jfrog-cli-artifactory/evidence/model"
+	"github.com/jfrog/jfrog-cli-evidence/evidence/model"
 	protobundle "github.com/sigstore/protobuf-specs/gen/pb-go/bundle/v1"
 	"github.com/sigstore/sigstore-go/pkg/bundle"
 	"github.com/stretchr/testify/assert"

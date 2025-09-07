@@ -6,17 +6,17 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/jfrog/jfrog-cli-artifactory/evidence/create/resolvers"
 	"github.com/jfrog/jfrog-cli-core/v2/artifactory/utils/commandsummary"
+	"github.com/jfrog/jfrog-cli-evidence/evidence/create/resolvers"
 
 	"github.com/jfrog/jfrog-client-go/utils/log"
 	"github.com/sigstore/sigstore-go/pkg/bundle"
 
-	"github.com/jfrog/jfrog-cli-artifactory/evidence"
-	"github.com/jfrog/jfrog-cli-artifactory/evidence/model"
-	"github.com/jfrog/jfrog-cli-artifactory/evidence/sigstore"
 	"github.com/jfrog/jfrog-cli-core/v2/utils/config"
 	"github.com/jfrog/jfrog-cli-core/v2/utils/coreutils"
+	"github.com/jfrog/jfrog-cli-evidence/evidence"
+	"github.com/jfrog/jfrog-cli-evidence/evidence/model"
+	"github.com/jfrog/jfrog-cli-evidence/evidence/sigstore"
 	"github.com/jfrog/jfrog-client-go/utils/errorutils"
 )
 

@@ -4,13 +4,13 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/jfrog/jfrog-cli-artifactory/evidence/model"
+	"github.com/jfrog/jfrog-cli-evidence/evidence/model"
 
 	"github.com/jfrog/jfrog-cli-core/v2/artifactory/utils/commandsummary"
 
-	"github.com/jfrog/jfrog-cli-artifactory/evidence"
-	"github.com/jfrog/jfrog-cli-artifactory/evidence/utils"
 	"github.com/jfrog/jfrog-cli-core/v2/utils/config"
+	"github.com/jfrog/jfrog-cli-evidence/evidence"
+	"github.com/jfrog/jfrog-cli-evidence/evidence/utils"
 	"github.com/jfrog/jfrog-client-go/artifactory"
 	"github.com/jfrog/jfrog-client-go/artifactory/services"
 	"github.com/jfrog/jfrog-client-go/utils/errorutils"

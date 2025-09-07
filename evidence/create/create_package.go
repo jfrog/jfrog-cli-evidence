@@ -5,10 +5,10 @@ import (
 
 	"github.com/jfrog/jfrog-cli-core/v2/artifactory/utils/commandsummary"
 
-	"github.com/jfrog/jfrog-cli-artifactory/evidence"
-	"github.com/jfrog/jfrog-cli-artifactory/evidence/model"
 	"github.com/jfrog/jfrog-cli-core/v2/artifactory/utils"
 	"github.com/jfrog/jfrog-cli-core/v2/utils/config"
+	"github.com/jfrog/jfrog-cli-evidence/evidence"
+	"github.com/jfrog/jfrog-cli-evidence/evidence/model"
 	"github.com/jfrog/jfrog-client-go/utils/log"
 )
 

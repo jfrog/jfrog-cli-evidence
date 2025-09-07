@@ -3,7 +3,7 @@ package reports
 import (
 	"fmt"
 
-	"github.com/jfrog/jfrog-cli-artifactory/evidence/model"
+	"github.com/jfrog/jfrog-cli-evidence/evidence/model"
 )
 
 var MarkdownReportPrinter = &markdownReportPrinter{}

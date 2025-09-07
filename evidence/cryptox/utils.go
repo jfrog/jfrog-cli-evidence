@@ -15,7 +15,7 @@ import (
 	"hash"
 	"testing"
 
-	"github.com/jfrog/jfrog-cli-artifactory/evidence/dsse"
+	"github.com/jfrog/jfrog-cli-evidence/evidence/dsse"
 	"github.com/jfrog/jfrog-client-go/utils/errorutils"
 	"golang.org/x/crypto/ssh"
 

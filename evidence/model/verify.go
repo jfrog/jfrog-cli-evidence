@@ -1,7 +1,7 @@
 package model
 
 import (
-	"github.com/jfrog/jfrog-cli-artifactory/evidence/dsse"
+	"github.com/jfrog/jfrog-cli-evidence/evidence/dsse"
 	"github.com/sigstore/sigstore-go/pkg/bundle"
 	"github.com/sigstore/sigstore-go/pkg/verify"
 )

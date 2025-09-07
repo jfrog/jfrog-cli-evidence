@@ -6,7 +6,7 @@ import (
 
 func GetJfrogCliEvidenceApp() components.App {
 	app := components.CreateEmbeddedApp(
-		"artifactory",
+		"evidence",
 		[]components.Command{},
 		components.Namespace{
 			Name:        "evd",
@@ -14,6 +14,16 @@ func GetJfrogCliEvidenceApp() components.App {
 			Commands:    GetCommands(),
 			Category:    "Command Namespaces",
 		},
+	)
+	return app
+}
+
+func GetStandaloneEvidenceApp() components.App {
+	app := components.CreateApp(
+		"evd",
+		"v1.0.0",
+		"Evidence commands.",
+		GetCommands(),
 	)
 	return app
 }

@@ -1,7 +1,7 @@
 package sign
 
 import (
-	"github.com/jfrog/jfrog-cli-artifactory/evidence/cryptox"
+	"github.com/jfrog/jfrog-cli-evidence/evidence/cryptox"
 	"github.com/stretchr/testify/assert"
 	"testing"
 )

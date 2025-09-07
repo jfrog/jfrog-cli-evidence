@@ -3,11 +3,12 @@ package ca
 //go:generate ${PROJECT_DIR}/scripts/mockgen.sh ${GOFILE}
 
 import (
+	"path/filepath"
+
 	"github.com/jfrog/jfrog-cli-artifactory/artifactory/docs/common"
 	"github.com/pkg/errors"
 	"github.com/sigstore/sigstore-go/pkg/root"
 	"github.com/sigstore/sigstore-go/pkg/tuf"
-	"path/filepath"
 )
 
 type TUFRootCertificateProvider interface {

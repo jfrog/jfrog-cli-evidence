@@ -6,7 +6,7 @@ import (
 	"io"
 	"testing"
 
-	"github.com/jfrog/jfrog-cli-artifactory/evidence/model"
+	"github.com/jfrog/jfrog-cli-evidence/evidence/model"
 	"github.com/jfrog/jfrog-client-go/artifactory"
 	ioUtils "github.com/jfrog/jfrog-client-go/utils/io"
 	"github.com/stretchr/testify/assert"

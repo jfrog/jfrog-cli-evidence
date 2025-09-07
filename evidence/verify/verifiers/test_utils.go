@@ -8,8 +8,8 @@ import (
 	"io"
 	"testing"
 
-	"github.com/jfrog/jfrog-cli-artifactory/evidence/dsse"
-	"github.com/jfrog/jfrog-cli-artifactory/evidence/model"
+	"github.com/jfrog/jfrog-cli-evidence/evidence/dsse"
+	"github.com/jfrog/jfrog-cli-evidence/evidence/model"
 	"github.com/jfrog/jfrog-client-go/artifactory"
 	"github.com/sigstore/sigstore-go/pkg/root"
 	"github.com/stretchr/testify/mock"

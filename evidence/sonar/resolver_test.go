@@ -5,7 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	conf "github.com/jfrog/jfrog-cli-artifactory/evidence/config"
+	conf "github.com/jfrog/jfrog-cli-evidence/evidence/config"
 	"github.com/stretchr/testify/assert"
 )
 

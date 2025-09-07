@@ -1,10 +1,10 @@
 package cli
 
 import (
-	"github.com/jfrog/jfrog-cli-artifactory/evidence/create"
-	"github.com/jfrog/jfrog-cli-artifactory/evidence/utils"
 	"github.com/jfrog/jfrog-cli-core/v2/plugins/components"
 	"github.com/jfrog/jfrog-cli-core/v2/utils/config"
+	"github.com/jfrog/jfrog-cli-evidence/evidence/create"
+	"github.com/jfrog/jfrog-cli-evidence/evidence/utils"
 	"github.com/jfrog/jfrog-client-go/utils/errorutils"
 )
 

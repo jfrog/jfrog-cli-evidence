@@ -7,9 +7,9 @@ import (
 	gofrogcmd "github.com/jfrog/gofrog/io"
 	artifactoryUtils "github.com/jfrog/jfrog-cli-artifactory/artifactory/utils"
 
-	evidenceUtils "github.com/jfrog/jfrog-cli-artifactory/evidence/utils"
 	"github.com/jfrog/jfrog-cli-core/v2/common/build"
 	"github.com/jfrog/jfrog-cli-core/v2/utils/config"
+	evidenceUtils "github.com/jfrog/jfrog-cli-evidence/evidence/utils"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 )
