@@ -98,7 +98,9 @@ func exportEvidenceToJsonFile(evidence []byte, outputFileName string) error {
 		return err
 	}
 
-	defer file.Close()
+	defer func() {
+		_ = file.Close()
+	}()
 
 	_, err = file.Write(evidence)
 	if err != nil {
@@ -118,7 +120,9 @@ func exportEvidenceToJsonlFile(data []byte, outputFileName string) error {
 	if err != nil {
 		return err
 	}
-	defer file.Close()
+	defer func() {
+		_ = file.Close()
+	}()
 
 	return writeEvidenceJsonl(data, file)
 }
