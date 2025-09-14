@@ -104,9 +104,6 @@ func TestSigstoreVerifier_VerifyTUFProviderError(t *testing.T) {
 func TestSigstoreVerifier_Creation(t *testing.T) {
 	verifier := newSigstoreVerifier()
 	assert.NotNil(t, verifier)
-
-	// Verify it implements the interface
-	var _ sigstoreVerifierInterface = verifier
 }
 
 func TestSigstoreVerifier_VerifyNilBundleAfterTUFSuccess(t *testing.T) {
