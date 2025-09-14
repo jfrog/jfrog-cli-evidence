@@ -105,47 +105,6 @@ coverage: test ## Generate test coverage report
 	$(GOCMD) tool cover -html=$(COVERAGE_DIR)/coverage.out -o $(COVERAGE_DIR)/coverage.html
 	@echo "$(GREEN)Coverage report generated: $(COVERAGE_DIR)/coverage.html$(NC)"
 
-coverage-view: coverage ## View coverage report in browser
-	@echo "$(GREEN)Opening coverage report...$(NC)"
-	open $(COVERAGE_DIR)/coverage.html 2>/dev/null || xdg-open $(COVERAGE_DIR)/coverage.html 2>/dev/null || echo "Please open $(COVERAGE_DIR)/coverage.html manually"
-
-benchmark: ## Run benchmarks
-	@echo "$(GREEN)Running benchmarks...$(NC)"
-	$(GOTEST) -bench=. -benchmem ./$(EVIDENCE_DIR)/...
-
-##@ Mocking
-
-# This target is generic and automatically finds all files with //go:generate mockgen annotations
-# No need to update this when adding new mocks - just add the annotation to your interface
-mocks: install-mockgen ## Generate all mocks
-	@echo "$(GREEN)Generating mocks...$(NC)"
-	@mkdir -p $(MOCK_DIR)
-	@echo "$(YELLOW)Finding and generating all mocks from go:generate annotations...$(NC)"
-	@export PROJECT_DIR=$(shell pwd) && \
-	find $(EVIDENCE_DIR) -name "*.go" -type f -exec grep -l "//go:generate.*mockgen" {} \; | while read file; do \
-		echo "$(YELLOW)Processing $$file...$(NC)"; \
-		cd $(shell pwd) && go generate $$file; \
-	done
-	@echo "$(GREEN)Mock generation complete$(NC)"
-
-mocks-specific: install-mockgen ## Generate mocks for specific interfaces (fallback for manual generation)
-	@echo "$(GREEN)Generating specific mocks manually...$(NC)"
-	@mkdir -p $(MOCK_DIR)
-	@# Find all interfaces in the codebase and generate mocks
-	@for file in $$(find $(EVIDENCE_DIR) -name "*.go" -type f); do \
-		if grep -q "^type.*interface" $$file 2>/dev/null; then \
-			interfaces=$$(grep "^type.*interface" $$file | awk '{print $$2}'); \
-			if [ ! -z "$$interfaces" ]; then \
-				echo "$(YELLOW)Generating mocks for $$file...$(NC)"; \
-				$(MOCKGEN) -source=$$file -destination=$(MOCK_DIR)/mock_$$(basename $$file) -package=mocks 2>/dev/null || true; \
-			fi; \
-		fi; \
-	done
-	@echo "$(GREEN)Specific mock generation complete$(NC)"
-
-clean-mocks: ## Remove generated mocks
-	@echo "$(YELLOW)Cleaning mocks...$(NC)"
-	rm -rf $(MOCK_DIR)
 
 ##@ Code Quality
 
@@ -222,16 +181,6 @@ clean-all: clean clean-mocks ## Clean everything including mocks and vendor
 	rm -rf vendor/
 	@echo "$(GREEN)Full clean complete$(NC)"
 
-##@ Docker
-
-docker-build: ## Build Docker image
-	@echo "$(GREEN)Building Docker image...$(NC)"
-	docker build -t $(BINARY_NAME):$(VERSION) -t $(BINARY_NAME):latest .
-	@echo "$(GREEN)Docker build complete$(NC)"
-
-docker-run: ## Run Docker container
-	@echo "$(GREEN)Running Docker container...$(NC)"
-	docker run --rm -it $(BINARY_NAME):latest
 
 ##@ Git Hooks
 
@@ -265,17 +214,6 @@ todo: ## Show TODO items in code
 fixme: ## Show FIXME items in code
 	@echo "$(YELLOW)FIXME items in code:$(NC)"
 	@grep -r "FIXME" $(EVIDENCE_DIR) --include="*.go" || echo "No FIXME items found"
-
-stats: ## Show code statistics
-	@echo "$(GREEN)Code Statistics:$(NC)"
-	@echo "Lines of Go code:"
-	@find $(EVIDENCE_DIR) -name "*.go" -not -path "*/vendor/*" -not -path "*/mocks/*" | xargs wc -l | tail -1
-	@echo ""
-	@echo "Number of Go files:"
-	@find $(EVIDENCE_DIR) -name "*.go" -not -path "*/vendor/*" -not -path "*/mocks/*" | wc -l
-	@echo ""
-	@echo "Number of test files:"
-	@find $(EVIDENCE_DIR) -name "*_test.go" -not -path "*/vendor/*" | wc -l
 
 # Default target
 .DEFAULT_GOAL := help

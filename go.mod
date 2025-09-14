@@ -1,6 +1,6 @@
 module github.com/jfrog/jfrog-cli-evidence
 
-go 1.25.1
+go 1.24.6
 
 require (
 	github.com/distribution/reference v0.6.0
