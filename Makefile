@@ -26,7 +26,7 @@ BUILD_TIME?=$(shell date -u '+%Y-%m-%d_%H:%M:%S')
 LDFLAGS=-ldflags "-X main.Version=$(VERSION) -X main.Commit=$(COMMIT) -X main.BuildTime=$(BUILD_TIME)"
 
 # Test flags
-TEST_FLAGS=-v -race -coverprofile=$(COVERAGE_DIR)/coverage.out -covermode=atomic
+TEST_FLAGS= -race -coverprofile=$(COVERAGE_DIR)/coverage.out -covermode=atomic
 TEST_TIMEOUT=10m
 
 # Directories
@@ -89,11 +89,11 @@ test: ## Run all tests
 
 test-short: ## Run short tests
 	@echo "$(GREEN)Running short tests...$(NC)"
-	$(GOTEST) -short -v ./$(EVIDENCE_DIR)/...
+	$(GOTEST) -short ./$(EVIDENCE_DIR)/...
 
 test-integration: ## Run integration tests
 	@echo "$(GREEN)Running integration tests...$(NC)"
-	$(GOTEST) -v -tags=integration -timeout 30m ./$(EVIDENCE_DIR)/...
+	$(GOTEST) -tags=integration -timeout 30m ./$(EVIDENCE_DIR)/...
 
 test-unit: ## Run unit tests only
 	@echo "$(GREEN)Running unit tests...$(NC)"
