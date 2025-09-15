@@ -44,7 +44,9 @@ func readTaskReport(path string) (map[string]string, error) {
 	if err != nil {
 		return nil, errorutils.CheckErrorf("failed to open report task file '%s': %v", path, err)
 	}
-	defer f.Close()
+	defer func() {
+		_ = f.Close()
+	}()
 
 	scanner := bufio.NewScanner(f)
 	for scanner.Scan() {

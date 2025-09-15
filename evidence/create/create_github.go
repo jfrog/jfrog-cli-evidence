@@ -188,7 +188,7 @@ func marshalEvidenceToGitLogEntryView(evidence []byte) (*model.GitLogEntryView, 
 }
 
 func (c *createGitHubEvidence) committerReviewerEvidence() ([]byte, error) {
-	if c.createEvidenceBase.flagType != FlagTypeCommitterReviewer {
+	if c.flagType != FlagTypeCommitterReviewer {
 		return nil, errors.New("flag type must be gh-commiter")
 	}
 
