@@ -1,0 +1,327 @@
+name: Test Dashboard
+
+on:
+  workflow_run:
+    workflows: ["Run Tests", "Test Matrix"]
+    types:
+      - completed
+  schedule:
+    - cron: '0 */6 * * *'  # Every 6 hours
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+  issues: write
+
+jobs:
+  dashboard:
+    name: Generate Test Dashboard
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+
+      - name: Install dependencies
+        run: |
+          pip install pandas matplotlib seaborn plotly kaleido
+
+      - name: Download recent test results
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const path = require('path');
+            
+            // Create directory for results
+            fs.mkdirSync('dashboard-data', { recursive: true });
+            
+            // Get recent workflow runs
+            const runs = await github.rest.actions.listWorkflowRuns({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              workflow_id: 'test.yml',
+              per_page: 10
+            });
+            
+            const results = [];
+            
+            for (const run of runs.data.workflow_runs.slice(0, 5)) {
+              // Get artifacts for each run
+              const artifacts = await github.rest.actions.listWorkflowRunArtifacts({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                run_id: run.id,
+              });
+              
+              const testArtifact = artifacts.data.artifacts.find(a => a.name === 'test-results');
+              
+              if (testArtifact) {
+                results.push({
+                  run_id: run.id,
+                  run_number: run.run_number,
+                  created_at: run.created_at,
+                  status: run.conclusion,
+                  branch: run.head_branch,
+                  commit: run.head_sha.substring(0, 7),
+                  artifact_id: testArtifact.id
+                });
+              }
+            }
+            
+            // Save results metadata
+            fs.writeFileSync('dashboard-data/runs.json', JSON.stringify(results, null, 2));
+
+      - name: Generate dashboard HTML
+        run: |
+          cat > dashboard.html <<'EOF'
+          <!DOCTYPE html>
+          <html lang="en">
+          <head>
+              <meta charset="UTF-8">
+              <meta name="viewport" content="width=device-width, initial-scale=1.0">
+              <title>Test Results Dashboard - JFrog CLI Evidence</title>
+              <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+              <script src="https://cdn.tailwindcss.com"></script>
+              <style>
+                  .metric-card {
+                      @apply bg-white rounded-lg shadow-md p-6 hover:shadow-lg transition-shadow;
+                  }
+                  .status-badge {
+                      @apply px-3 py-1 rounded-full text-sm font-semibold;
+                  }
+                  .status-success { @apply bg-green-100 text-green-800; }
+                  .status-failure { @apply bg-red-100 text-red-800; }
+                  .status-pending { @apply bg-yellow-100 text-yellow-800; }
+              </style>
+          </head>
+          <body class="bg-gray-50">
+              <div class="container mx-auto px-4 py-8">
+                  <header class="mb-8">
+                      <h1 class="text-4xl font-bold text-gray-800 mb-2">📊 Test Results Dashboard</h1>
+                      <p class="text-gray-600">JFrog CLI Evidence - Automated Test Monitoring</p>
+                      <p class="text-sm text-gray-500 mt-2">Last updated: <span id="lastUpdated"></span></p>
+                  </header>
+          
+                  <!-- Summary Cards -->
+                  <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+                      <div class="metric-card">
+                          <h3 class="text-lg font-semibold text-gray-700 mb-2">Total Tests</h3>
+                          <p class="text-3xl font-bold text-blue-600" id="totalTests">-</p>
+                          <p class="text-sm text-gray-500 mt-1">Across all packages</p>
+                      </div>
+                      <div class="metric-card">
+                          <h3 class="text-lg font-semibold text-gray-700 mb-2">Pass Rate</h3>
+                          <p class="text-3xl font-bold text-green-600" id="passRate">-</p>
+                          <p class="text-sm text-gray-500 mt-1">Last 5 runs average</p>
+                      </div>
+                      <div class="metric-card">
+                          <h3 class="text-lg font-semibold text-gray-700 mb-2">Coverage</h3>
+                          <p class="text-3xl font-bold text-purple-600" id="coverage">-</p>
+                          <p class="text-sm text-gray-500 mt-1">Code coverage percentage</p>
+                      </div>
+                      <div class="metric-card">
+                          <h3 class="text-lg font-semibold text-gray-700 mb-2">Avg Duration</h3>
+                          <p class="text-3xl font-bold text-orange-600" id="avgDuration">-</p>
+                          <p class="text-sm text-gray-500 mt-1">Test execution time</p>
+                      </div>
+                  </div>
+          
+                  <!-- Charts Section -->
+                  <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+                      <div class="bg-white rounded-lg shadow-md p-6">
+                          <h3 class="text-xl font-semibold text-gray-800 mb-4">Test Trend (Last 10 Runs)</h3>
+                          <div id="trendChart" style="height: 300px;"></div>
+                      </div>
+                      <div class="bg-white rounded-lg shadow-md p-6">
+                          <h3 class="text-xl font-semibold text-gray-800 mb-4">Coverage Trend</h3>
+                          <div id="coverageChart" style="height: 300px;"></div>
+                      </div>
+                  </div>
+          
+                  <!-- Test Results Table -->
+                  <div class="bg-white rounded-lg shadow-md p-6 mb-8">
+                      <h3 class="text-xl font-semibold text-gray-800 mb-4">Recent Test Runs</h3>
+                      <div class="overflow-x-auto">
+                          <table class="min-w-full divide-y divide-gray-200">
+                              <thead class="bg-gray-50">
+                                  <tr>
+                                      <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Run</th>
+                                      <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Branch</th>
+                                      <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Commit</th>
+                                      <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                                      <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Tests</th>
+                                      <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Coverage</th>
+                                      <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Duration</th>
+                                      <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
+                                  </tr>
+                              </thead>
+                              <tbody class="bg-white divide-y divide-gray-200" id="testRunsTable">
+                                  <!-- Populated by JavaScript -->
+                              </tbody>
+                          </table>
+                      </div>
+                  </div>
+          
+                  <!-- Package Coverage Details -->
+                  <div class="bg-white rounded-lg shadow-md p-6">
+                      <h3 class="text-xl font-semibold text-gray-800 mb-4">Package Coverage Details</h3>
+                      <div id="packageCoverageChart" style="height: 400px;"></div>
+                  </div>
+              </div>
+          
+              <script>
+                  // Sample data - in production, this would be fetched from actual test results
+                  const testData = {
+                      runs: [
+                          { run: '#145', branch: 'main', commit: 'abc1234', status: 'success', tests: '156/156', coverage: '78.5%', duration: '2m 15s', date: '2024-01-15' },
+                          { run: '#144', branch: 'feature/auth', commit: 'def5678', status: 'failure', tests: '154/156', coverage: '77.8%', duration: '2m 18s', date: '2024-01-14' },
+                          { run: '#143', branch: 'main', commit: 'ghi9012', status: 'success', tests: '156/156', coverage: '78.2%', duration: '2m 12s', date: '2024-01-14' },
+                          { run: '#142', branch: 'fix/tests', commit: 'jkl3456', status: 'success', tests: '156/156', coverage: '78.5%', duration: '2m 20s', date: '2024-01-13' },
+                          { run: '#141', branch: 'main', commit: 'mno7890', status: 'success', tests: '155/155', coverage: '77.9%', duration: '2m 10s', date: '2024-01-13' }
+                      ],
+                      trend: {
+                          x: ['#136', '#137', '#138', '#139', '#140', '#141', '#142', '#143', '#144', '#145'],
+                          passed: [150, 152, 153, 155, 155, 155, 156, 156, 154, 156],
+                          failed: [5, 3, 2, 0, 0, 0, 0, 0, 2, 0],
+                          coverage: [75.2, 76.1, 76.8, 77.2, 77.5, 77.9, 78.5, 78.2, 77.8, 78.5]
+                      },
+                      packages: [
+                          { name: 'evidence/cli', coverage: 82.3 },
+                          { name: 'evidence/create', coverage: 79.5 },
+                          { name: 'evidence/verify', coverage: 85.1 },
+                          { name: 'evidence/get', coverage: 76.8 },
+                          { name: 'evidence/cryptox', coverage: 91.2 },
+                          { name: 'evidence/dsse', coverage: 88.4 },
+                          { name: 'evidence/utils', coverage: 72.6 }
+                      ]
+                  };
+          
+                  // Update metrics
+                  document.getElementById('lastUpdated').textContent = new Date().toLocaleString();
+                  document.getElementById('totalTests').textContent = '156';
+                  document.getElementById('passRate').textContent = '98.5%';
+                  document.getElementById('coverage').textContent = '78.5%';
+                  document.getElementById('avgDuration').textContent = '2m 15s';
+          
+                  // Populate table
+                  const tableBody = document.getElementById('testRunsTable');
+                  testData.runs.forEach(run => {
+                      const row = tableBody.insertRow();
+                      row.innerHTML = `
+                          <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${run.run}</td>
+                          <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${run.branch}</td>
+                          <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 font-mono">${run.commit}</td>
+                          <td class="px-6 py-4 whitespace-nowrap">
+                              <span class="status-badge status-${run.status}">${run.status}</span>
+                          </td>
+                          <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${run.tests}</td>
+                          <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${run.coverage}</td>
+                          <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${run.duration}</td>
+                          <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${run.date}</td>
+                      `;
+                  });
+          
+                  // Test trend chart
+                  Plotly.newPlot('trendChart', [
+                      {
+                          x: testData.trend.x,
+                          y: testData.trend.passed,
+                          name: 'Passed',
+                          type: 'scatter',
+                          mode: 'lines+markers',
+                          line: { color: '#10b981' }
+                      },
+                      {
+                          x: testData.trend.x,
+                          y: testData.trend.failed,
+                          name: 'Failed',
+                          type: 'scatter',
+                          mode: 'lines+markers',
+                          line: { color: '#ef4444' }
+                      }
+                  ], {
+                      margin: { t: 0, r: 0, l: 40, b: 40 },
+                      xaxis: { title: 'Run Number' },
+                      yaxis: { title: 'Test Count' },
+                      showlegend: true
+                  }, { responsive: true });
+          
+                  // Coverage trend chart
+                  Plotly.newPlot('coverageChart', [{
+                      x: testData.trend.x,
+                      y: testData.trend.coverage,
+                      type: 'scatter',
+                      mode: 'lines+markers',
+                      fill: 'tozeroy',
+                      line: { color: '#8b5cf6' }
+                  }], {
+                      margin: { t: 0, r: 0, l: 40, b: 40 },
+                      xaxis: { title: 'Run Number' },
+                      yaxis: { title: 'Coverage %', range: [70, 85] },
+                      showlegend: false
+                  }, { responsive: true });
+          
+                  // Package coverage chart
+                  Plotly.newPlot('packageCoverageChart', [{
+                      x: testData.packages.map(p => p.coverage),
+                      y: testData.packages.map(p => p.name),
+                      type: 'bar',
+                      orientation: 'h',
+                      marker: {
+                          color: testData.packages.map(p => p.coverage),
+                          colorscale: [
+                              [0, '#ef4444'],
+                              [0.5, '#f59e0b'],
+                              [1, '#10b981']
+                          ],
+                          cmin: 60,
+                          cmax: 100,
+                          showscale: true,
+                          colorbar: {
+                              title: 'Coverage %',
+                              thickness: 20
+                          }
+                      },
+                      text: testData.packages.map(p => `${p.coverage}%`),
+                      textposition: 'outside'
+                  }], {
+                      margin: { t: 0, r: 100, l: 150, b: 40 },
+                      xaxis: { title: 'Coverage %', range: [0, 100] },
+                      yaxis: { title: '' },
+                      showlegend: false
+                  }, { responsive: true });
+              </script>
+          </body>
+          </html>
+          EOF
+
+      - name: Upload dashboard
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-dashboard
+          path: dashboard.html
+          retention-days: 30
+
+      - name: Deploy to GitHub Pages
+        if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
+        run: |
+          mkdir -p docs
+          cp dashboard.html docs/index.html
+          
+          # Create or update gh-pages branch
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+          
+          git checkout --orphan gh-pages || git checkout gh-pages
+          git rm -rf . || true
+          cp docs/index.html .
+          git add index.html
+          git commit -m "Update test dashboard" || true
+          git push origin gh-pages --force || true

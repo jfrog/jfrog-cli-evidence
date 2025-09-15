@@ -1,0 +1,101 @@
+name: Coverage Badge
+
+on:
+  push:
+    branches:
+      - main
+      - master
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+jobs:
+  coverage:
+    name: Generate Coverage Badge
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+
+      - name: Setup Go with cache
+        uses: jfrog/.github/actions/install-go-with-cache@main
+
+      - name: Install dependencies
+        run: make deps
+
+      - name: Run tests with coverage
+        run: |
+          mkdir -p coverage
+          go test -v -race -coverprofile=coverage/coverage.out -covermode=atomic ./evidence/...
+
+      - name: Generate coverage badge
+        id: coverage
+        run: |
+          # Calculate coverage percentage
+          COVERAGE=$(go tool cover -func=coverage/coverage.out | grep total | awk '{print $3}' | sed 's/%//')
+          echo "coverage=$COVERAGE" >> $GITHUB_OUTPUT
+          
+          # Determine badge color
+          COLOR="red"
+          if (( $(echo "$COVERAGE >= 80" | bc -l) )); then
+            COLOR="brightgreen"
+          elif (( $(echo "$COVERAGE >= 60" | bc -l) )); then
+            COLOR="yellow"  
+          elif (( $(echo "$COVERAGE >= 40" | bc -l) )); then
+            COLOR="orange"
+          fi
+          
+          echo "color=$COLOR" >> $GITHUB_OUTPUT
+          echo "Coverage: ${COVERAGE}% (Color: ${COLOR})"
+
+      - name: Create badge JSON
+        run: |
+          mkdir -p .github/badges
+          cat > .github/badges/coverage.json <<EOF
+          {
+            "schemaVersion": 1,
+            "label": "coverage",
+            "message": "${{ steps.coverage.outputs.coverage }}%",
+            "color": "${{ steps.coverage.outputs.color }}"
+          }
+          EOF
+
+      - name: Update README badge
+        run: |
+          COVERAGE="${{ steps.coverage.outputs.coverage }}"
+          COLOR="${{ steps.coverage.outputs.color }}"
+          
+          # Update README.md if it exists
+          if [ -f README.md ]; then
+            # Check if badge already exists
+            if grep -q "!\[Coverage\]" README.md; then
+              # Update existing badge
+              sed -i "s|!\[Coverage\].*|![Coverage](https://img.shields.io/badge/coverage-${COVERAGE}%25-${COLOR})|g" README.md
+            else
+              # Add badge at the top of the file after the title
+              sed -i '2a\\n![Coverage](https://img.shields.io/badge/coverage-'${COVERAGE}'%25-'${COLOR}')' README.md
+            fi
+          fi
+
+      - name: Commit badge updates
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+          
+          if [ -n "$(git status --porcelain)" ]; then
+            git add .github/badges/coverage.json README.md 2>/dev/null || true
+            git commit -m "chore: update coverage badge to ${{ steps.coverage.outputs.coverage }}%" || true
+            git push || true
+          fi
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v4
+        with:
+          files: ./coverage/coverage.out
+          flags: unittests
+          name: codecov-badge
+          fail_ci_if_error: false
+        continue-on-error: true

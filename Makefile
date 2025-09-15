@@ -83,27 +83,56 @@ install: ## Install the binary to GOPATH/bin
 
 test: ## Run all tests
 	@echo "$(GREEN)Running tests...$(NC)"
-	@mkdir -p $(COVERAGE_DIR)
-	$(GOTEST) $(TEST_FLAGS) -timeout $(TEST_TIMEOUT) ./$(EVIDENCE_DIR)/...
+	@mkdir -p $(COVERAGE_DIR) test-results
+	$(GOTEST) $(TEST_FLAGS) -timeout $(TEST_TIMEOUT) ./$(EVIDENCE_DIR)/... 2>&1 | tee test-results/test.log
 	@echo "$(GREEN)Tests complete$(NC)"
 
 test-short: ## Run short tests
 	@echo "$(GREEN)Running short tests...$(NC)"
-	$(GOTEST) -short -v ./$(EVIDENCE_DIR)/...
+	@mkdir -p test-results
+	$(GOTEST) -short -v ./$(EVIDENCE_DIR)/... 2>&1 | tee test-results/test-short.log
 
 test-integration: ## Run integration tests
 	@echo "$(GREEN)Running integration tests...$(NC)"
-	$(GOTEST) -v -tags=integration -timeout 30m ./$(EVIDENCE_DIR)/...
+	@mkdir -p test-results
+	$(GOTEST) -v -tags=integration -timeout 30m ./$(EVIDENCE_DIR)/... 2>&1 | tee test-results/test-integration.log
 
 test-unit: ## Run unit tests only
 	@echo "$(GREEN)Running unit tests...$(NC)"
-	@mkdir -p $(COVERAGE_DIR)
-	$(GOTEST) -short $(TEST_FLAGS) ./$(EVIDENCE_DIR)/...
+	@mkdir -p $(COVERAGE_DIR) test-results
+	$(GOTEST) -short $(TEST_FLAGS) ./$(EVIDENCE_DIR)/... 2>&1 | tee test-results/test-unit.log
+
+test-junit: ## Run tests with JUnit XML output
+	@echo "$(GREEN)Running tests with JUnit output...$(NC)"
+	@mkdir -p $(COVERAGE_DIR) test-results
+	@which gotestsum > /dev/null 2>&1 || go install github.com/gotestyourself/gotestsum@latest
+	gotestsum --junitfile test-results/junit.xml \
+		--format testname \
+		--jsonfile test-results/test.json \
+		-- $(TEST_FLAGS) -timeout $(TEST_TIMEOUT) ./$(EVIDENCE_DIR)/...
+	@echo "$(GREEN)JUnit report generated: test-results/junit.xml$(NC)"
+
+test-json: ## Run tests with JSON output
+	@echo "$(GREEN)Running tests with JSON output...$(NC)"
+	@mkdir -p $(COVERAGE_DIR) test-results
+	$(GOTEST) -json $(TEST_FLAGS) -timeout $(TEST_TIMEOUT) ./$(EVIDENCE_DIR)/... > test-results/test.json
+	@echo "$(GREEN)JSON report generated: test-results/test.json$(NC)"
 
 coverage: test ## Generate test coverage report
 	@echo "$(GREEN)Generating coverage report...$(NC)"
 	$(GOCMD) tool cover -html=$(COVERAGE_DIR)/coverage.out -o $(COVERAGE_DIR)/coverage.html
+	$(GOCMD) tool cover -func=$(COVERAGE_DIR)/coverage.out > $(COVERAGE_DIR)/coverage-summary.txt
 	@echo "$(GREEN)Coverage report generated: $(COVERAGE_DIR)/coverage.html$(NC)"
+	@echo "$(GREEN)Coverage summary:$(NC)"
+	@tail -n 1 $(COVERAGE_DIR)/coverage-summary.txt
+
+coverage-xml: coverage ## Generate XML coverage report
+	@echo "$(GREEN)Generating XML coverage report...$(NC)"
+	@which gocov > /dev/null 2>&1 || go install github.com/axw/gocov/gocov@latest
+	@which gocov-xml > /dev/null 2>&1 || go install github.com/AlekSi/gocov-xml@latest
+	gocov convert $(COVERAGE_DIR)/coverage.out > $(COVERAGE_DIR)/coverage.json
+	gocov-xml < $(COVERAGE_DIR)/coverage.json > $(COVERAGE_DIR)/coverage.xml
+	@echo "$(GREEN)XML coverage report generated: $(COVERAGE_DIR)/coverage.xml$(NC)"
 
 
 ##@ Code Quality

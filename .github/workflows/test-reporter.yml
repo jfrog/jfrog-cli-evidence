@@ -1,0 +1,149 @@
+name: Test Reporter
+
+on:
+  workflow_run:
+    workflows: ["Run Tests"]
+    types:
+      - completed
+
+permissions:
+  contents: read
+  actions: read
+  checks: write
+  pull-requests: write
+  statuses: write
+
+jobs:
+  report:
+    name: Test Report Analysis
+    runs-on: ubuntu-latest
+    if: github.event.workflow_run.conclusion != 'cancelled'
+    steps:
+      - name: Download artifacts
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const artifacts = await github.rest.actions.listWorkflowRunArtifacts({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              run_id: ${{ github.event.workflow_run.id }},
+            });
+            
+            const matchArtifact = artifacts.data.artifacts.filter((artifact) => {
+              return artifact.name == "test-results"
+            })[0];
+            
+            if (matchArtifact) {
+              const download = await github.rest.actions.downloadArtifact({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                artifact_id: matchArtifact.id,
+                archive_format: 'zip',
+              });
+              
+              const fs = require('fs');
+              fs.writeFileSync('${{github.workspace}}/test-results.zip', Buffer.from(download.data));
+            }
+
+      - name: Extract test results
+        run: |
+          if [ -f test-results.zip ]; then
+            unzip -q test-results.zip
+            echo "Test results extracted successfully"
+          else
+            echo "No test results found"
+            exit 0
+          fi
+
+      - name: Parse test results
+        id: parse
+        if: success()
+        run: |
+          if [ -f test-results/junit.xml ]; then
+            # Parse JUnit XML for detailed metrics
+            TESTS=$(xmllint --xpath 'count(//testcase)' test-results/junit.xml 2>/dev/null || echo "0")
+            FAILURES=$(xmllint --xpath 'count(//failure)' test-results/junit.xml 2>/dev/null || echo "0")
+            ERRORS=$(xmllint --xpath 'count(//error)' test-results/junit.xml 2>/dev/null || echo "0")
+            SKIPPED=$(xmllint --xpath 'count(//skipped)' test-results/junit.xml 2>/dev/null || echo "0")
+            
+            echo "total_tests=$TESTS" >> $GITHUB_OUTPUT
+            echo "failed_tests=$((FAILURES + ERRORS))" >> $GITHUB_OUTPUT
+            echo "skipped_tests=$SKIPPED" >> $GITHUB_OUTPUT
+            echo "passed_tests=$((TESTS - FAILURES - ERRORS - SKIPPED))" >> $GITHUB_OUTPUT
+          fi
+          
+          if [ -f coverage/coverage.out ]; then
+            COVERAGE=$(go tool cover -func=coverage/coverage.out | grep total | awk '{print $3}' | sed 's/%//')
+            echo "coverage=$COVERAGE" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Publish detailed test report
+        if: success()
+        uses: mikepenz/action-junit-report@v4
+        with:
+          report_paths: 'test-results/junit.xml'
+          check_name: 'Test Results'
+          fail_on_failure: false
+          detailed_summary: true
+          include_passed: true
+          check_retries: true
+          job_summary: true
+
+      - name: Create coverage badge
+        if: success() && steps.parse.outputs.coverage != ''
+        run: |
+          COVERAGE="${{ steps.parse.outputs.coverage }}"
+          COLOR="red"
+          
+          if (( $(echo "$COVERAGE >= 80" | bc -l) )); then
+            COLOR="brightgreen"
+          elif (( $(echo "$COVERAGE >= 60" | bc -l) )); then
+            COLOR="yellow"
+          elif (( $(echo "$COVERAGE >= 40" | bc -l) )); then
+            COLOR="orange"
+          fi
+          
+          # Create badge JSON
+          cat > coverage-badge.json <<EOF
+          {
+            "schemaVersion": 1,
+            "label": "coverage",
+            "message": "${COVERAGE}%",
+            "color": "${COLOR}"
+          }
+          EOF
+          
+          echo "Coverage badge created: ${COVERAGE}% (${COLOR})"
+
+      - name: Update PR status
+        if: github.event.workflow_run.event == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const coverage = '${{ steps.parse.outputs.coverage }}' || 'N/A';
+            const totalTests = '${{ steps.parse.outputs.total_tests }}' || '0';
+            const passedTests = '${{ steps.parse.outputs.passed_tests }}' || '0';
+            const failedTests = '${{ steps.parse.outputs.failed_tests }}' || '0';
+            
+            // Get PR number from workflow run
+            const pullRequests = await github.rest.pulls.list({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'open',
+              head: `${context.repo.owner}:${context.payload.workflow_run.head_branch}`
+            });
+            
+            if (pullRequests.data.length > 0) {
+              const prNumber = pullRequests.data[0].number;
+              
+              // Create status check
+              await github.rest.repos.createCommitStatus({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                sha: context.payload.workflow_run.head_sha,
+                state: failedTests === '0' ? 'success' : 'failure',
+                target_url: `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.payload.workflow_run.id}`,
+                description: `Tests: ${passedTests}/${totalTests} passed | Coverage: ${coverage}%`,
+                context: 'test-results'
+              });
+            }
