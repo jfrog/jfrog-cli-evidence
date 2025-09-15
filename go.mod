@@ -206,6 +206,6 @@ require (
 	k8s.io/klog/v2 v2.130.1 // indirect
 )
 
-replace github.com/jfrog/jfrog-client-go => github.com/dortam888/jfrog-client-go v1.28.1
+replace github.com/jfrog/jfrog-client-go => github.com/dortam888/jfrog-client-go v1.28.2
 
 replace github.com/jfrog/jfrog-cli-core/v2 => github.com/dortam888/jfrog-cli-core/v2 v2.59.8

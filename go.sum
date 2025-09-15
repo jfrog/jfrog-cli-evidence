@@ -795,8 +795,8 @@ github.com/distribution/reference v0.6.0/go.mod h1:BbU0aIcezP1/5jX/8MP0YiH4SdvB5
 github.com/docopt/docopt-go v0.0.0-20180111231733-ee0de3bc6815/go.mod h1:WwZ+bS3ebgob9U8Nd0kOddGdZWjyMGR8Wziv+TBNwSE=
 github.com/dortam888/jfrog-cli-core/v2 v2.59.8 h1:jRvVAxzVIjSMGXINtupwWsbsIyWSb8ZcVj+JX0c9gI8=
 github.com/dortam888/jfrog-cli-core/v2 v2.59.8/go.mod h1:VfF1rPYr18Qx+gOdQp0FEBlhXP8asD8WMcAug0EBV/0=
-github.com/dortam888/jfrog-client-go v1.28.1 h1:dekYfgNl1VoXCx5Yyfemm43En3qiq0iww1yxZvyZj04=
-github.com/dortam888/jfrog-client-go v1.28.1/go.mod h1:N600vg2QEPUXVr76+EPhGsU7pLphrbP8YG4gWbNTss8=
+github.com/dortam888/jfrog-client-go v1.28.2 h1:8A9JqarhHvoc67VBnFJhxJUGCIp35dORGnExGSlc+eU=
+github.com/dortam888/jfrog-client-go v1.28.2/go.mod h1:N600vg2QEPUXVr76+EPhGsU7pLphrbP8YG4gWbNTss8=
 github.com/dsnet/compress v0.0.2-0.20210315054119-f66993602bf5 h1:iFaUwBSo5Svw6L7HYpRu/0lE3e0BaElwnNO1qkNQxBY=
 github.com/dsnet/compress v0.0.2-0.20210315054119-f66993602bf5/go.mod h1:qssHWj60/X5sZFNxpG4HBPDHVqxNm4DfnCKgrbZOT+s=
 github.com/dsnet/golib v0.0.0-20171103203638-1ea166775780/go.mod h1:Lj+Z9rebOhdfkVLjJ8T6VcRQv3SXugXy999NBtR9aFY=

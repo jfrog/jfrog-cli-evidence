@@ -32,7 +32,7 @@ func NewCreateEvidenceApplication(serverDetails *config.ServerDetails, predicate
 			key:               key,
 			keyId:             keyId,
 			providerId:        providerId,
-			stage:             "", // Applications don't have stages like release bundles
+			stage:             getApplicationVersionStage(serverDetails, applicationKey, applicationVersion),
 			integration:       integration,
 		},
 		applicationKey:     applicationKey,
@@ -125,4 +125,34 @@ func (c *createEvidenceApplication) recordSummary(response *model.CreateResponse
 
 func buildApplicationManifestPath(repoKey, applicationKey, applicationVersion string) string {
 	return fmt.Sprintf("%s/%s/%s/application-version.json.evd", repoKey, applicationKey, applicationVersion)
+}
+
+func getApplicationVersionStage(serverDetails *config.ServerDetails, applicationKey, applicationVersion string) string {
+	log.Debug("fetching application version %s:%s stage", applicationKey, applicationVersion)
+	apptrustServiceManager, err := artifactoryUtils.CreateApptrustServiceManager(serverDetails, false)
+	if err != nil {
+		log.Warn("Failed to create apptrust service manager:", err)
+		return ""
+	}
+
+	queryParams := make(map[string]string)
+	// Order by created descending to get the latest promotions first
+	queryParams["order_by"] = "created"
+	queryParams["order_asc"] = "false"
+
+	promotionsResponse, err := apptrustServiceManager.GetApplicationVersionPromotions(applicationKey, applicationVersion, queryParams)
+	if err != nil {
+		log.Warn("Failed to get application version promotions:", err)
+		return ""
+	}
+
+	if promotionsResponse != nil && len(promotionsResponse.Promotions) > 0 {
+		for _, promotion := range promotionsResponse.Promotions {
+			if promotion.Status == "COMPLETED" {
+				return promotion.TargetStage
+			}
+		}
+	}
+
+	return ""
 }
