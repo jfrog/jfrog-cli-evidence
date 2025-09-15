@@ -15,3 +15,10 @@ func BuildReleaseBundleRepoKey(project string) string {
 	}
 	return fmt.Sprintf("%s-release-bundles-v2", project)
 }
+
+func BuildApplicationVersionRepoKey(project string) string {
+	if project == "" || project == "default" {
+		return "application-versions"
+	}
+	return fmt.Sprintf("%s-application-versions", project)
+}

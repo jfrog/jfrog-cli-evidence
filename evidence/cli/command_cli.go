@@ -77,6 +77,7 @@ func createEvidence(ctx *components.Context) error {
 		releaseBundle:   NewEvidenceReleaseBundleCommand,
 		buildName:       NewEvidenceBuildCommand,
 		packageName:     NewEvidencePackageCommand,
+		applicationKey:  NewEvidenceApplicationCommand,
 	}
 
 	if commandFunc, exists := evidenceCommands[evidenceType[0]]; exists {
@@ -355,6 +356,7 @@ func platformToEvidenceUrls(rtDetails *config.ServerDetails) {
 	rtDetails.MetadataUrl = utils.AddTrailingSlashIfNeeded(rtDetails.Url) + "metadata/"
 	rtDetails.OnemodelUrl = utils.AddTrailingSlashIfNeeded(rtDetails.Url) + "onemodel/"
 	rtDetails.LifecycleUrl = utils.AddTrailingSlashIfNeeded(rtDetails.Url) + "lifecycle/"
+	rtDetails.ApptrustUrl = utils.AddTrailingSlashIfNeeded(rtDetails.Url) + "apptrust/"
 }
 
 func assertValueProvided(c *components.Context, fieldName string) error {
