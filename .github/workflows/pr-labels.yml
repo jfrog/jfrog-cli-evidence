@@ -10,3 +10,5 @@ jobs:
     steps:
       - name: Check if PR has allowed labels
         uses: jfrog/.github/actions/pr-labels@main
+        with:
+          allowed-labels: 'bug,breaking change,new feature,feature,enhancement,improvement,security,vulnerability,performance,optimization,documentation,docs,test,testing,dependencies,deps,ci,build,maintenance,refactor,chore,style,question,wontfix,ignore for release,feature request'

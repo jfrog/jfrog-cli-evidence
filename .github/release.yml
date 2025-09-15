@@ -5,7 +5,9 @@ changelog:
   exclude:
     labels:
       - ignore for release
-      - skip-changelog
+      - wontfix
+      - question
+      - feature request
     authors:
       - dependabot
       - dependabot[bot]
@@ -15,7 +17,6 @@ changelog:
     - title: Breaking Changes 🚨
       labels:
         - breaking change
-        - breaking
     - title: Security Updates 🔒
       labels:
         - security
@@ -24,16 +25,13 @@ changelog:
       labels:
         - new feature
         - feature
-        - enhancement
-    - title: Improvements 🌱
+    - title: Improvements & Enhancements 🌱
       labels:
         - improvement
         - enhancement
     - title: Bug Fixes 🛠
       labels:
         - bug
-        - bugfix
-        - fix
     - title: Performance ⚡
       labels:
         - performance
@@ -50,10 +48,9 @@ changelog:
       labels:
         - test
         - testing
-    - title: Maintenance 🔧
+    - title: Maintenance & CI/CD 🔧
       labels:
         - maintenance
-        - internal
         - refactor
         - chore
         - ci
