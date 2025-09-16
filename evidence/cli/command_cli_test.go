@@ -19,12 +19,8 @@ func TestCreateEvidence_Context(t *testing.T) {
 
 	assert.NoError(t, os.Setenv(coreUtils.SigningKey, "PGP"), "Failed to set env: "+coreUtils.SigningKey)
 	assert.NoError(t, os.Setenv(coreUtils.BuildName, buildName), "Failed to set env: JFROG_CLI_BUILD_NAME")
-	defer func() {
-		assert.NoError(t, os.Unsetenv(coreUtils.SigningKey))
-	}()
-	defer func() {
-		assert.NoError(t, os.Unsetenv(coreUtils.BuildName))
-	}()
+	defer os.Unsetenv(coreUtils.SigningKey)
+	defer os.Unsetenv(coreUtils.BuildName)
 
 	app := cli.NewApp()
 	app.Commands = []cli.Command{
@@ -220,12 +216,8 @@ func TestVerifyEvidence_Context(t *testing.T) {
 
 	assert.NoError(t, os.Setenv(coreUtils.SigningKey, "PGP"), "Failed to set env: "+coreUtils.SigningKey)
 	assert.NoError(t, os.Setenv(coreUtils.BuildName, buildName), "Failed to set env: JFROG_CLI_BUILD_NAME")
-	defer func() {
-		assert.NoError(t, os.Unsetenv(coreUtils.SigningKey))
-	}()
-	defer func() {
-		assert.NoError(t, os.Unsetenv(coreUtils.BuildName))
-	}()
+	defer os.Unsetenv(coreUtils.SigningKey)
+	defer os.Unsetenv(coreUtils.BuildName)
 
 	app := cli.NewApp()
 	app.Commands = []cli.Command{
@@ -612,6 +604,73 @@ func setDefaultValue(flag string, defaultValue string) components.Flag {
 	f := components.NewStringFlag(flag, flag)
 	f.DefaultValue = defaultValue
 	return f
+}
+
+func TestEnsureKeyExists_TrimsWhitespace(t *testing.T) {
+	tests := []struct {
+		name           string
+		envKeyValue    string
+		flagKeyValue   string
+		setFlag        bool
+		expectedResult string
+	}{
+		{
+			name:           "Env key with trailing newline",
+			envKeyValue:    "-----BEGIN PRIVATE KEY-----\nMIIEvQIBADANBgkqhkiG9w0BAQE\n-----END PRIVATE KEY-----\n",
+			setFlag:        false,
+			expectedResult: "-----BEGIN PRIVATE KEY-----\nMIIEvQIBADANBgkqhkiG9w0BAQE\n-----END PRIVATE KEY-----",
+		},
+		{
+			name:           "Env key with trailing spaces and newlines",
+			envKeyValue:    "  -----BEGIN PRIVATE KEY-----\nMIIEvQIBADANBgkqhkiG9w0BAQE\n-----END PRIVATE KEY-----  \n\n",
+			setFlag:        false,
+			expectedResult: "-----BEGIN PRIVATE KEY-----\nMIIEvQIBADANBgkqhkiG9w0BAQE\n-----END PRIVATE KEY-----",
+		},
+		{
+			name:           "Flag key with trailing newline",
+			flagKeyValue:   "-----BEGIN PRIVATE KEY-----\nMIIEvQIBADANBgkqhkiG9w0BAQE\n-----END PRIVATE KEY-----\n",
+			setFlag:        true,
+			expectedResult: "-----BEGIN PRIVATE KEY-----\nMIIEvQIBADANBgkqhkiG9w0BAQE\n-----END PRIVATE KEY-----",
+		},
+		{
+			name:           "Flag key with carriage return and newline",
+			flagKeyValue:   "-----BEGIN PRIVATE KEY-----\nMIIEvQIBADANBgkqhkiG9w0BAQE\n-----END PRIVATE KEY-----\r\n",
+			setFlag:        true,
+			expectedResult: "-----BEGIN PRIVATE KEY-----\nMIIEvQIBADANBgkqhkiG9w0BAQE\n-----END PRIVATE KEY-----",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Setup
+			if tt.envKeyValue != "" {
+				assert.NoError(t, os.Setenv(coreUtils.SigningKey, tt.envKeyValue))
+				defer os.Unsetenv(coreUtils.SigningKey)
+			}
+
+			// Create context
+			app := cli.NewApp()
+			set := flag.NewFlagSet("test", 0)
+			cliCtx := cli.NewContext(app, set, nil)
+
+			var flags []components.Flag
+			if tt.setFlag {
+				flags = append(flags, setDefaultValue(key, tt.flagKeyValue))
+			}
+			flags = append(flags, setDefaultValue(predicate, "test"))
+
+			ctx, err := components.ConvertContext(cliCtx, flags...)
+			assert.NoError(t, err)
+
+			// Execute
+			err = ensureKeyExists(ctx, key)
+			assert.NoError(t, err)
+
+			// Verify
+			actualValue := ctx.GetStringFlagValue(key)
+			assert.Equal(t, tt.expectedResult, actualValue)
+		})
+	}
 }
 
 func TestValidateSonarQubeRequirements(t *testing.T) {

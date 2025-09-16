@@ -7,17 +7,17 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/jfrog/jfrog-cli-artifactory/evidence/cli/docs/create"
+	"github.com/jfrog/jfrog-cli-artifactory/evidence/cli/docs/get"
+	"github.com/jfrog/jfrog-cli-artifactory/evidence/cli/docs/verify"
+	sonarhelper "github.com/jfrog/jfrog-cli-artifactory/evidence/sonar"
+	evidenceUtils "github.com/jfrog/jfrog-cli-artifactory/evidence/utils"
 	commonCliUtils "github.com/jfrog/jfrog-cli-core/v2/common/cliutils"
 	"github.com/jfrog/jfrog-cli-core/v2/common/commands"
 	pluginsCommon "github.com/jfrog/jfrog-cli-core/v2/plugins/common"
 	"github.com/jfrog/jfrog-cli-core/v2/plugins/components"
 	"github.com/jfrog/jfrog-cli-core/v2/utils/config"
 	coreUtils "github.com/jfrog/jfrog-cli-core/v2/utils/coreutils"
-	"github.com/jfrog/jfrog-cli-evidence/evidence/cli/docs/create"
-	"github.com/jfrog/jfrog-cli-evidence/evidence/cli/docs/get"
-	"github.com/jfrog/jfrog-cli-evidence/evidence/cli/docs/verify"
-	sonarhelper "github.com/jfrog/jfrog-cli-evidence/evidence/sonar"
-	evidenceUtils "github.com/jfrog/jfrog-cli-evidence/evidence/utils"
 	"github.com/jfrog/jfrog-client-go/utils"
 	"github.com/jfrog/jfrog-client-go/utils/errorutils"
 	"github.com/jfrog/jfrog-client-go/utils/log"
@@ -242,6 +242,13 @@ func validateSigstoreBundleArgsConflicts(ctx *components.Context) error {
 
 func ensureKeyExists(ctx *components.Context, key string) error {
 	if assertValueProvided(ctx, key) == nil {
+		// Trim whitespace and newlines from the flag value
+		keyValue := ctx.GetStringFlagValue(key)
+		trimmedKeyValue := strings.TrimSpace(keyValue)
+		if keyValue != trimmedKeyValue {
+			// Update the flag value with the trimmed version
+			ctx.AddStringFlag(key, trimmedKeyValue)
+		}
 		return nil
 	}
 
@@ -249,6 +256,8 @@ func ensureKeyExists(ctx *components.Context, key string) error {
 	if signingKeyValue == "" {
 		return errorutils.CheckErrorf("JFROG_CLI_SIGNING_KEY env variable or --%s flag must be provided when creating evidence", key)
 	}
+	// Trim whitespace and newlines from the environment variable
+	signingKeyValue = strings.TrimSpace(signingKeyValue)
 	ctx.AddStringFlag(key, signingKeyValue)
 	return nil
 }
