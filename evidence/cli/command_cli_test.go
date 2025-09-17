@@ -646,6 +646,19 @@ func TestEnsureKeyExists_TrimsWhitespace(t *testing.T) {
 			setFlag:        true,
 			expectedResult: "-----BEGIN PRIVATE KEY-----\nMIIEvQIBADANBgkqhkiG9w0BAQE\n-----END PRIVATE KEY-----",
 		},
+		{
+			name:           "Flag vs Env behavior difference - flag takes precedence and gets trimmed",
+			envKeyValue:    "  env-key-value  \n",
+			flagKeyValue:   "  flag-key-value  \n",
+			setFlag:        true,
+			expectedResult: "flag-key-value",
+		},
+		{
+			name:           "Env fallback when no flag - env key gets trimmed",
+			envKeyValue:    "  env-key-value  \n",
+			setFlag:        false,
+			expectedResult: "env-key-value",
+		},
 	}
 
 	for _, tt := range tests {
@@ -676,6 +689,16 @@ func TestEnsureKeyExists_TrimsWhitespace(t *testing.T) {
 
 			// Verify
 			actualValue := ctx.GetStringFlagValue(key)
+			
+			// Debug output to help understand the difference in trimming behavior
+			if tt.setFlag {
+				t.Logf("Flag input: %q (len=%d)", tt.flagKeyValue, len(tt.flagKeyValue))
+			} else {
+				t.Logf("Env input: %q (len=%d)", tt.envKeyValue, len(tt.envKeyValue))
+			}
+			t.Logf("Expected: %q (len=%d)", tt.expectedResult, len(tt.expectedResult))
+			t.Logf("Actual:   %q (len=%d)", actualValue, len(actualValue))
+			
 			assert.Equal(t, tt.expectedResult, actualValue)
 		})
 	}
