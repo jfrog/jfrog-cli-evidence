@@ -220,8 +220,12 @@ func TestVerifyEvidence_Context(t *testing.T) {
 
 	assert.NoError(t, os.Setenv(coreUtils.SigningKey, "PGP"), "Failed to set env: "+coreUtils.SigningKey)
 	assert.NoError(t, os.Setenv(coreUtils.BuildName, buildName), "Failed to set env: JFROG_CLI_BUILD_NAME")
-	defer os.Unsetenv(coreUtils.SigningKey)
-	defer os.Unsetenv(coreUtils.BuildName)
+	defer func() {
+		assert.NoError(t, os.Unsetenv(coreUtils.SigningKey), "Failed to unset env: "+coreUtils.SigningKey)
+	}()
+	defer func() {
+		assert.NoError(t, os.Unsetenv(coreUtils.BuildName), "Failed to unset env: JFROG_CLI_BUILD_NAME")
+	}()
 
 	app := cli.NewApp()
 	app.Commands = []cli.Command{
