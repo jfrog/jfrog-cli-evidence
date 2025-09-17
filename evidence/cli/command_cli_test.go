@@ -666,7 +666,11 @@ func TestEnsureKeyExists_TrimsWhitespace(t *testing.T) {
 			// Setup
 			if tt.envKeyValue != "" {
 				assert.NoError(t, os.Setenv(coreUtils.SigningKey, tt.envKeyValue))
-				defer os.Unsetenv(coreUtils.SigningKey)
+				defer func() {
+					if err := os.Unsetenv(coreUtils.SigningKey); err != nil {
+						t.Errorf("failed to unset env %q: %v", coreUtils.SigningKey, err)
+					}
+				}()
 			}
 
 			// Create context

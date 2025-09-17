@@ -244,11 +244,13 @@ func ensureKeyExists(ctx *components.Context, key string) error {
 	if assertValueProvided(ctx, key) == nil {
 		// Trim whitespace and newlines from the flag value
 		keyValue := ctx.GetStringFlagValue(key)
+		log.Debug(fmt.Sprintf("Flag '%s' original value: %q (length: %d)", key, keyValue, len(keyValue)))
+		
 		trimmedKeyValue := strings.TrimSpace(keyValue)
-		if keyValue != trimmedKeyValue {
-			// Update the flag value with the trimmed version
-			ctx.AddStringFlag(key, trimmedKeyValue)
-		}
+		log.Debug(fmt.Sprintf("Flag '%s' trimmed value: %q (length: %d)", key, trimmedKeyValue, len(trimmedKeyValue)))
+		
+		// Always update the flag value with the trimmed version
+		ctx.AddStringFlag(key, trimmedKeyValue)
 		return nil
 	}
 
@@ -256,8 +258,13 @@ func ensureKeyExists(ctx *components.Context, key string) error {
 	if signingKeyValue == "" {
 		return errorutils.CheckErrorf("JFROG_CLI_SIGNING_KEY env variable or --%s flag must be provided when creating evidence", key)
 	}
+	
+	log.Debug(fmt.Sprintf("Environment variable '%s' original value: %q (length: %d)", coreUtils.SigningKey, signingKeyValue, len(signingKeyValue)))
+	
 	// Trim whitespace and newlines from the environment variable
 	signingKeyValue = strings.TrimSpace(signingKeyValue)
+	log.Debug(fmt.Sprintf("Environment variable '%s' trimmed value: %q (length: %d)", coreUtils.SigningKey, signingKeyValue, len(signingKeyValue)))
+	
 	ctx.AddStringFlag(key, signingKeyValue)
 	return nil
 }
