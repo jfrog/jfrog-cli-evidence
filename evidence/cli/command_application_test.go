@@ -158,7 +158,10 @@ func TestEvidenceApplicationCommand_ValidateEvidenceApplicationContext(t *testin
 				return nil
 			}
 
-			cmd := NewEvidenceApplicationCommand(ctx, mockExec).(*evidenceApplicationCommand)
+			cmd, ok := NewEvidenceApplicationCommand(ctx, mockExec).(*evidenceApplicationCommand)
+			if !ok {
+				t.Fatalf("NewEvidenceApplicationCommand returned a non-evidenceApplicationCommand")
+			}
 
 			err = cmd.validateEvidenceApplicationContext(ctx)
 
@@ -187,7 +190,10 @@ func TestEvidenceApplicationCommand_GetEvidence(t *testing.T) {
 		return nil
 	}
 
-	cmd := NewEvidenceApplicationCommand(ctx, mockExec)
+	cmd, ok := NewEvidenceApplicationCommand(ctx, mockExec).(*evidenceApplicationCommand)
+	if !ok {
+		t.Fatalf("NewEvidenceApplicationCommand returned a non-evidenceApplicationCommand")
+	}
 	serverDetails := &config.ServerDetails{}
 
 	err = cmd.GetEvidence(ctx, serverDetails)
@@ -230,12 +236,13 @@ func TestNewEvidenceApplicationCommand(t *testing.T) {
 		return nil
 	}
 
-	cmd := NewEvidenceApplicationCommand(ctx, mockExec)
+	appCmd, ok := NewEvidenceApplicationCommand(ctx, mockExec).(*evidenceApplicationCommand)
+	if !ok {
+		t.Fatalf("NewEvidenceApplicationCommand returned a non-evidenceApplicationCommand")
+	}
 
-	assert.NotNil(t, cmd)
-	assert.IsType(t, &evidenceApplicationCommand{}, cmd)
+	assert.NotNil(t, appCmd)
 
-	appCmd := cmd.(*evidenceApplicationCommand)
 	assert.Equal(t, ctx, appCmd.ctx)
 	assert.NotNil(t, appCmd.execute)
 }
