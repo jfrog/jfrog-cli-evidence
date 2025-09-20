@@ -793,10 +793,10 @@ github.com/digitorus/timestamp v0.0.0-20231217203849-220c5c2851b7/go.mod h1:GvWn
 github.com/distribution/reference v0.6.0 h1:0IXCQ5g4/QMHHkarYzh5l+u8T3t73zM5QvfrDyIgxBk=
 github.com/distribution/reference v0.6.0/go.mod h1:BbU0aIcezP1/5jX/8MP0YiH4SdvB5Y4f/wlDRiLyi3E=
 github.com/docopt/docopt-go v0.0.0-20180111231733-ee0de3bc6815/go.mod h1:WwZ+bS3ebgob9U8Nd0kOddGdZWjyMGR8Wziv+TBNwSE=
-github.com/dortam888/jfrog-cli-core/v2 v2.59.10 h1:JzSq2dLTo07GsDPbeJ+OWqqmg+y2s0dyC4BNWZX+Q74=
-github.com/dortam888/jfrog-cli-core/v2 v2.59.10/go.mod h1:+PGwWpN9nyR/ijj6ZNj5BvpDBRGK03+VyHJD0pkiNS4=
-github.com/dortam888/jfrog-client-go v1.28.3 h1:UC1vIkQZoYuBth1v9dCCRZq0sPHl4oeyuvHEzR6pJdE=
-github.com/dortam888/jfrog-client-go v1.28.3/go.mod h1:/e2kaF1oZTmSRgMIk7wYna5xMtNY7Xk8ahpSNZQ2d3s=
+github.com/dortam888/jfrog-cli-core/v2 v2.59.11 h1:2b2GdH2Vf/6cFiYuSN2qv4Nagvo+Ux5bPYpfyFztc9o=
+github.com/dortam888/jfrog-cli-core/v2 v2.59.11/go.mod h1:h9cObGXRDzPjPqFEZ2RuNc8U4GMxGR7eHbOisfPLjY0=
+github.com/dortam888/jfrog-client-go v1.28.4 h1:E0u1tiP8heGUnkip576jgW0fL+Qa1VrFFNSyPnGwBk8=
+github.com/dortam888/jfrog-client-go v1.28.4/go.mod h1:/e2kaF1oZTmSRgMIk7wYna5xMtNY7Xk8ahpSNZQ2d3s=
 github.com/dsnet/compress v0.0.2-0.20210315054119-f66993602bf5 h1:iFaUwBSo5Svw6L7HYpRu/0lE3e0BaElwnNO1qkNQxBY=
 github.com/dsnet/compress v0.0.2-0.20210315054119-f66993602bf5/go.mod h1:qssHWj60/X5sZFNxpG4HBPDHVqxNm4DfnCKgrbZOT+s=
 github.com/dsnet/golib v0.0.0-20171103203638-1ea166775780/go.mod h1:Lj+Z9rebOhdfkVLjJ8T6VcRQv3SXugXy999NBtR9aFY=
