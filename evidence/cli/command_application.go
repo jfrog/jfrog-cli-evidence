@@ -20,10 +20,6 @@ func NewEvidenceApplicationCommand(ctx *components.Context, execute execCommandF
 }
 
 func (eac *evidenceApplicationCommand) CreateEvidence(ctx *components.Context, serverDetails *config.ServerDetails) error {
-	if eac.ctx.GetStringFlagValue(sigstoreBundle) != "" {
-		return errorutils.CheckErrorf("--%s is not supported for application evidence.", sigstoreBundle)
-	}
-
 	err := eac.validateEvidenceApplicationContext(ctx)
 	if err != nil {
 		return err
@@ -52,10 +48,13 @@ func (eac *evidenceApplicationCommand) VerifyEvidence(ctx *components.Context, s
 }
 
 func (eac *evidenceApplicationCommand) validateEvidenceApplicationContext(ctx *components.Context) error {
-	if !ctx.IsFlagSet(applicationKey) || assertValueProvided(ctx, applicationKey) != nil {
+	if eac.ctx.GetStringFlagValue(sigstoreBundle) != "" {
+		return errorutils.CheckErrorf("--%s is not supported for application evidence.", sigstoreBundle)
+	}
+	if assertValueProvided(ctx, applicationKey) != nil {
 		return errorutils.CheckErrorf("--%s is a mandatory field for creating an Application evidence", applicationKey)
 	}
-	if !ctx.IsFlagSet(applicationVersion) || assertValueProvided(ctx, applicationVersion) != nil {
+	if assertValueProvided(ctx, applicationVersion) != nil {
 		return errorutils.CheckErrorf("--%s is a mandatory field for creating an Application evidence", applicationVersion)
 	}
 	if ctx.IsFlagSet(project) {

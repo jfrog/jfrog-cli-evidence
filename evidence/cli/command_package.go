@@ -21,10 +21,6 @@ func NewEvidencePackageCommand(ctx *components.Context, execute execCommandFunc)
 }
 
 func (epc *evidencePackageCommand) CreateEvidence(ctx *components.Context, serverDetails *config.ServerDetails) error {
-	if epc.ctx.GetStringFlagValue(sigstoreBundle) != "" {
-		return errorutils.CheckErrorf("--%s is not supported for package evidence.", sigstoreBundle)
-	}
-
 	err := epc.validateEvidencePackageContext(ctx)
 	if err != nil {
 		return err
@@ -68,10 +64,13 @@ func (epc *evidencePackageCommand) VerifyEvidence(ctx *components.Context, serve
 }
 
 func (epc *evidencePackageCommand) validateEvidencePackageContext(ctx *components.Context) error {
-	if !ctx.IsFlagSet(packageVersion) || assertValueProvided(ctx, packageVersion) != nil {
+	if epc.ctx.GetStringFlagValue(sigstoreBundle) != "" {
+		return errorutils.CheckErrorf("--%s is not supported for package evidence.", sigstoreBundle)
+	}
+	if assertValueProvided(ctx, packageVersion) != nil {
 		return errorutils.CheckErrorf("--%s is a mandatory field for creating a Package evidence", packageVersion)
 	}
-	if !ctx.IsFlagSet(packageRepoName) || assertValueProvided(ctx, packageRepoName) != nil {
+	if assertValueProvided(ctx, packageRepoName) != nil {
 		return errorutils.CheckErrorf("--%s is a mandatory field for creating a Package evidence", packageRepoName)
 	}
 	return nil

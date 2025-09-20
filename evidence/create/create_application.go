@@ -10,6 +10,7 @@ import (
 	"github.com/jfrog/jfrog-cli-evidence/evidence"
 	"github.com/jfrog/jfrog-cli-evidence/evidence/model"
 	"github.com/jfrog/jfrog-cli-evidence/evidence/utils"
+	"github.com/jfrog/jfrog-client-go/apptrust/services"
 	"github.com/jfrog/jfrog-client-go/artifactory"
 	"github.com/jfrog/jfrog-client-go/utils/log"
 )
@@ -148,7 +149,7 @@ func getApplicationVersionStage(serverDetails *config.ServerDetails, application
 
 	if promotionsResponse != nil && len(promotionsResponse.Promotions) > 0 {
 		for _, promotion := range promotionsResponse.Promotions {
-			if promotion.Status == "COMPLETED" {
+			if promotion.Status == services.PromotionStatusCompleted {
 				return promotion.TargetStage
 			}
 		}

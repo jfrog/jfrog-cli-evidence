@@ -23,10 +23,6 @@ func NewEvidenceReleaseBundleCommand(ctx *components.Context, execute execComman
 }
 
 func (erc *evidenceReleaseBundleCommand) CreateEvidence(ctx *components.Context, serverDetails *config.ServerDetails) error {
-	if erc.ctx.GetStringFlagValue(sigstoreBundle) != "" {
-		return errorutils.CheckErrorf("--%s is not supported for release bundle evidence.", sigstoreBundle)
-	}
-
 	err := erc.validateEvidenceReleaseBundleContext(ctx)
 	if err != nil {
 		return err
@@ -85,7 +81,10 @@ func (erc *evidenceReleaseBundleCommand) VerifyEvidence(ctx *components.Context,
 }
 
 func (erc *evidenceReleaseBundleCommand) validateEvidenceReleaseBundleContext(ctx *components.Context) error {
-	if !ctx.IsFlagSet(releaseBundleVersion) || assertValueProvided(ctx, releaseBundleVersion) != nil {
+	if erc.ctx.GetStringFlagValue(sigstoreBundle) != "" {
+		return errorutils.CheckErrorf("--%s is not supported for release bundle evidence.", sigstoreBundle)
+	}
+	if assertValueProvided(ctx, releaseBundleVersion) != nil {
 		return errorutils.CheckErrorf("--%s is a mandatory field for creating a Release Bundle evidence", releaseBundleVersion)
 	}
 	if ctx.IsFlagSet(artifactsLimit) && !utils.IsFlagPositiveNumber(ctx.GetStringFlagValue(artifactsLimit)) {

@@ -25,9 +25,6 @@ func (ebc *evidenceGitHubCommand) GetEvidence(ctx *components.Context, serverDet
 }
 
 func (ebc *evidenceGitHubCommand) CreateEvidence(ctx *components.Context, serverDetails *config.ServerDetails) error {
-	if ebc.ctx.GetStringFlagValue(sigstoreBundle) != "" {
-		return errorutils.CheckErrorf("--%s is not supported for GitHub evidence.", sigstoreBundle)
-	}
 	if utils.IsSonarIntegration(ctx.GetStringFlagValue(integration)) {
 		return errorutils.CheckErrorf("--%s %s is not supported for GitHub evidence.", integration, utils.SonarIntegration)
 	}
@@ -57,7 +54,10 @@ func (ebc *evidenceGitHubCommand) VerifyEvidence(_ *components.Context, _ *confi
 }
 
 func (ebc *evidenceGitHubCommand) validateEvidenceBuildContext(ctx *components.Context) error {
-	if !ctx.IsFlagSet(buildNumber) || assertValueProvided(ctx, buildNumber) != nil {
+	if ebc.ctx.GetStringFlagValue(sigstoreBundle) != "" {
+		return errorutils.CheckErrorf("--%s is not supported for GitHub evidence.", sigstoreBundle)
+	}
+	if assertValueProvided(ctx, buildNumber) != nil {
 		return errorutils.CheckErrorf("--%s is a mandatory field for creating a Release Bundle evidence", buildNumber)
 	}
 	return nil
