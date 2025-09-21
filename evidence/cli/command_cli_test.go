@@ -614,7 +614,7 @@ func setDefaultValue(flag string, defaultValue string) components.Flag {
 	return f
 }
 
-func TestEnsureKeyExists_TrimsWhitespace(t *testing.T) {
+func TestResolveAndNormalizeKey_TrimsWhitespace(t *testing.T) {
 	tests := []struct {
 		name           string
 		envKeyValue    string
@@ -688,12 +688,12 @@ func TestEnsureKeyExists_TrimsWhitespace(t *testing.T) {
 			assert.NoError(t, err)
 
 			// Execute
-			err = ensureKeyExists(ctx, key)
+			err = resolveAndNormalizeKey(ctx, key)
 			assert.NoError(t, err)
 
 			// Verify
 			actualValue := ctx.GetStringFlagValue(key)
-			
+
 			// Debug output to help understand the difference in trimming behavior
 			if tt.setFlag {
 				t.Logf("Flag input: %q (len=%d)", tt.flagKeyValue, len(tt.flagKeyValue))
@@ -702,7 +702,7 @@ func TestEnsureKeyExists_TrimsWhitespace(t *testing.T) {
 			}
 			t.Logf("Expected: %q (len=%d)", tt.expectedResult, len(tt.expectedResult))
 			t.Logf("Actual:   %q (len=%d)", actualValue, len(actualValue))
-			
+
 			assert.Equal(t, tt.expectedResult, actualValue)
 		})
 	}
