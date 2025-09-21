@@ -23,6 +23,7 @@ import (
 	"github.com/jfrog/jfrog-client-go/utils/io/fileutils"
 	"github.com/jfrog/jfrog-client-go/utils/log"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"crypto/ed25519"
 	"crypto/rand"
@@ -254,8 +255,11 @@ func TestCreateEnvelope_Intoto_AndUploadDetails(t *testing.T) {
 	art := createFileInfoOnlyMock("abc123")
 	upl := &captureUploader{}
 
+	token, err := os.ReadFile("../testdata/artifactory_token1")
+	require.NoError(t, err)
+
 	c := &createEvidenceBase{
-		serverDetails:     &config.ServerDetails{User: "alice"},
+		serverDetails:     &config.ServerDetails{User: "alice", AccessToken: string(token)},
 		predicateFilePath: pred,
 		predicateType:     "test-type",
 		markdownFilePath:  md,
@@ -279,7 +283,7 @@ func TestCreateEnvelope_Intoto_AndUploadDetails(t *testing.T) {
 	assert.Equal(t, "test-type", st.PredicateType)
 	assert.Equal(t, "abc123", st.Subject[0].Digest.Sha256)
 	assert.Equal(t, "hello", st.Markdown)
-	assert.Equal(t, "alice", st.CreatedBy)
+	assert.Equal(t, "moshe", st.CreatedBy)
 
 	resp, err := c.uploadEvidence(env, "repo/path/name")
 	assert.NoError(t, err)

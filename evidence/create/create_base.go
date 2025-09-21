@@ -14,6 +14,7 @@ import (
 	"github.com/jfrog/jfrog-cli-evidence/evidence/sign"
 	"github.com/jfrog/jfrog-cli-evidence/evidence/sonar"
 	evidenceUtils "github.com/jfrog/jfrog-cli-evidence/evidence/utils"
+	"github.com/jfrog/jfrog-client-go/auth"
 	"github.com/jfrog/jfrog-client-go/utils/errorutils"
 
 	"github.com/jfrog/jfrog-cli-core/v2/artifactory/utils/commandsummary"
@@ -133,12 +134,7 @@ func (c *createEvidenceBase) buildIntotoStatementJson(subject, subjectSha256 str
 		return nil, err
 	}
 
-	user := c.serverDetails.User
-	if user == "" {
-		user = EvdDefaultUser
-	}
-
-	statement := intoto.NewStatement(predicate, c.predicateType, user)
+	statement := intoto.NewStatement(predicate, c.predicateType, c.getUser())
 	err = c.setMarkdown(statement)
 	if err != nil {
 		return nil, err
@@ -160,6 +156,14 @@ func (c *createEvidenceBase) buildIntotoStatementJson(subject, subjectSha256 str
 	return statementJson, nil
 }
 
+func (c *createEvidenceBase) getUser() string {
+	user := auth.ExtractUsernameFromAccessToken(c.serverDetails.AccessToken)
+	if user == "" {
+		user = EvdDefaultUser
+	}
+	return user
+}
+
 func (c *createEvidenceBase) resolveSubjectSha256(servicesManager artifactory.ArtifactoryServicesManager, subject, subjectSha256 string) (string, error) {
 	sha256, err := c.getFileChecksum(subject, servicesManager)
 	if err != nil {
@@ -177,7 +181,7 @@ func (c *createEvidenceBase) buildIntotoStatementJsonWithPredicateAndPredicateTy
 		return nil, err
 	}
 
-	statement := intoto.NewStatement(predicate, predicateType, c.serverDetails.User)
+	statement := intoto.NewStatement(predicate, predicateType, c.getUser())
 	err = c.setMarkdown(statement)
 	if err != nil {
 		return nil, err
