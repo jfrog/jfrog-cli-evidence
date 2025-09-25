@@ -81,6 +81,7 @@ func (erc *evidenceReleaseBundleCommand) VerifyEvidence(ctx *components.Context,
 }
 
 func (erc *evidenceReleaseBundleCommand) validateEvidenceReleaseBundleContext(ctx *components.Context) error {
+	// releaseBundleName is not validated since it is required for the evd context
 	if erc.ctx.GetStringFlagValue(sigstoreBundle) != "" {
 		return errorutils.CheckErrorf("--%s is not supported for release bundle evidence.", sigstoreBundle)
 	}

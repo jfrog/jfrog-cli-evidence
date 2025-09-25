@@ -25,11 +25,7 @@ func (ebc *evidenceGitHubCommand) GetEvidence(ctx *components.Context, serverDet
 }
 
 func (ebc *evidenceGitHubCommand) CreateEvidence(ctx *components.Context, serverDetails *config.ServerDetails) error {
-	if utils.IsSonarIntegration(ctx.GetStringFlagValue(integration)) {
-		return errorutils.CheckErrorf("--%s %s is not supported for GitHub evidence.", integration, utils.SonarIntegration)
-	}
-
-	err := ebc.validateEvidenceBuildContext(ctx)
+	err := ebc.validateEvidenceGithubContext(ctx)
 	if err != nil {
 		return err
 	}
@@ -53,7 +49,11 @@ func (ebc *evidenceGitHubCommand) VerifyEvidence(_ *components.Context, _ *confi
 
 }
 
-func (ebc *evidenceGitHubCommand) validateEvidenceBuildContext(ctx *components.Context) error {
+func (ebc *evidenceGitHubCommand) validateEvidenceGithubContext(ctx *components.Context) error {
+	// buildName is not validated since it is required for the evd context
+	if utils.IsSonarIntegration(ctx.GetStringFlagValue(integration)) {
+		return errorutils.CheckErrorf("--%s %s is not supported for GitHub evidence.", integration, utils.SonarIntegration)
+	}
 	if ebc.ctx.GetStringFlagValue(sigstoreBundle) != "" {
 		return errorutils.CheckErrorf("--%s is not supported for GitHub evidence.", sigstoreBundle)
 	}

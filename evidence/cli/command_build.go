@@ -64,6 +64,7 @@ func (ebc *evidenceBuildCommand) VerifyEvidence(ctx *components.Context, serverD
 }
 
 func (ebc *evidenceBuildCommand) validateEvidenceBuildContext(ctx *components.Context) error {
+	// buildName is not validated since it is required for the evd context
 	if ebc.ctx.GetStringFlagValue(sigstoreBundle) != "" {
 		return errorutils.CheckErrorf("--%s is not supported for build evidence.", sigstoreBundle)
 	}
