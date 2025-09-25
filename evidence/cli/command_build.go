@@ -21,10 +21,6 @@ func NewEvidenceBuildCommand(ctx *components.Context, execute execCommandFunc) E
 }
 
 func (ebc *evidenceBuildCommand) CreateEvidence(ctx *components.Context, serverDetails *config.ServerDetails) error {
-	if ebc.ctx.GetStringFlagValue(sigstoreBundle) != "" {
-		return errorutils.CheckErrorf("--%s is not supported for build evidence.", sigstoreBundle)
-	}
-
 	err := ebc.validateEvidenceBuildContext(ctx)
 	if err != nil {
 		return err
@@ -68,7 +64,11 @@ func (ebc *evidenceBuildCommand) VerifyEvidence(ctx *components.Context, serverD
 }
 
 func (ebc *evidenceBuildCommand) validateEvidenceBuildContext(ctx *components.Context) error {
-	if !ctx.IsFlagSet(buildNumber) || assertValueProvided(ctx, buildNumber) != nil {
+	// buildName is not validated since it is required for the evd context
+	if ebc.ctx.GetStringFlagValue(sigstoreBundle) != "" {
+		return errorutils.CheckErrorf("--%s is not supported for build evidence.", sigstoreBundle)
+	}
+	if assertValueProvided(ctx, buildNumber) != nil {
 		return errorutils.CheckErrorf("--%s is a mandatory field for creating a Build evidence", buildNumber)
 	}
 	return nil

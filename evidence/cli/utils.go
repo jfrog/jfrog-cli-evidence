@@ -16,4 +16,5 @@ var subjectTypes = []string{
 	buildName,
 	packageName,
 	typeFlag,
+	applicationKey,
 }

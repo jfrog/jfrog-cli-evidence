@@ -77,6 +77,7 @@ func createEvidence(ctx *components.Context) error {
 		releaseBundle:   NewEvidenceReleaseBundleCommand,
 		buildName:       NewEvidenceBuildCommand,
 		packageName:     NewEvidencePackageCommand,
+		applicationKey:  NewEvidenceApplicationCommand,
 	}
 
 	if commandFunc, exists := evidenceCommands[evidenceType[0]]; exists {
@@ -167,26 +168,26 @@ func validateCreateEvidenceCommonContext(ctx *components.Context) error {
 		return pluginsCommon.WrongNumberOfArgumentsHandler(ctx)
 	}
 
-	if ctx.IsFlagSet(sigstoreBundle) && assertValueProvided(ctx, sigstoreBundle) == nil {
+	if assertValueProvided(ctx, sigstoreBundle) == nil {
 		if err := validateSigstoreBundleArgsConflicts(ctx); err != nil {
 			return err
 		}
 		return nil
 	}
 
-	if ctx.IsFlagSet(integration) && assertValueProvided(ctx, integration) == nil {
+	if assertValueProvided(ctx, integration) == nil {
 		if err := evidenceUtils.ValidateIntegration(ctx.GetStringFlagValue(integration)); err != nil {
 			return err
 		}
 	}
 
-	if (!ctx.IsFlagSet(predicate) || assertValueProvided(ctx, predicate) != nil) && !ctx.IsFlagSet(typeFlag) {
+	if assertValueProvided(ctx, predicate) != nil && !ctx.IsFlagSet(typeFlag) {
 		if !evidenceUtils.IsSonarIntegration(ctx.GetStringFlagValue(integration)) {
 			return errorutils.CheckErrorf("'predicate' is a mandatory field for creating evidence: --%s", predicate)
 		}
 	}
 
-	if (!ctx.IsFlagSet(predicateType) || assertValueProvided(ctx, predicateType) != nil) && !ctx.IsFlagSet(typeFlag) {
+	if assertValueProvided(ctx, predicateType) != nil && !ctx.IsFlagSet(typeFlag) {
 		if !evidenceUtils.IsSonarIntegration(ctx.GetStringFlagValue(integration)) {
 			return errorutils.CheckErrorf("'predicate-type' is a mandatory field for creating evidence: --%s", predicateType)
 		}
@@ -240,7 +241,7 @@ func validateSigstoreBundleArgsConflicts(ctx *components.Context) error {
 }
 
 func ensureKeyExists(ctx *components.Context, key string) error {
-	if ctx.IsFlagSet(key) && assertValueProvided(ctx, key) == nil {
+	if assertValueProvided(ctx, key) == nil {
 		return nil
 	}
 
@@ -268,7 +269,7 @@ func getAndValidateSubject(ctx *components.Context) ([]string, error) {
 	}
 
 	if len(foundSubjects) == 0 {
-		if ctx.IsFlagSet(sigstoreBundle) && assertValueProvided(ctx, sigstoreBundle) == nil {
+		if assertValueProvided(ctx, sigstoreBundle) == nil {
 			return []string{subjectRepoPath}, nil // Return subjectRepoPath as the type for routing
 		}
 		// If we have no subject - we will try to create EVD on build
@@ -355,10 +356,11 @@ func platformToEvidenceUrls(rtDetails *config.ServerDetails) {
 	rtDetails.MetadataUrl = utils.AddTrailingSlashIfNeeded(rtDetails.Url) + "metadata/"
 	rtDetails.OnemodelUrl = utils.AddTrailingSlashIfNeeded(rtDetails.Url) + "onemodel/"
 	rtDetails.LifecycleUrl = utils.AddTrailingSlashIfNeeded(rtDetails.Url) + "lifecycle/"
+	rtDetails.ApptrustUrl = utils.AddTrailingSlashIfNeeded(rtDetails.Url) + "apptrust/"
 }
 
 func assertValueProvided(c *components.Context, fieldName string) error {
-	if c.GetStringFlagValue(fieldName) == "" {
+	if !c.IsFlagSet(fieldName) || c.GetStringFlagValue(fieldName) == "" {
 		return errorutils.CheckErrorf("the argument --%s can not be empty", fieldName)
 	}
 	return nil
