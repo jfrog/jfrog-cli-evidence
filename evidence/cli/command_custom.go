@@ -22,7 +22,7 @@ func NewEvidenceCustomCommand(ctx *components.Context, execute execCommandFunc) 
 }
 
 func (ecc *evidenceCustomCommand) CreateEvidence(_ *components.Context, serverDetails *config.ServerDetails) error {
-	err := ecc.validateEvidenceCustomContext()
+	err := ecc.validateEvidenceFlagUsage()
 	if err != nil {
 		return err
 	}
@@ -66,7 +66,7 @@ func (ecc *evidenceCustomCommand) VerifyEvidence(_ *components.Context, serverDe
 	return ecc.execute(verifyCmd)
 }
 
-func (ecc *evidenceCustomCommand) validateEvidenceCustomContext() error {
+func (ecc *evidenceCustomCommand) validateEvidenceFlagUsage() error {
 	if ecc.ctx.GetStringFlagValue(sigstoreBundle) != "" && ecc.ctx.GetStringFlagValue(subjectSha256) != "" {
 		return errorutils.CheckErrorf("The parameter --%s cannot be used with --%s. The subject hash is extracted from the bundle itself.", subjectSha256, sigstoreBundle)
 	}

@@ -56,7 +56,10 @@ func TestEvidenceApplicationCommand_CreateEvidence_SigstoreBundle(t *testing.T) 
 				return nil
 			}
 
-			cmd := NewEvidenceApplicationCommand(ctx, mockExec)
+			cmd, ok := NewEvidenceApplicationCommand(ctx, mockExec).(*evidenceApplicationCommand)
+			if !ok {
+				t.Fatalf("NewEvidenceApplicationCommand returned a non-evidenceApplicationCommand")
+			}
 			serverDetails := &config.ServerDetails{}
 
 			err = cmd.CreateEvidence(ctx, serverDetails)
