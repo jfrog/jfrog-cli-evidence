@@ -20,6 +20,7 @@ require (
 	github.com/urfave/cli v1.22.17
 	go.uber.org/mock v0.6.0
 	golang.org/x/crypto v0.42.0
+	golang.org/x/term v0.34.0
 )
 
 require (
@@ -213,3 +214,5 @@ require (
 // replace github.com/jfrog/jfrog-cli-core/v2 => github.com/jfrog/jfrog-cli-core/v2 v2.31.1-0.20250527091824-60a3b4b741aa
 
 // replace github.com/jfrog/jfrog-client-go => github.com/jfrog/jfrog-client-go v1.28.1-0.20250508130334-f159cff9b11a
+// Use local jfrog-client-go for testing trusted keys functionality
+replace github.com/jfrog/jfrog-client-go => /Users/osaidw/dev/github/jfrog-client-go

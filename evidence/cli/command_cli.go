@@ -14,8 +14,10 @@ import (
 	"github.com/jfrog/jfrog-cli-core/v2/utils/config"
 	coreUtils "github.com/jfrog/jfrog-cli-core/v2/utils/coreutils"
 	"github.com/jfrog/jfrog-cli-evidence/evidence/cli/docs/create"
+	"github.com/jfrog/jfrog-cli-evidence/evidence/cli/docs/generate"
 	"github.com/jfrog/jfrog-cli-evidence/evidence/cli/docs/get"
 	"github.com/jfrog/jfrog-cli-evidence/evidence/cli/docs/verify"
+	generateCmd "github.com/jfrog/jfrog-cli-evidence/evidence/generate"
 	sonarhelper "github.com/jfrog/jfrog-cli-evidence/evidence/sonar"
 	evidenceUtils "github.com/jfrog/jfrog-cli-evidence/evidence/utils"
 	"github.com/jfrog/jfrog-client-go/utils"
@@ -48,6 +50,14 @@ func GetCommands() []components.Command {
 			Description: verify.GetDescription(),
 			Arguments:   verify.GetArguments(),
 			Action:      verifyEvidence,
+		},
+		{
+			Name:        "generate-key-pair",
+			Aliases:     []string{"gen-keys"},
+			Flags:       GetCommandFlags(GenerateKeyPair),
+			Description: generate.GetDescription(),
+			Arguments:   generate.GetArguments(),
+			Action:      generateKeyPair,
 		},
 	}
 }
@@ -380,4 +390,35 @@ func validateSonarQubeRequirements() error {
 	log.Info("Found SonarQube task report:", reportPath)
 
 	return nil
+}
+
+func generateKeyPair(ctx *components.Context) error {
+	if show, err := pluginsCommon.ShowCmdHelpIfNeeded(ctx, ctx.Arguments); show || err != nil {
+		return err
+	}
+
+	if len(ctx.Arguments) > 0 {
+		return pluginsCommon.WrongNumberOfArgumentsHandler(ctx)
+	}
+
+	// Get upload flag, key alias, force flag, output directory, and encryption flag
+	publicKey := ctx.GetBoolFlagValue(uploadPublicKey)
+	alias := ctx.GetStringFlagValue(keyAlias)
+	forceOverwrite := ctx.GetBoolFlagValue(force)
+	outputDirectory := ctx.GetStringFlagValue(outputDir)
+	privateKey := ctx.GetBoolFlagValue(encryptPrivateKey)
+
+	var serverDetails *config.ServerDetails
+	var err error
+
+	// Only get server details if upload is requested
+	if publicKey {
+		serverDetails, err = evidenceDetailsByFlags(ctx)
+		if err != nil {
+			return err
+		}
+	}
+
+	cmd := generateCmd.NewGenerateKeyPairCommand(serverDetails, publicKey, alias, forceOverwrite, outputDirectory, privateKey)
+	return cmd.Run()
 }

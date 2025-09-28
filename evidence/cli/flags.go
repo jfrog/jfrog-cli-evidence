@@ -7,9 +7,10 @@ import (
 
 const (
 	// Evidence commands keys
-	CreateEvidence = "create-evidence"
-	GetEvidence    = "get-evidence"
-	VerifyEvidence = "verify-evidence"
+	CreateEvidence  = "create-evidence"
+	GetEvidence     = "get-evidence"
+	VerifyEvidence  = "verify-evidence"
+	GenerateKeyPair = "generate-key-pair"
 )
 
 const (
@@ -49,6 +50,10 @@ const (
 	integration        = "integration"
 	sigstoreBundle     = "sigstore-bundle"
 	artifactsLimit     = "artifacts-limit"
+	uploadPublicKey    = "upload-public-key"
+	force              = "force"
+	outputDir          = "output-dir"
+	encryptPrivateKey  = "encrypt-private-key"
 )
 
 // Flag keys mapped to their corresponding components.Flag definition.
@@ -88,6 +93,10 @@ var flagsMap = map[string]components.Flag{
 	useArtifactoryKeys: components.NewBoolFlag(useArtifactoryKeys, "Use Artifactory keys for verification. When enabled, the verify command retrieves keys from Artifactory.", components.WithBoolDefaultValueFalse()),
 	artifactsLimit:     components.NewStringFlag(artifactsLimit, "The number of artifacts in a release bundle to be included in the evidences file. The default value is 1000 artifacts", func(f *components.StringFlag) { f.Mandatory = false }),
 	integration:        components.NewStringFlag(integration, "Specify an integration to automatically generate the predicate. Supported: 'sonar'. When using 'sonar', the 'SONAR_TOKEN' or 'SONARQUBE_TOKEN' environment variable must be set.", func(f *components.StringFlag) { f.Mandatory = false }),
+	uploadPublicKey:    components.NewBoolFlag(uploadPublicKey, "Upload the generated public key to JFrog platform trusted keys. Requires server connection.", components.WithBoolDefaultValueFalse()),
+	force:              components.NewBoolFlag(force, "Overwrite existing key files if they exist.", components.WithBoolDefaultValueFalse()),
+	outputDir:          components.NewStringFlag(outputDir, "Output directory for key files. Creates the directory if it doesn't exist. Defaults to current directory.", func(f *components.StringFlag) { f.Mandatory = false }),
+	encryptPrivateKey:  components.NewBoolFlag(encryptPrivateKey, "Encrypt the private key with a password. Prompts for password unless JFROG_EVIDENCE_PASSWORD is set.", components.WithBoolDefaultValueTrue()),
 }
 
 var commandFlags = map[string][]string{
@@ -149,6 +158,17 @@ var commandFlags = map[string][]string{
 		subjectRepoPath,
 		includePredicate,
 		artifactsLimit,
+	},
+	GenerateKeyPair: {
+		url,
+		user,
+		accessToken,
+		ServerId,
+		uploadPublicKey,
+		keyAlias,
+		force,
+		outputDir,
+		encryptPrivateKey,
 	},
 }
 

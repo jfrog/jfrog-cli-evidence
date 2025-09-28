@@ -349,6 +349,11 @@ func createSigners(privateKey *cryptox.SSLibKey) ([]dsse.Signer, error) {
 
 // enhanceKeyError provides a more meaningful error message for key-related failures
 func enhanceKeyError(originalErr error, keyId string) error {
+	// Check if it's a password error - return it directly without wrapping
+	if strings.Contains(originalErr.Error(), "invalid password") {
+		return originalErr
+	}
+	
 	if keyId != "" {
 		// If keyId is provided, it's likely a key alias that couldn't be resolved
 		return fmt.Errorf("key pair is incorrect or key alias '%s' was not found in Artifactory. Original error: %w", keyId, originalErr)

@@ -10,9 +10,8 @@ import (
 )
 
 const (
-	RSAKeyType       = "rsa"
-	RSAKeyScheme     = "rsassa-pss-sha256"
-	RSAPrivateKeyPEM = "RSA PRIVATE KEY"
+	RSAKeyType   = "rsa"
+	RSAKeyScheme = "rsassa-pss-sha256"
 )
 
 // RSAPSSSignerVerifier is a dsse.SignerVerifier compliant interface to sign and
@@ -98,3 +97,4 @@ func (sv *RSAPSSSignerVerifier) KeyID() (string, error) {
 func (sv *RSAPSSSignerVerifier) Public() crypto.PublicKey {
 	return sv.public
 }
+
