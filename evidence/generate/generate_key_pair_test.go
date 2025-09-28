@@ -1,6 +1,7 @@
 package generate
 
 import (
+	"errors"
 	"os"
 	"testing"
 
@@ -102,4 +103,70 @@ func TestGenerateECDSAKeyPairWithPassword(t *testing.T) {
 	assert.Equal(t, cryptox.ECDSAKeyScheme, publicKey.Scheme)
 	assert.Empty(t, publicKey.KeyVal.Private) // Should not contain private key
 	assert.NotEmpty(t, publicKey.KeyVal.Public)
+
+	// Test that the encrypted key can be loaded with the correct password
+	signer, err := cryptox.LoadPrivateKey([]byte(privateKeyPEM), []byte("testpassword"))
+	assert.NoError(t, err)
+	assert.NotNil(t, signer)
+
+	// Test that loading with wrong password fails
+	_, err = cryptox.LoadPrivateKey([]byte(privateKeyPEM), []byte("wrongpassword"))
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "invalid password")
+}
+
+// TestGenerateKeyPairCommandWithEncryption tests the command with encryption enabled
+func TestGenerateKeyPairCommandWithEncryption(t *testing.T) {
+	// Clean up any existing files
+	defer func() {
+		os.Remove("evd.key")
+		os.Remove("evd.pub")
+	}()
+
+	// Set password via environment variable
+	os.Setenv("JFROG_EVIDENCE_PASSWORD", "testpassword123")
+	defer os.Unsetenv("JFROG_EVIDENCE_PASSWORD")
+
+	cmd := NewGenerateKeyPairCommand(nil, false, "test-alias", false, "", true) // encryption enabled
+	assert.NotNil(t, cmd)
+	assert.Equal(t, "generate-key-pair", cmd.CommandName())
+
+	// Test Run without upload but with encryption
+	err := cmd.Run()
+	assert.NoError(t, err)
+
+	// Verify files were created
+	_, err = os.Stat("evd.key")
+	assert.NoError(t, err)
+	_, err = os.Stat("evd.pub")
+	assert.NoError(t, err)
+
+	// Verify the private key is encrypted
+	privateKeyData, err := os.ReadFile("evd.key")
+	assert.NoError(t, err)
+	assert.Contains(t, string(privateKeyData), "-----BEGIN ENCRYPTED PRIVATE KEY-----")
+	assert.Contains(t, string(privateKeyData), "-----END ENCRYPTED PRIVATE KEY-----")
+
+	// Verify the encrypted key can be loaded with correct password
+	signer, err := cryptox.LoadPrivateKey(privateKeyData, []byte("testpassword123"))
+	assert.NoError(t, err)
+	assert.NotNil(t, signer)
+
+	// Verify loading with wrong password fails
+	_, err = cryptox.LoadPrivateKey(privateKeyData, []byte("wrongpassword"))
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "invalid password")
+}
+
+// TestGenerateKeyPairPasswordError tests password function error handling
+func TestGenerateKeyPairPasswordError(t *testing.T) {
+	// Mock password function that returns an error
+	errorPasswordFunc := func(confirm bool) ([]byte, error) {
+		return nil, errors.New("password input failed")
+	}
+
+	// Test that password errors are propagated
+	_, _, err := cryptox.GenerateECDSAKeyPairWithPassword(errorPasswordFunc)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "password input failed")
 }

@@ -20,7 +20,7 @@ func ReadKey(fileContent []byte) (*SSLibKey, error) {
 	slibKey, err := LoadKey(fileContent)
 	if err != nil {
 		// Check if it's an encrypted key error
-		if err.Error() == "encrypted private key requires password - use LoadPrivateKey instead" {
+		if err.Error() == "encrypted private key requires password" {
 			// Try to get password from environment variable
 			password := os.Getenv("JFROG_EVIDENCE_PASSWORD")
 			if password == "" {
