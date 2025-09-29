@@ -190,7 +190,7 @@ func hexDecode(t *testing.T, data string) ([]byte, error) {
 	return b, nil
 }
 
-// СreateVerifier creates dsse.Verifier(s) from an SSLibKey.
+// CreateVerifier creates dsse.Verifier(s) from an SSLibKey.
 func CreateVerifier(publicKey *SSLibKey) ([]dsse.Verifier, error) {
 	var verifiers []dsse.Verifier
 
