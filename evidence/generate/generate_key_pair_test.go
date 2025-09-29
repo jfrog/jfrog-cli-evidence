@@ -41,11 +41,11 @@ func TestGenerateECDSAKeyPair(t *testing.T) {
 func TestGenerateKeyPairCommand(t *testing.T) {
 	// Clean up any existing files
 	defer func() {
-		os.Remove("evd.key")
-		os.Remove("evd.pub")
+		os.Remove("evidence.key")
+		os.Remove("evidence.pub")
 	}()
 
-	cmd := NewGenerateKeyPairCommand(nil, false, "test-alias", false, "", false)
+	cmd := NewGenerateKeyPairCommand(nil, false, "test-alias", true, "", false) // uploadPublicKey=false, force=true
 	assert.NotNil(t, cmd)
 	assert.Equal(t, "generate-key-pair", cmd.CommandName())
 
@@ -54,20 +54,20 @@ func TestGenerateKeyPairCommand(t *testing.T) {
 	assert.NoError(t, err)
 
 	// Verify files were created
-	_, err = os.Stat("evd.key")
+	_, err = os.Stat("evidence.key")
 	assert.NoError(t, err)
-	_, err = os.Stat("evd.pub")
+	_, err = os.Stat("evidence.pub")
 	assert.NoError(t, err)
 
 	// Verify file permissions
-	info, _ := os.Stat("evd.key")
+	info, _ := os.Stat("evidence.key")
 	assert.Equal(t, os.FileMode(0600), info.Mode().Perm())
 	
-	info, _ = os.Stat("evd.pub")
+	info, _ = os.Stat("evidence.pub")
 	assert.Equal(t, os.FileMode(0644), info.Mode().Perm())
 
 	// Load and verify the generated keys are ECDSA
-	publicKeyData, err := os.ReadFile("evd.pub")
+	publicKeyData, err := os.ReadFile("evidence.pub")
 	assert.NoError(t, err)
 	publicKey, err := cryptox.LoadKey(publicKeyData)
 	assert.NoError(t, err)
@@ -119,15 +119,15 @@ func TestGenerateECDSAKeyPairWithPassword(t *testing.T) {
 func TestGenerateKeyPairCommandWithEncryption(t *testing.T) {
 	// Clean up any existing files
 	defer func() {
-		os.Remove("evd.key")
-		os.Remove("evd.pub")
+		os.Remove("evidence.key")
+		os.Remove("evidence.pub")
 	}()
 
 	// Set password via environment variable
 	os.Setenv("JFROG_EVIDENCE_PASSWORD", "testpassword123")
 	defer os.Unsetenv("JFROG_EVIDENCE_PASSWORD")
 
-	cmd := NewGenerateKeyPairCommand(nil, false, "test-alias", false, "", true) // encryption enabled
+	cmd := NewGenerateKeyPairCommand(nil, false, "test-alias", true, "", true) // uploadPublicKey=false, force=true, encryption enabled
 	assert.NotNil(t, cmd)
 	assert.Equal(t, "generate-key-pair", cmd.CommandName())
 
@@ -136,13 +136,13 @@ func TestGenerateKeyPairCommandWithEncryption(t *testing.T) {
 	assert.NoError(t, err)
 
 	// Verify files were created
-	_, err = os.Stat("evd.key")
+	_, err = os.Stat("evidence.key")
 	assert.NoError(t, err)
-	_, err = os.Stat("evd.pub")
+	_, err = os.Stat("evidence.pub")
 	assert.NoError(t, err)
 
 	// Verify the private key is encrypted
-	privateKeyData, err := os.ReadFile("evd.key")
+	privateKeyData, err := os.ReadFile("evidence.key")
 	assert.NoError(t, err)
 	assert.Contains(t, string(privateKeyData), "-----BEGIN ENCRYPTED PRIVATE KEY-----")
 	assert.Contains(t, string(privateKeyData), "-----END ENCRYPTED PRIVATE KEY-----")

@@ -402,7 +402,7 @@ func generateKeyPair(ctx *components.Context) error {
 	}
 
 	// Get upload flag, key alias, force flag, output directory, and encryption flag
-	publicKey := ctx.GetBoolFlagValue(uploadPublicKey)
+	uploadKey := ctx.GetBoolFlagValue(uploadPublicKey)
 	alias := ctx.GetStringFlagValue(keyAlias)
 	forceOverwrite := ctx.GetBoolFlagValue(force)
 	outputDirectory := ctx.GetStringFlagValue(outputDir)
@@ -412,13 +412,13 @@ func generateKeyPair(ctx *components.Context) error {
 	var err error
 
 	// Only get server details if upload is requested
-	if publicKey {
+	if uploadKey {
 		serverDetails, err = evidenceDetailsByFlags(ctx)
 		if err != nil {
 			return err
 		}
 	}
 
-	cmd := generateCmd.NewGenerateKeyPairCommand(serverDetails, publicKey, alias, forceOverwrite, outputDirectory, privateKey)
+	cmd := generateCmd.NewGenerateKeyPairCommand(serverDetails, uploadKey, alias, forceOverwrite, outputDirectory, privateKey)
 	return cmd.Run()
 }
