@@ -1,7 +1,9 @@
-package cli
+package releasebundle
 
 import (
 	"flag"
+	"github.com/jfrog/jfrog-cli-evidence/evidence/cli/command"
+	testUtil "github.com/jfrog/jfrog-cli-evidence/evidence/cli/test"
 	"testing"
 
 	"github.com/jfrog/jfrog-cli-core/v2/common/commands"
@@ -11,7 +13,7 @@ import (
 	"github.com/urfave/cli"
 )
 
-func TestEvidenceBuildCommand_CreateEvidence_SigstoreBundle(t *testing.T) {
+func TestEvidenceReleaseBundleCommand_CreateEvidence_SigstoreBundle(t *testing.T) {
 	tests := []struct {
 		name          string
 		flags         []components.Flag
@@ -21,21 +23,21 @@ func TestEvidenceBuildCommand_CreateEvidence_SigstoreBundle(t *testing.T) {
 		{
 			name: "Invalid_SigstoreBundle_Not_Supported",
 			flags: []components.Flag{
-				setDefaultValue(sigstoreBundle, "/path/to/bundle.json"),
-				setDefaultValue(buildName, "test-build"),
-				setDefaultValue(buildNumber, "123"),
+				testUtil.SetDefaultValue(command.SigstoreBundle, "/path/to/bundle.json"),
+				testUtil.SetDefaultValue(command.ReleaseBundle, "test-release-bundle"),
+				testUtil.SetDefaultValue(command.ReleaseBundleVersion, "1.0.0"),
 			},
 			expectError:   true,
-			errorContains: "--sigstore-bundle is not supported for build evidence.",
+			errorContains: "--sigstore-bundle is not supported for release bundle evidence.",
 		},
 		{
 			name: "Valid_Without_SigstoreBundle",
 			flags: []components.Flag{
-				setDefaultValue(buildName, "test-build"),
-				setDefaultValue(buildNumber, "123"),
-				setDefaultValue(predicate, "/path/to/predicate.json"),
-				setDefaultValue(predicateType, "test-type"),
-				setDefaultValue(key, "/path/to/key.pem"),
+				testUtil.SetDefaultValue(command.ReleaseBundle, "test-release-bundle"),
+				testUtil.SetDefaultValue(command.ReleaseBundleVersion, "1.0.0"),
+				testUtil.SetDefaultValue(command.Predicate, "/path/to/predicate.json"),
+				testUtil.SetDefaultValue(command.PredicateType, "test-type"),
+				testUtil.SetDefaultValue(command.Key, "/path/to/key.pem"),
 			},
 			expectError: false,
 		},
@@ -56,7 +58,7 @@ func TestEvidenceBuildCommand_CreateEvidence_SigstoreBundle(t *testing.T) {
 				return nil
 			}
 
-			cmd := NewEvidenceBuildCommand(ctx, mockExec)
+			cmd := NewEvidenceReleaseBundleCommand(ctx, mockExec)
 			serverDetails := &config.ServerDetails{}
 
 			err = cmd.CreateEvidence(ctx, serverDetails)

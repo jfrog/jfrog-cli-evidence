@@ -213,3 +213,5 @@ require (
 // replace github.com/jfrog/jfrog-cli-core/v2 => github.com/jfrog/jfrog-cli-core/v2 v2.31.1-0.20250527091824-60a3b4b741aa
 
 // replace github.com/jfrog/jfrog-client-go => github.com/jfrog/jfrog-client-go v1.28.1-0.20250508130334-f159cff9b11a
+// Use local jfrog-client-go for testing trusted keys functionality
+replace github.com/jfrog/fork/jfrog-client-go => /Users/osaidw/dev/github/fork/jfrog-client-go

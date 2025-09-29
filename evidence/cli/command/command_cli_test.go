@@ -1,7 +1,8 @@
-package cli
+package command
 
 import (
 	"flag"
+	"github.com/jfrog/jfrog-cli-evidence/evidence/cli/test"
 	"os"
 	"testing"
 
@@ -18,7 +19,7 @@ func TestCreateEvidence_Context(t *testing.T) {
 	defer ctrl.Finish()
 
 	assert.NoError(t, os.Setenv(coreUtils.SigningKey, "PGP"), "Failed to set env: "+coreUtils.SigningKey)
-	assert.NoError(t, os.Setenv(coreUtils.BuildName, buildName), "Failed to set env: JFROG_CLI_BUILD_NAME")
+	assert.NoError(t, os.Setenv(coreUtils.BuildName, BuildName), "Failed to set env: JFROG_CLI_BUILD_NAME")
 	defer func() {
 		assert.NoError(t, os.Unsetenv(coreUtils.SigningKey), "Failed to unset env: "+coreUtils.SigningKey)
 	}()
@@ -32,7 +33,7 @@ func TestCreateEvidence_Context(t *testing.T) {
 			Name: "create",
 		},
 	}
-	set := flag.NewFlagSet(predicate, 0)
+	set := flag.NewFlagSet(Predicate, 0)
 	ctx := cli.NewContext(app, set, nil)
 
 	tests := []struct {
@@ -43,149 +44,149 @@ func TestCreateEvidence_Context(t *testing.T) {
 		{
 			name: "InvalidContext - Missing Subject",
 			flags: []components.Flag{
-				setDefaultValue(predicate, predicate),
-				setDefaultValue(predicateType, predicateType),
-				setDefaultValue(key, key),
+				test.SetDefaultValue(Predicate, Predicate),
+				test.SetDefaultValue(PredicateType, PredicateType),
+				test.SetDefaultValue(Key, Key),
 			},
 			expectErr: true,
 		},
 		{
 			name: "InvalidContext - Missing Predicate",
 			flags: []components.Flag{
-				setDefaultValue("", ""),
-				setDefaultValue(predicateType, "InToto"),
-				setDefaultValue(key, "PGP"),
+				test.SetDefaultValue("", ""),
+				test.SetDefaultValue(PredicateType, "InToto"),
+				test.SetDefaultValue(Key, "PGP"),
 			},
 			expectErr: true,
 		},
 		{
 			name: "InvalidContext - Subject Duplication",
 			flags: []components.Flag{
-				setDefaultValue(predicate, predicate),
-				setDefaultValue(predicateType, "InToto"),
-				setDefaultValue(key, "PGP"),
-				setDefaultValue(subjectRepoPath, subjectRepoPath),
-				setDefaultValue(releaseBundle, releaseBundle),
-				setDefaultValue(releaseBundleVersion, releaseBundleVersion),
+				test.SetDefaultValue(Predicate, Predicate),
+				test.SetDefaultValue(PredicateType, "InToto"),
+				test.SetDefaultValue(Key, "PGP"),
+				test.SetDefaultValue(SubjectRepoPath, SubjectRepoPath),
+				test.SetDefaultValue(ReleaseBundle, ReleaseBundle),
+				test.SetDefaultValue(ReleaseBundleVersion, ReleaseBundleVersion),
 			},
 			expectErr: true,
 		},
 		{
 			name: "ValidContext - ReleaseBundle",
 			flags: []components.Flag{
-				setDefaultValue(predicate, predicate),
-				setDefaultValue(predicateType, "InToto"),
-				setDefaultValue(key, "PGP"),
-				setDefaultValue(releaseBundle, releaseBundle),
-				setDefaultValue(releaseBundleVersion, releaseBundleVersion),
-				setDefaultValue("url", "url"),
+				test.SetDefaultValue(Predicate, Predicate),
+				test.SetDefaultValue(PredicateType, "InToto"),
+				test.SetDefaultValue(Key, "PGP"),
+				test.SetDefaultValue(ReleaseBundle, ReleaseBundle),
+				test.SetDefaultValue(ReleaseBundleVersion, ReleaseBundleVersion),
+				test.SetDefaultValue("Url", "Url"),
 			},
 			expectErr: false,
 		},
 		{
 			name: "ValidContext - RepoPath",
 			flags: []components.Flag{
-				setDefaultValue(predicate, predicate),
-				setDefaultValue(predicateType, "InToto"),
-				setDefaultValue(key, "PGP"),
-				setDefaultValue(subjectRepoPath, subjectRepoPath),
-				setDefaultValue("url", "url"),
+				test.SetDefaultValue(Predicate, Predicate),
+				test.SetDefaultValue(PredicateType, "InToto"),
+				test.SetDefaultValue(Key, "PGP"),
+				test.SetDefaultValue(SubjectRepoPath, SubjectRepoPath),
+				test.SetDefaultValue("Url", "Url"),
 			},
 			expectErr: false,
 		},
 		{
 			name: "ValidContext - Build",
 			flags: []components.Flag{
-				setDefaultValue(predicate, predicate),
-				setDefaultValue(predicateType, "InToto"),
-				setDefaultValue(key, "PGP"),
-				setDefaultValue(buildName, buildName),
-				setDefaultValue(buildNumber, buildNumber),
-				setDefaultValue("url", "url"),
+				test.SetDefaultValue(Predicate, Predicate),
+				test.SetDefaultValue(PredicateType, "InToto"),
+				test.SetDefaultValue(Key, "PGP"),
+				test.SetDefaultValue(BuildName, BuildName),
+				test.SetDefaultValue(BuildNumber, BuildNumber),
+				test.SetDefaultValue("Url", "Url"),
 			},
 			expectErr: false,
 		},
 		{
 			name: "ValidContext - Build With BuildNumber As Env Var",
 			flags: []components.Flag{
-				setDefaultValue(predicate, predicate),
-				setDefaultValue(predicateType, "InToto"),
-				setDefaultValue(key, "PGP"),
-				setDefaultValue(buildNumber, buildNumber),
-				setDefaultValue("url", "url"),
+				test.SetDefaultValue(Predicate, Predicate),
+				test.SetDefaultValue(PredicateType, "InToto"),
+				test.SetDefaultValue(Key, "PGP"),
+				test.SetDefaultValue(BuildNumber, BuildNumber),
+				test.SetDefaultValue("Url", "Url"),
 			},
 			expectErr: false,
 		},
 		{
 			name: "InvalidContext - Build",
 			flags: []components.Flag{
-				setDefaultValue(predicate, predicate),
-				setDefaultValue(predicateType, "InToto"),
-				setDefaultValue(key, "PGP"),
-				setDefaultValue(buildName, buildName),
-				setDefaultValue("url", "url"),
+				test.SetDefaultValue(Predicate, Predicate),
+				test.SetDefaultValue(PredicateType, "InToto"),
+				test.SetDefaultValue(Key, "PGP"),
+				test.SetDefaultValue(BuildName, BuildName),
+				test.SetDefaultValue("Url", "Url"),
 			},
 			expectErr: true,
 		},
 		{
 			name: "ValidContext - Package",
 			flags: []components.Flag{
-				setDefaultValue(predicate, predicate),
-				setDefaultValue(predicateType, "InToto"),
-				setDefaultValue(key, "PGP"),
-				setDefaultValue(packageName, packageName),
-				setDefaultValue(packageVersion, packageVersion),
-				setDefaultValue(packageRepoName, packageRepoName),
-				setDefaultValue("url", "url"),
+				test.SetDefaultValue(Predicate, Predicate),
+				test.SetDefaultValue(PredicateType, "InToto"),
+				test.SetDefaultValue(Key, "PGP"),
+				test.SetDefaultValue(PackageName, PackageName),
+				test.SetDefaultValue(PackageVersion, PackageVersion),
+				test.SetDefaultValue(PackageRepoName, PackageRepoName),
+				test.SetDefaultValue("Url", "Url"),
 			},
 			expectErr: false,
 		},
 		{
 			name: "ValidContext With Key As Env Var- Package",
 			flags: []components.Flag{
-				setDefaultValue(predicate, predicate),
-				setDefaultValue(predicateType, "InToto"),
-				setDefaultValue(packageName, packageName),
-				setDefaultValue(packageVersion, packageVersion),
-				setDefaultValue(packageRepoName, packageRepoName),
-				setDefaultValue("url", "url"),
+				test.SetDefaultValue(Predicate, Predicate),
+				test.SetDefaultValue(PredicateType, "InToto"),
+				test.SetDefaultValue(PackageName, PackageName),
+				test.SetDefaultValue(PackageVersion, PackageVersion),
+				test.SetDefaultValue(PackageRepoName, PackageRepoName),
+				test.SetDefaultValue("Url", "Url"),
 			},
 			expectErr: false,
 		},
 		{
 			name: "InvalidContext - Missing package version",
 			flags: []components.Flag{
-				setDefaultValue(predicate, predicate),
-				setDefaultValue(predicateType, "InToto"),
-				setDefaultValue(key, "PGP"),
-				setDefaultValue(packageName, packageName),
-				setDefaultValue(packageRepoName, packageRepoName),
-				setDefaultValue("url", "url"),
+				test.SetDefaultValue(Predicate, Predicate),
+				test.SetDefaultValue(PredicateType, "InToto"),
+				test.SetDefaultValue(Key, "PGP"),
+				test.SetDefaultValue(PackageName, PackageName),
+				test.SetDefaultValue(PackageRepoName, PackageRepoName),
+				test.SetDefaultValue("Url", "Url"),
 			},
 			expectErr: true,
 		},
 		{
 			name: "InvalidContext - Missing package repository key",
 			flags: []components.Flag{
-				setDefaultValue(predicate, predicate),
-				setDefaultValue(predicateType, "InToto"),
-				setDefaultValue(key, "PGP"),
-				setDefaultValue(packageName, packageName),
-				setDefaultValue(packageVersion, packageVersion),
-				setDefaultValue("url", "url"),
+				test.SetDefaultValue(Predicate, Predicate),
+				test.SetDefaultValue(PredicateType, "InToto"),
+				test.SetDefaultValue(Key, "PGP"),
+				test.SetDefaultValue(PackageName, PackageName),
+				test.SetDefaultValue(PackageVersion, PackageVersion),
+				test.SetDefaultValue("Url", "Url"),
 			},
 			expectErr: true,
 		},
 		{
 			name: "InvalidContext - Unsupported Basic Auth",
 			flags: []components.Flag{
-				setDefaultValue(predicate, predicate),
-				setDefaultValue(predicateType, "InToto"),
-				setDefaultValue(key, "PGP"),
-				setDefaultValue(releaseBundle, releaseBundle),
-				setDefaultValue("url", "url"),
-				setDefaultValue("user", "testUser"),
-				setDefaultValue("password", "testPassword"),
+				test.SetDefaultValue(Predicate, Predicate),
+				test.SetDefaultValue(PredicateType, "InToto"),
+				test.SetDefaultValue(Key, "PGP"),
+				test.SetDefaultValue(ReleaseBundle, ReleaseBundle),
+				test.SetDefaultValue("Url", "Url"),
+				test.SetDefaultValue("User", "testUser"),
+				test.SetDefaultValue("password", "testPassword"),
 			},
 			expectErr: true,
 		},
@@ -202,7 +203,7 @@ func TestCreateEvidence_Context(t *testing.T) {
 				return nil
 			}
 			// Replace execFunc with the mockExec function
-			defer func() { execFunc = exec }() // Restore original execFunc after test
+			defer func() { execFunc = Exec }() // Restore original execFunc after test
 
 			err := createEvidence(context)
 			if tt.expectErr {
@@ -219,7 +220,7 @@ func TestVerifyEvidence_Context(t *testing.T) {
 	defer ctrl.Finish()
 
 	assert.NoError(t, os.Setenv(coreUtils.SigningKey, "PGP"), "Failed to set env: "+coreUtils.SigningKey)
-	assert.NoError(t, os.Setenv(coreUtils.BuildName, buildName), "Failed to set env: JFROG_CLI_BUILD_NAME")
+	assert.NoError(t, os.Setenv(coreUtils.BuildName, BuildName), "Failed to set env: JFROG_CLI_BUILD_NAME")
 	defer func() {
 		assert.NoError(t, os.Unsetenv(coreUtils.SigningKey), "Failed to unset env: "+coreUtils.SigningKey)
 	}()
@@ -233,7 +234,7 @@ func TestVerifyEvidence_Context(t *testing.T) {
 			Name: "verify",
 		},
 	}
-	set := flag.NewFlagSet(predicate, 0)
+	set := flag.NewFlagSet(Predicate, 0)
 	ctx := cli.NewContext(app, set, nil)
 
 	tests := []struct {
@@ -244,92 +245,92 @@ func TestVerifyEvidence_Context(t *testing.T) {
 		{
 			name: "InvalidContext - Missing Subject",
 			flags: []components.Flag{
-				setDefaultValue(publicKeys, "PGP"),
-				setDefaultValue(format, "json"),
+				test.SetDefaultValue(PublicKeys, "PGP"),
+				test.SetDefaultValue(Format, "json"),
 			},
 			expectErr: true,
 		},
 		{
 			name: "InvalidContext - Subject Duplication",
 			flags: []components.Flag{
-				setDefaultValue(publicKeys, "PGP"),
-				setDefaultValue(subjectRepoPath, subjectRepoPath),
-				setDefaultValue(releaseBundle, releaseBundle),
-				setDefaultValue(releaseBundleVersion, releaseBundleVersion),
+				test.SetDefaultValue(PublicKeys, "PGP"),
+				test.SetDefaultValue(SubjectRepoPath, SubjectRepoPath),
+				test.SetDefaultValue(ReleaseBundle, ReleaseBundle),
+				test.SetDefaultValue(ReleaseBundleVersion, ReleaseBundleVersion),
 			},
 			expectErr: true,
 		},
 		{
 			name: "ValidContext - ReleaseBundle",
 			flags: []components.Flag{
-				setDefaultValue(releaseBundle, releaseBundle),
-				setDefaultValue(releaseBundleVersion, releaseBundleVersion),
-				setDefaultValue("url", "url"),
+				test.SetDefaultValue(ReleaseBundle, ReleaseBundle),
+				test.SetDefaultValue(ReleaseBundleVersion, ReleaseBundleVersion),
+				test.SetDefaultValue("Url", "Url"),
 			},
 			expectErr: false,
 		},
 		{
 			name: "ValidContext - RepoPath",
 			flags: []components.Flag{
-				setDefaultValue(subjectRepoPath, subjectRepoPath),
-				setDefaultValue("url", "url"),
+				test.SetDefaultValue(SubjectRepoPath, SubjectRepoPath),
+				test.SetDefaultValue("Url", "Url"),
 			},
 			expectErr: false,
 		},
 		{
 			name: "ValidContext - Build",
 			flags: []components.Flag{
-				setDefaultValue(publicKeys, "PGP"),
-				setDefaultValue(format, "full"),
-				setDefaultValue(buildName, buildName),
-				setDefaultValue(buildNumber, buildNumber),
-				setDefaultValue("url", "url"),
+				test.SetDefaultValue(PublicKeys, "PGP"),
+				test.SetDefaultValue(Format, "full"),
+				test.SetDefaultValue(BuildName, BuildName),
+				test.SetDefaultValue(BuildNumber, BuildNumber),
+				test.SetDefaultValue("Url", "Url"),
 			},
 			expectErr: false,
 		},
 		{
 			name: "InvalidContext - Build",
 			flags: []components.Flag{
-				setDefaultValue(buildName, buildName),
-				setDefaultValue("url", "url"),
+				test.SetDefaultValue(BuildName, BuildName),
+				test.SetDefaultValue("Url", "Url"),
 			},
 			expectErr: true,
 		},
 		{
 			name: "ValidContext - Package",
 			flags: []components.Flag{
-				setDefaultValue(packageName, packageName),
-				setDefaultValue(packageVersion, packageVersion),
-				setDefaultValue(packageRepoName, packageRepoName),
-				setDefaultValue("url", "url"),
+				test.SetDefaultValue(PackageName, PackageName),
+				test.SetDefaultValue(PackageVersion, PackageVersion),
+				test.SetDefaultValue(PackageRepoName, PackageRepoName),
+				test.SetDefaultValue("Url", "Url"),
 			},
 			expectErr: false,
 		},
 		{
 			name: "InvalidContext - Missing package version",
 			flags: []components.Flag{
-				setDefaultValue(packageName, packageName),
-				setDefaultValue(packageRepoName, packageRepoName),
-				setDefaultValue("url", "url"),
+				test.SetDefaultValue(PackageName, PackageName),
+				test.SetDefaultValue(PackageRepoName, PackageRepoName),
+				test.SetDefaultValue("Url", "Url"),
 			},
 			expectErr: true,
 		},
 		{
 			name: "InvalidContext - Missing package repository key",
 			flags: []components.Flag{
-				setDefaultValue(packageName, packageName),
-				setDefaultValue(packageVersion, packageVersion),
-				setDefaultValue("url", "url"),
+				test.SetDefaultValue(PackageName, PackageName),
+				test.SetDefaultValue(PackageVersion, PackageVersion),
+				test.SetDefaultValue("Url", "Url"),
 			},
 			expectErr: true,
 		},
 		{
 			name: "InvalidContext - Unsupported Basic Auth",
 			flags: []components.Flag{
-				setDefaultValue(releaseBundle, releaseBundle),
-				setDefaultValue("url", "url"),
-				setDefaultValue("user", "testUser"),
-				setDefaultValue("password", "testPassword"),
+				test.SetDefaultValue(ReleaseBundle, ReleaseBundle),
+				test.SetDefaultValue("Url", "Url"),
+				test.SetDefaultValue("User", "testUser"),
+				test.SetDefaultValue("password", "testPassword"),
 			},
 			expectErr: true,
 		},
@@ -346,7 +347,7 @@ func TestVerifyEvidence_Context(t *testing.T) {
 				return nil
 			}
 			// Replace execFunc with the mockExec function
-			defer func() { execFunc = exec }() // Restore original execFunc after test
+			defer func() { execFunc = Exec }() // Restore original execFunc after test
 
 			err := verifyEvidence(context)
 			if tt.expectErr {
@@ -376,15 +377,15 @@ func TestCreateEvidenceValidation_SigstoreBundle(t *testing.T) {
 		{
 			name: "ValidContext_-_SigstoreBundle_Without_Predicate",
 			flags: []components.Flag{
-				setDefaultValue(sigstoreBundle, "/path/to/bundle.json"),
-				setDefaultValue(subjectRepoPath, "test-repo/test-artifact"),
+				test.SetDefaultValue(SigstoreBundle, "/path/to/bundle.json"),
+				test.SetDefaultValue(SubjectRepoPath, "test-repo/test-artifact"),
 			},
 			expectError: false,
 		},
 		{
 			name: "ValidContext_-_SigstoreBundle_Without_Any_Subject",
 			flags: []components.Flag{
-				setDefaultValue(sigstoreBundle, "/path/to/bundle.json"),
+				test.SetDefaultValue(SigstoreBundle, "/path/to/bundle.json"),
 				// No subject fields provided - should still pass since subject is extracted from bundle
 			},
 			expectError: false,
@@ -392,27 +393,27 @@ func TestCreateEvidenceValidation_SigstoreBundle(t *testing.T) {
 		{
 			name: "InvalidContext_-_Missing_Predicate_Without_SigstoreBundle",
 			flags: []components.Flag{
-				setDefaultValue(subjectRepoPath, "test-repo/test-artifact"),
-				setDefaultValue(key, "/path/to/key.pem"),
+				test.SetDefaultValue(SubjectRepoPath, "test-repo/test-artifact"),
+				test.SetDefaultValue(Key, "/path/to/key.pem"),
 			},
 			expectError:   true,
-			errorContains: "'predicate' is a mandatory field",
+			errorContains: "'Predicate' is a mandatory field",
 		},
 		{
 			name: "InvalidContext_-_Missing_PredicateType_Without_SigstoreBundle",
 			flags: []components.Flag{
-				setDefaultValue(subjectRepoPath, "test-repo/test-artifact"),
-				setDefaultValue(predicate, "/path/to/predicate.json"),
-				setDefaultValue(key, "/path/to/key.pem"),
+				test.SetDefaultValue(SubjectRepoPath, "test-repo/test-artifact"),
+				test.SetDefaultValue(Predicate, "/path/to/Predicate.json"),
+				test.SetDefaultValue(Key, "/path/to/key.pem"),
 			},
 			expectError:   true,
-			errorContains: "'predicate-type' is a mandatory field",
+			errorContains: "'Predicate-type' is a mandatory field",
 		},
 		{
 			name: "InvalidContext_-_SigstoreBundle_With_Key",
 			flags: []components.Flag{
-				setDefaultValue(sigstoreBundle, "/path/to/bundle.json"),
-				setDefaultValue(key, "/path/to/key.pem"),
+				test.SetDefaultValue(SigstoreBundle, "/path/to/bundle.json"),
+				test.SetDefaultValue(Key, "/path/to/key.pem"),
 			},
 			expectError:   true,
 			errorContains: "The following parameters cannot be used with --sigstore-bundle: --key",
@@ -420,8 +421,8 @@ func TestCreateEvidenceValidation_SigstoreBundle(t *testing.T) {
 		{
 			name: "InvalidContext_-_SigstoreBundle_With_KeyAlias",
 			flags: []components.Flag{
-				setDefaultValue(sigstoreBundle, "/path/to/bundle.json"),
-				setDefaultValue(keyAlias, "my-key-alias"),
+				test.SetDefaultValue(SigstoreBundle, "/path/to/bundle.json"),
+				test.SetDefaultValue(KeyAlias, "my-key-alias"),
 			},
 			expectError:   true,
 			errorContains: "The following parameters cannot be used with --sigstore-bundle: --key-alias",
@@ -429,32 +430,32 @@ func TestCreateEvidenceValidation_SigstoreBundle(t *testing.T) {
 		{
 			name: "InvalidContext_-_SigstoreBundle_With_Predicate",
 			flags: []components.Flag{
-				setDefaultValue(sigstoreBundle, "/path/to/bundle.json"),
-				setDefaultValue(predicate, "/path/to/predicate.json"),
+				test.SetDefaultValue(SigstoreBundle, "/path/to/bundle.json"),
+				test.SetDefaultValue(Predicate, "/path/to/Predicate.json"),
 			},
 			expectError:   true,
-			errorContains: "The following parameters cannot be used with --sigstore-bundle: --predicate",
+			errorContains: "The following parameters cannot be used with --sigstore-bundle: --Predicate",
 		},
 		{
 			name: "InvalidContext_-_SigstoreBundle_With_PredicateType",
 			flags: []components.Flag{
-				setDefaultValue(sigstoreBundle, "/path/to/bundle.json"),
-				setDefaultValue(predicateType, "test-type"),
+				test.SetDefaultValue(SigstoreBundle, "/path/to/bundle.json"),
+				test.SetDefaultValue(PredicateType, "test-type"),
 			},
 			expectError:   true,
-			errorContains: "The following parameters cannot be used with --sigstore-bundle: --predicate-type",
+			errorContains: "The following parameters cannot be used with --sigstore-bundle: --Predicate-type",
 		},
 		{
 			name: "InvalidContext_-_SigstoreBundle_With_Multiple_Conflicting_Params",
 			flags: []components.Flag{
-				setDefaultValue(sigstoreBundle, "/path/to/bundle.json"),
-				setDefaultValue(key, "/path/to/key.pem"),
-				setDefaultValue(keyAlias, "my-key-alias"),
-				setDefaultValue(predicate, "/path/to/predicate.json"),
-				setDefaultValue(predicateType, "test-type"),
+				test.SetDefaultValue(SigstoreBundle, "/path/to/bundle.json"),
+				test.SetDefaultValue(Key, "/path/to/key.pem"),
+				test.SetDefaultValue(KeyAlias, "my-key-alias"),
+				test.SetDefaultValue(Predicate, "/path/to/Predicate.json"),
+				test.SetDefaultValue(PredicateType, "test-type"),
 			},
 			expectError:   true,
-			errorContains: "The following parameters cannot be used with --sigstore-bundle: --key, --key-alias, --predicate, --predicate-type",
+			errorContains: "The following parameters cannot be used with --sigstore-bundle: --key, --key-alias, --Predicate, --Predicate-type",
 		},
 	}
 
@@ -494,19 +495,19 @@ func TestGetAndValidateSubject_SigstoreBundle(t *testing.T) {
 		{
 			name: "SigstoreBundle_NoSubjectFields",
 			flags: []components.Flag{
-				setDefaultValue(sigstoreBundle, "/path/to/bundle.json"),
+				test.SetDefaultValue(SigstoreBundle, "/path/to/bundle.json"),
 			},
 			expectError:     false,
-			expectedSubject: []string{subjectRepoPath},
+			expectedSubject: []string{SubjectRepoPath},
 		},
 		{
 			name: "SigstoreBundle_WithSubjectRepoPath",
 			flags: []components.Flag{
-				setDefaultValue(sigstoreBundle, "/path/to/bundle.json"),
-				setDefaultValue(subjectRepoPath, "test-repo/test-artifact"),
+				test.SetDefaultValue(SigstoreBundle, "/path/to/bundle.json"),
+				test.SetDefaultValue(SubjectRepoPath, "test-repo/test-artifact"),
 			},
 			expectError:     false,
-			expectedSubject: []string{subjectRepoPath},
+			expectedSubject: []string{SubjectRepoPath},
 		},
 		{
 			name:  "NoSigstoreBundle_NoSubject_ShouldFail",
@@ -518,10 +519,10 @@ func TestGetAndValidateSubject_SigstoreBundle(t *testing.T) {
 		{
 			name: "NoSigstoreBundle_WithSubject_ShouldPass",
 			flags: []components.Flag{
-				setDefaultValue(subjectRepoPath, "test-repo/test-artifact"),
+				test.SetDefaultValue(SubjectRepoPath, "test-repo/test-artifact"),
 			},
 			expectError:     false,
-			expectedSubject: []string{subjectRepoPath},
+			expectedSubject: []string{SubjectRepoPath},
 		},
 	}
 
@@ -560,16 +561,16 @@ func TestValidateSigstoreBundleConflicts(t *testing.T) {
 		{
 			name: "No_Conflicts",
 			flags: []components.Flag{
-				setDefaultValue(sigstoreBundle, "/path/to/bundle.json"),
-				setDefaultValue(subjectRepoPath, "test-repo/test-artifact"),
+				test.SetDefaultValue(SigstoreBundle, "/path/to/bundle.json"),
+				test.SetDefaultValue(SubjectRepoPath, "test-repo/test-artifact"),
 			},
 			expectError: false,
 		},
 		{
 			name: "Conflict_With_Key",
 			flags: []components.Flag{
-				setDefaultValue(sigstoreBundle, "/path/to/bundle.json"),
-				setDefaultValue(key, "/path/to/key"),
+				test.SetDefaultValue(SigstoreBundle, "/path/to/bundle.json"),
+				test.SetDefaultValue(Key, "/path/to/key"),
 			},
 			expectError:   true,
 			errorContains: "--key",
@@ -577,13 +578,13 @@ func TestValidateSigstoreBundleConflicts(t *testing.T) {
 		{
 			name: "Conflict_With_Multiple_Params",
 			flags: []components.Flag{
-				setDefaultValue(sigstoreBundle, "/path/to/bundle.json"),
-				setDefaultValue(key, "/path/to/key"),
-				setDefaultValue(keyAlias, "my-key"),
-				setDefaultValue(predicate, "/path/to/predicate"),
+				test.SetDefaultValue(SigstoreBundle, "/path/to/bundle.json"),
+				test.SetDefaultValue(Key, "/path/to/key"),
+				test.SetDefaultValue(KeyAlias, "my-key"),
+				test.SetDefaultValue(Predicate, "/path/to/Predicate"),
 			},
 			expectError:   true,
-			errorContains: "--key, --key-alias, --predicate",
+			errorContains: "--key, --key-alias, --Predicate",
 		},
 	}
 
@@ -606,12 +607,6 @@ func TestValidateSigstoreBundleConflicts(t *testing.T) {
 			}
 		})
 	}
-}
-
-func setDefaultValue(flag string, defaultValue string) components.Flag {
-	f := components.NewStringFlag(flag, flag)
-	f.DefaultValue = defaultValue
-	return f
 }
 
 func TestResolveAndNormalizeKey_TrimsWhitespace(t *testing.T) {
@@ -680,21 +675,21 @@ func TestResolveAndNormalizeKey_TrimsWhitespace(t *testing.T) {
 
 			var flags []components.Flag
 			if tt.setFlag {
-				flags = append(flags, setDefaultValue(key, tt.flagKeyValue))
+				flags = append(flags, test.SetDefaultValue(Key, tt.flagKeyValue))
 			}
-			flags = append(flags, setDefaultValue(predicate, "test"))
+			flags = append(flags, test.SetDefaultValue(Predicate, "test"))
 
 			ctx, err := components.ConvertContext(cliCtx, flags...)
 			assert.NoError(t, err)
 
 			// Execute
-			err = resolveAndNormalizeKey(ctx, key)
+			err = resolveAndNormalizeKey(ctx, Key)
 			assert.NoError(t, err)
 
 			// Verify
-			actualValue := ctx.GetStringFlagValue(key)
+			actualValue := ctx.GetStringFlagValue(Key)
 
-			// Debug output to help understand the difference in trimming behavior
+			// Debug Output to help understand the difference in trimming behavior
 			if tt.setFlag {
 				t.Logf("Flag input: %q (len=%d)", tt.flagKeyValue, len(tt.flagKeyValue))
 			} else {

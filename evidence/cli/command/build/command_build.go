@@ -1,0 +1,76 @@
+package build
+
+import (
+	"github.com/jfrog/jfrog-cli-core/v2/plugins/components"
+	"github.com/jfrog/jfrog-cli-core/v2/utils/config"
+	"github.com/jfrog/jfrog-cli-evidence/evidence/cli/command"
+	"github.com/jfrog/jfrog-cli-evidence/evidence/create"
+	"github.com/jfrog/jfrog-cli-evidence/evidence/verify"
+	"github.com/jfrog/jfrog-client-go/utils/errorutils"
+)
+
+type evidenceBuildCommand struct {
+	ctx     *components.Context
+	execute command.ExecCommandFunc
+}
+
+func NewEvidenceBuildCommand(ctx *components.Context, execute command.ExecCommandFunc) command.EvidenceCommands {
+	return &evidenceBuildCommand{
+		ctx:     ctx,
+		execute: execute,
+	}
+}
+
+func (ebc *evidenceBuildCommand) CreateEvidence(ctx *components.Context, serverDetails *config.ServerDetails) error {
+	err := ebc.validateEvidenceBuildContext(ctx)
+	if err != nil {
+		return err
+	}
+
+	createCmd := create.NewCreateEvidenceBuild(
+		serverDetails,
+		ebc.ctx.GetStringFlagValue(command.Predicate),
+		ebc.ctx.GetStringFlagValue(command.PredicateType),
+		ebc.ctx.GetStringFlagValue(command.Markdown),
+		ebc.ctx.GetStringFlagValue(command.Key),
+		ebc.ctx.GetStringFlagValue(command.KeyAlias),
+		ebc.ctx.GetStringFlagValue(command.Project),
+		ebc.ctx.GetStringFlagValue(command.BuildName),
+		ebc.ctx.GetStringFlagValue(command.BuildNumber),
+		ebc.ctx.GetStringFlagValue(command.ProviderId),
+		ebc.ctx.GetStringFlagValue(command.Integration))
+	return ebc.execute(createCmd)
+}
+
+func (ebc *evidenceBuildCommand) GetEvidence(_ *components.Context, _ *config.ServerDetails) error {
+	return errorutils.CheckErrorf("Get evidence is not supported with builds")
+}
+
+func (ebc *evidenceBuildCommand) VerifyEvidence(ctx *components.Context, serverDetails *config.ServerDetails) error {
+	err := ebc.validateEvidenceBuildContext(ctx)
+	if err != nil {
+		return err
+	}
+
+	verifyCmd := verify.NewVerifyEvidenceBuild(
+		serverDetails,
+		ebc.ctx.GetStringFlagValue(command.Project),
+		ebc.ctx.GetStringFlagValue(command.BuildName),
+		ebc.ctx.GetStringFlagValue(command.BuildNumber),
+		ebc.ctx.GetStringFlagValue(command.Format),
+		ebc.ctx.GetStringsArrFlagValue(command.PublicKeys),
+		ebc.ctx.GetBoolFlagValue(command.UseArtifactoryKeys),
+	)
+	return ebc.execute(verifyCmd)
+}
+
+func (ebc *evidenceBuildCommand) validateEvidenceBuildContext(ctx *components.Context) error {
+	// buildName is not validated since it is required for the evd context
+	if ebc.ctx.GetStringFlagValue(command.SigstoreBundle) != "" {
+		return errorutils.CheckErrorf("--%s is not supported for build evidence.", command.SigstoreBundle)
+	}
+	if command.AssertValueProvided(ctx, command.BuildNumber) != nil {
+		return errorutils.CheckErrorf("--%s is a mandatory field for creating a Build evidence", command.BuildNumber)
+	}
+	return nil
+}

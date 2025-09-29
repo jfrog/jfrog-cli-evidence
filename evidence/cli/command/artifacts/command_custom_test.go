@@ -1,7 +1,9 @@
-package cli
+package artifacts
 
 import (
 	"flag"
+	"github.com/jfrog/jfrog-cli-evidence/evidence/cli/command"
+	testUtils "github.com/jfrog/jfrog-cli-evidence/evidence/cli/test"
 	"testing"
 
 	"github.com/jfrog/jfrog-cli-core/v2/common/commands"
@@ -21,17 +23,17 @@ func TestEvidenceCustomCommand_CreateEvidence_SigstoreBundle(t *testing.T) {
 		{
 			name: "Valid_SigstoreBundle_Without_SubjectSha256",
 			flags: []components.Flag{
-				setDefaultValue(sigstoreBundle, "/path/to/bundle.json"),
-				setDefaultValue(subjectRepoPath, "test-repo/test-artifact"),
+				testUtils.SetDefaultValue(command.SigstoreBundle, "/path/to/bundle.json"),
+				testUtils.SetDefaultValue(command.SubjectRepoPath, "test-repo/test-artifact"),
 			},
 			expectError: false,
 		},
 		{
 			name: "Invalid_SigstoreBundle_With_SubjectSha256",
 			flags: []components.Flag{
-				setDefaultValue(sigstoreBundle, "/path/to/bundle.json"),
-				setDefaultValue(subjectRepoPath, "test-repo/test-artifact"),
-				setDefaultValue(subjectSha256, "abcd1234567890"),
+				testUtils.SetDefaultValue(command.SigstoreBundle, "/path/to/bundle.json"),
+				testUtils.SetDefaultValue(command.SubjectRepoPath, "test-repo/test-artifact"),
+				testUtils.SetDefaultValue(command.SubjectSha256, "abcd1234567890"),
 			},
 			expectError:   true,
 			errorContains: "The parameter --subject-sha256 cannot be used with --sigstore-bundle",
@@ -39,11 +41,11 @@ func TestEvidenceCustomCommand_CreateEvidence_SigstoreBundle(t *testing.T) {
 		{
 			name: "Valid_No_SigstoreBundle_With_SubjectSha256",
 			flags: []components.Flag{
-				setDefaultValue(subjectRepoPath, "test-repo/test-artifact"),
-				setDefaultValue(subjectSha256, "abcd1234567890"),
-				setDefaultValue(predicate, "/path/to/predicate.json"),
-				setDefaultValue(predicateType, "test-type"),
-				setDefaultValue(key, "/path/to/key.pem"),
+				testUtils.SetDefaultValue(command.SubjectRepoPath, "test-repo/test-artifact"),
+				testUtils.SetDefaultValue(command.SubjectSha256, "abcd1234567890"),
+				testUtils.SetDefaultValue(command.Predicate, "/path/to/predicate.json"),
+				testUtils.SetDefaultValue(command.PredicateType, "test-type"),
+				testUtils.SetDefaultValue(command.Key, "/path/to/key.pem"),
 			},
 			expectError: false,
 		},

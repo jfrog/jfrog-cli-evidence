@@ -2,6 +2,7 @@ package cli
 
 import (
 	"github.com/jfrog/jfrog-cli-core/v2/plugins/components"
+	"github.com/jfrog/jfrog-cli-evidence/evidence/cli/command"
 )
 
 func GetJfrogCliEvidenceApp() components.App {
@@ -10,8 +11,8 @@ func GetJfrogCliEvidenceApp() components.App {
 		[]components.Command{},
 		components.Namespace{
 			Name:        "evd",
-			Description: "Evidence commands.",
-			Commands:    GetCommands(),
+			Description: "Evidence command.",
+			Commands:    command.GetCommands(),
 			Category:    "Command Namespaces",
 		},
 	)
@@ -22,8 +23,8 @@ func GetStandaloneEvidenceApp() components.App {
 	app := components.CreateApp(
 		"evd",
 		"v1.0.0",
-		"Evidence commands.",
-		GetCommands(),
+		"Evidence command.",
+		command.GetCommands(),
 	)
 	return app
 }
