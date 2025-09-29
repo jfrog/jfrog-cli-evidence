@@ -2,7 +2,7 @@ package releasebundle
 
 import (
 	"flag"
-	"github.com/jfrog/jfrog-cli-evidence/evidence/cli/command"
+	"github.com/jfrog/jfrog-cli-evidence/evidence/cli/command/flags"
 	testUtil "github.com/jfrog/jfrog-cli-evidence/evidence/cli/test"
 	"testing"
 
@@ -23,9 +23,9 @@ func TestEvidenceReleaseBundleCommand_CreateEvidence_SigstoreBundle(t *testing.T
 		{
 			name: "Invalid_SigstoreBundle_Not_Supported",
 			flags: []components.Flag{
-				testUtil.SetDefaultValue(command.SigstoreBundle, "/path/to/bundle.json"),
-				testUtil.SetDefaultValue(command.ReleaseBundle, "test-release-bundle"),
-				testUtil.SetDefaultValue(command.ReleaseBundleVersion, "1.0.0"),
+				testUtil.SetDefaultValue(flags.SigstoreBundle, "/path/to/bundle.json"),
+				testUtil.SetDefaultValue(flags.ReleaseBundle, "test-release-bundle"),
+				testUtil.SetDefaultValue(flags.ReleaseBundleVersion, "1.0.0"),
 			},
 			expectError:   true,
 			errorContains: "--sigstore-bundle is not supported for release bundle evidence.",
@@ -33,11 +33,11 @@ func TestEvidenceReleaseBundleCommand_CreateEvidence_SigstoreBundle(t *testing.T
 		{
 			name: "Valid_Without_SigstoreBundle",
 			flags: []components.Flag{
-				testUtil.SetDefaultValue(command.ReleaseBundle, "test-release-bundle"),
-				testUtil.SetDefaultValue(command.ReleaseBundleVersion, "1.0.0"),
-				testUtil.SetDefaultValue(command.Predicate, "/path/to/predicate.json"),
-				testUtil.SetDefaultValue(command.PredicateType, "test-type"),
-				testUtil.SetDefaultValue(command.Key, "/path/to/key.pem"),
+				testUtil.SetDefaultValue(flags.ReleaseBundle, "test-release-bundle"),
+				testUtil.SetDefaultValue(flags.ReleaseBundleVersion, "1.0.0"),
+				testUtil.SetDefaultValue(flags.Predicate, "/path/to/predicate.json"),
+				testUtil.SetDefaultValue(flags.PredicateType, "test-type"),
+				testUtil.SetDefaultValue(flags.Key, "/path/to/key.pem"),
 			},
 			expectError: false,
 		},

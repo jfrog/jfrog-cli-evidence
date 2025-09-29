@@ -2,7 +2,7 @@ package artifacts
 
 import (
 	"flag"
-	"github.com/jfrog/jfrog-cli-evidence/evidence/cli/command"
+	"github.com/jfrog/jfrog-cli-evidence/evidence/cli/command/flags"
 	testUtils "github.com/jfrog/jfrog-cli-evidence/evidence/cli/test"
 	"testing"
 
@@ -23,17 +23,17 @@ func TestEvidenceCustomCommand_CreateEvidence_SigstoreBundle(t *testing.T) {
 		{
 			name: "Valid_SigstoreBundle_Without_SubjectSha256",
 			flags: []components.Flag{
-				testUtils.SetDefaultValue(command.SigstoreBundle, "/path/to/bundle.json"),
-				testUtils.SetDefaultValue(command.SubjectRepoPath, "test-repo/test-artifact"),
+				testUtils.SetDefaultValue(flags.SigstoreBundle, "/path/to/bundle.json"),
+				testUtils.SetDefaultValue(flags.SubjectRepoPath, "test-repo/test-artifact"),
 			},
 			expectError: false,
 		},
 		{
 			name: "Invalid_SigstoreBundle_With_SubjectSha256",
 			flags: []components.Flag{
-				testUtils.SetDefaultValue(command.SigstoreBundle, "/path/to/bundle.json"),
-				testUtils.SetDefaultValue(command.SubjectRepoPath, "test-repo/test-artifact"),
-				testUtils.SetDefaultValue(command.SubjectSha256, "abcd1234567890"),
+				testUtils.SetDefaultValue(flags.SigstoreBundle, "/path/to/bundle.json"),
+				testUtils.SetDefaultValue(flags.SubjectRepoPath, "test-repo/test-artifact"),
+				testUtils.SetDefaultValue(flags.SubjectSha256, "abcd1234567890"),
 			},
 			expectError:   true,
 			errorContains: "The parameter --subject-sha256 cannot be used with --sigstore-bundle",
@@ -41,11 +41,11 @@ func TestEvidenceCustomCommand_CreateEvidence_SigstoreBundle(t *testing.T) {
 		{
 			name: "Valid_No_SigstoreBundle_With_SubjectSha256",
 			flags: []components.Flag{
-				testUtils.SetDefaultValue(command.SubjectRepoPath, "test-repo/test-artifact"),
-				testUtils.SetDefaultValue(command.SubjectSha256, "abcd1234567890"),
-				testUtils.SetDefaultValue(command.Predicate, "/path/to/predicate.json"),
-				testUtils.SetDefaultValue(command.PredicateType, "test-type"),
-				testUtils.SetDefaultValue(command.Key, "/path/to/key.pem"),
+				testUtils.SetDefaultValue(flags.SubjectRepoPath, "test-repo/test-artifact"),
+				testUtils.SetDefaultValue(flags.SubjectSha256, "abcd1234567890"),
+				testUtils.SetDefaultValue(flags.Predicate, "/path/to/predicate.json"),
+				testUtils.SetDefaultValue(flags.PredicateType, "test-type"),
+				testUtils.SetDefaultValue(flags.Key, "/path/to/key.pem"),
 			},
 			expectError: false,
 		},

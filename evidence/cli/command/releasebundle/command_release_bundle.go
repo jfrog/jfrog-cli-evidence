@@ -3,7 +3,9 @@ package releasebundle
 import (
 	"github.com/jfrog/jfrog-cli-core/v2/plugins/components"
 	"github.com/jfrog/jfrog-cli-core/v2/utils/config"
-	"github.com/jfrog/jfrog-cli-evidence/evidence/cli/command"
+	"github.com/jfrog/jfrog-cli-evidence/evidence/cli/command/flags"
+	"github.com/jfrog/jfrog-cli-evidence/evidence/cli/command/interface"
+	utils2 "github.com/jfrog/jfrog-cli-evidence/evidence/cli/command/utils"
 	"github.com/jfrog/jfrog-cli-evidence/evidence/create"
 	"github.com/jfrog/jfrog-cli-evidence/evidence/get"
 	"github.com/jfrog/jfrog-cli-evidence/evidence/utils"
@@ -13,10 +15,10 @@ import (
 
 type evidenceReleaseBundleCommand struct {
 	ctx     *components.Context
-	execute command.ExecCommandFunc
+	execute utils2.ExecCommandFunc
 }
 
-func NewEvidenceReleaseBundleCommand(ctx *components.Context, execute command.ExecCommandFunc) command.EvidenceCommands {
+func NewEvidenceReleaseBundleCommand(ctx *components.Context, execute utils2.ExecCommandFunc) _interface.EvidenceCommands {
 	return &evidenceReleaseBundleCommand{
 		ctx:     ctx,
 		execute: execute,
@@ -31,16 +33,16 @@ func (erc *evidenceReleaseBundleCommand) CreateEvidence(ctx *components.Context,
 
 	createCmd := create.NewCreateEvidenceReleaseBundle(
 		serverDetails,
-		erc.ctx.GetStringFlagValue(command.Predicate),
-		erc.ctx.GetStringFlagValue(command.PredicateType),
-		erc.ctx.GetStringFlagValue(command.Markdown),
-		erc.ctx.GetStringFlagValue(command.Key),
-		erc.ctx.GetStringFlagValue(command.KeyAlias),
-		erc.ctx.GetStringFlagValue(command.Project),
-		erc.ctx.GetStringFlagValue(command.ReleaseBundle),
-		erc.ctx.GetStringFlagValue(command.ReleaseBundleVersion),
-		erc.ctx.GetStringFlagValue(command.ProviderId),
-		erc.ctx.GetStringFlagValue(command.Integration))
+		erc.ctx.GetStringFlagValue(flags.Predicate),
+		erc.ctx.GetStringFlagValue(flags.PredicateType),
+		erc.ctx.GetStringFlagValue(flags.Markdown),
+		erc.ctx.GetStringFlagValue(flags.Key),
+		erc.ctx.GetStringFlagValue(flags.KeyAlias),
+		erc.ctx.GetStringFlagValue(flags.Project),
+		erc.ctx.GetStringFlagValue(flags.ReleaseBundle),
+		erc.ctx.GetStringFlagValue(flags.ReleaseBundleVersion),
+		erc.ctx.GetStringFlagValue(flags.ProviderId),
+		erc.ctx.GetStringFlagValue(flags.Integration))
 	return erc.execute(createCmd)
 }
 
@@ -52,13 +54,13 @@ func (erc *evidenceReleaseBundleCommand) GetEvidence(ctx *components.Context, se
 
 	getCmd := get.NewGetEvidenceReleaseBundle(
 		serverDetails,
-		erc.ctx.GetStringFlagValue(command.ReleaseBundle),
-		erc.ctx.GetStringFlagValue(command.ReleaseBundleVersion),
-		erc.ctx.GetStringFlagValue(command.Project),
-		erc.ctx.GetStringFlagValue(command.Format),
-		erc.ctx.GetStringFlagValue(command.Output),
-		erc.ctx.GetStringFlagValue(command.ArtifactsLimit),
-		erc.ctx.GetBoolFlagValue(command.IncludePredicate),
+		erc.ctx.GetStringFlagValue(flags.ReleaseBundle),
+		erc.ctx.GetStringFlagValue(flags.ReleaseBundleVersion),
+		erc.ctx.GetStringFlagValue(flags.Project),
+		erc.ctx.GetStringFlagValue(flags.Format),
+		erc.ctx.GetStringFlagValue(flags.Output),
+		erc.ctx.GetStringFlagValue(flags.ArtifactsLimit),
+		erc.ctx.GetBoolFlagValue(flags.IncludePredicate),
 	)
 	return erc.execute(getCmd)
 }
@@ -71,26 +73,26 @@ func (erc *evidenceReleaseBundleCommand) VerifyEvidence(ctx *components.Context,
 
 	verifyCmd := verify.NewVerifyEvidenceReleaseBundle(
 		serverDetails,
-		erc.ctx.GetStringFlagValue(command.Format),
-		erc.ctx.GetStringFlagValue(command.Project),
-		erc.ctx.GetStringFlagValue(command.ReleaseBundle),
-		erc.ctx.GetStringFlagValue(command.ReleaseBundleVersion),
-		erc.ctx.GetStringsArrFlagValue(command.PublicKeys),
-		erc.ctx.GetBoolFlagValue(command.UseArtifactoryKeys),
+		erc.ctx.GetStringFlagValue(flags.Format),
+		erc.ctx.GetStringFlagValue(flags.Project),
+		erc.ctx.GetStringFlagValue(flags.ReleaseBundle),
+		erc.ctx.GetStringFlagValue(flags.ReleaseBundleVersion),
+		erc.ctx.GetStringsArrFlagValue(flags.PublicKeys),
+		erc.ctx.GetBoolFlagValue(flags.UseArtifactoryKeys),
 	)
 	return erc.execute(verifyCmd)
 }
 
 func (erc *evidenceReleaseBundleCommand) validateEvidenceReleaseBundleContext(ctx *components.Context) error {
 	// releaseBundleName is not validated since it is required for the evd context
-	if erc.ctx.GetStringFlagValue(command.SigstoreBundle) != "" {
-		return errorutils.CheckErrorf("--%s is not supported for release bundle evidence.", command.SigstoreBundle)
+	if erc.ctx.GetStringFlagValue(flags.SigstoreBundle) != "" {
+		return errorutils.CheckErrorf("--%s is not supported for release bundle evidence.", flags.SigstoreBundle)
 	}
-	if command.AssertValueProvided(ctx, command.ReleaseBundleVersion) != nil {
-		return errorutils.CheckErrorf("--%s is a mandatory field for creating a Release Bundle evidence", command.ReleaseBundleVersion)
+	if utils2.AssertValueProvided(ctx, flags.ReleaseBundleVersion) != nil {
+		return errorutils.CheckErrorf("--%s is a mandatory field for creating a Release Bundle evidence", flags.ReleaseBundleVersion)
 	}
-	if ctx.IsFlagSet(command.ArtifactsLimit) && !utils.IsFlagPositiveNumber(ctx.GetStringFlagValue(command.ArtifactsLimit)) {
-		return errorutils.CheckErrorf("--%s must be a positive number", command.ArtifactsLimit)
+	if ctx.IsFlagSet(flags.ArtifactsLimit) && !utils.IsFlagPositiveNumber(ctx.GetStringFlagValue(flags.ArtifactsLimit)) {
+		return errorutils.CheckErrorf("--%s must be a positive number", flags.ArtifactsLimit)
 	}
 	return nil
 }

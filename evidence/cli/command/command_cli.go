@@ -6,9 +6,12 @@ import (
 	"github.com/jfrog/jfrog-cli-evidence/evidence/cli/command/application"
 	"github.com/jfrog/jfrog-cli-evidence/evidence/cli/command/artifacts"
 	"github.com/jfrog/jfrog-cli-evidence/evidence/cli/command/build"
+	"github.com/jfrog/jfrog-cli-evidence/evidence/cli/command/flags"
 	"github.com/jfrog/jfrog-cli-evidence/evidence/cli/command/github"
+	"github.com/jfrog/jfrog-cli-evidence/evidence/cli/command/interface"
 	"github.com/jfrog/jfrog-cli-evidence/evidence/cli/command/package"
 	"github.com/jfrog/jfrog-cli-evidence/evidence/cli/command/releasebundle"
+	commandUtils "github.com/jfrog/jfrog-cli-evidence/evidence/cli/command/utils"
 	"os"
 	"slices"
 	"strings"
@@ -37,7 +40,7 @@ func GetCommands() []components.Command {
 		{
 			Name:        "create-evidence",
 			Aliases:     []string{"create"},
-			Flags:       GetCommandFlags(CreateEvidence),
+			Flags:       flags.GetCommandFlags(flags.CreateEvidence),
 			Description: create.GetDescription(),
 			Arguments:   create.GetArguments(),
 			Action:      createEvidence,
@@ -45,7 +48,7 @@ func GetCommands() []components.Command {
 		{
 			Name:        "get-evidence",
 			Aliases:     []string{"get"},
-			Flags:       GetCommandFlags(GetEvidence),
+			Flags:       flags.GetCommandFlags(flags.GetEvidence),
 			Description: get.GetDescription(),
 			Arguments:   get.GetArguments(),
 			Action:      getEvidence,
@@ -53,7 +56,7 @@ func GetCommands() []components.Command {
 		{
 			Name:        "verify-evidence",
 			Aliases:     []string{"verify"},
-			Flags:       GetCommandFlags(VerifyEvidence),
+			Flags:       flags.GetCommandFlags(flags.VerifyEvidence),
 			Description: verify.GetDescription(),
 			Arguments:   verify.GetArguments(),
 			Action:      verifyEvidence,
@@ -61,7 +64,7 @@ func GetCommands() []components.Command {
 		{
 			Name:        "generate-key-pair",
 			Aliases:     []string{"gen-keys"},
-			Flags:       GetCommandFlags(GenerateKeyPair),
+			Flags:       flags.GetCommandFlags(flags.GenerateKeyPair),
 			Description: generate.GetDescription(),
 			Arguments:   generate.GetArguments(),
 			Action:      generateKeyPair,
@@ -85,16 +88,16 @@ func createEvidence(ctx *components.Context) error {
 		return err
 	}
 
-	if slices.Contains(evidenceType, TypeFlag) || (slices.Contains(evidenceType, BuildName) && slices.Contains(evidenceType, TypeFlag)) {
+	if slices.Contains(evidenceType, flags.TypeFlag) || (slices.Contains(evidenceType, flags.BuildName) && slices.Contains(evidenceType, flags.TypeFlag)) {
 		return github.NewEvidenceGitHubCommand(ctx, execFunc).CreateEvidence(ctx, serverDetails)
 	}
 
-	evidenceCommands := map[string]func(*components.Context, ExecCommandFunc) EvidenceCommands{
-		SubjectRepoPath: artifacts.NewEvidenceCustomCommand,
-		ReleaseBundle:   releasebundle.NewEvidenceReleaseBundleCommand,
-		BuildName:       build.NewEvidenceBuildCommand,
-		PackageName:     _package.NewEvidencePackageCommand,
-		ApplicationKey:  application.NewEvidenceApplicationCommand,
+	evidenceCommands := map[string]func(*components.Context, commandUtils.ExecCommandFunc) _interface.EvidenceCommands{
+		flags.SubjectRepoPath: artifacts.NewEvidenceCustomCommand,
+		flags.ReleaseBundle:   releasebundle.NewEvidenceReleaseBundleCommand,
+		flags.BuildName:       build.NewEvidenceBuildCommand,
+		flags.PackageName:     _package.NewEvidencePackageCommand,
+		flags.ApplicationKey:  application.NewEvidenceApplicationCommand,
 	}
 
 	if commandFunc, exists := evidenceCommands[evidenceType[0]]; exists {
@@ -119,9 +122,9 @@ func getEvidence(ctx *components.Context) error {
 		return err
 	}
 
-	evidenceCommands := map[string]func(*components.Context, ExecCommandFunc) EvidenceCommands{
-		SubjectRepoPath: artifacts.NewEvidenceCustomCommand,
-		ReleaseBundle:   releasebundle.NewEvidenceReleaseBundleCommand,
+	evidenceCommands := map[string]func(*components.Context, commandUtils.ExecCommandFunc) _interface.EvidenceCommands{
+		flags.SubjectRepoPath: artifacts.NewEvidenceCustomCommand,
+		flags.ReleaseBundle:   releasebundle.NewEvidenceReleaseBundleCommand,
 	}
 
 	if commandFunc, exists := evidenceCommands[evidenceType[0]]; exists {
@@ -157,11 +160,11 @@ func verifyEvidence(ctx *components.Context) error {
 	if err != nil {
 		return err
 	}
-	evidenceCommands := map[string]func(*components.Context, ExecCommandFunc) EvidenceCommands{
-		SubjectRepoPath: artifacts.NewEvidenceCustomCommand,
-		ReleaseBundle:   releasebundle.NewEvidenceReleaseBundleCommand,
-		BuildName:       build.NewEvidenceBuildCommand,
-		PackageName:     _package.NewEvidencePackageCommand,
+	evidenceCommands := map[string]func(*components.Context, commandUtils.ExecCommandFunc) _interface.EvidenceCommands{
+		flags.SubjectRepoPath: artifacts.NewEvidenceCustomCommand,
+		flags.ReleaseBundle:   releasebundle.NewEvidenceReleaseBundleCommand,
+		flags.BuildName:       build.NewEvidenceBuildCommand,
+		flags.PackageName:     _package.NewEvidencePackageCommand,
 	}
 	if commandFunc, exists := evidenceCommands[subjectType[0]]; exists {
 		err = commandFunc(ctx, execFunc).VerifyEvidence(ctx, serverDetails)
@@ -185,51 +188,51 @@ func validateCreateEvidenceCommonContext(ctx *components.Context) error {
 		return pluginsCommon.WrongNumberOfArgumentsHandler(ctx)
 	}
 
-	if AssertValueProvided(ctx, SigstoreBundle) == nil {
+	if commandUtils.AssertValueProvided(ctx, flags.SigstoreBundle) == nil {
 		if err := validateSigstoreBundleArgsConflicts(ctx); err != nil {
 			return err
 		}
 		return nil
 	}
 
-	if AssertValueProvided(ctx, Integration) == nil {
-		if err := evidenceUtils.ValidateIntegration(ctx.GetStringFlagValue(Integration)); err != nil {
+	if commandUtils.AssertValueProvided(ctx, flags.Integration) == nil {
+		if err := evidenceUtils.ValidateIntegration(ctx.GetStringFlagValue(flags.Integration)); err != nil {
 			return err
 		}
 	}
 
-	if AssertValueProvided(ctx, Predicate) != nil && !ctx.IsFlagSet(TypeFlag) {
-		if !evidenceUtils.IsSonarIntegration(ctx.GetStringFlagValue(Integration)) {
-			return errorutils.CheckErrorf("'Predicate' is a mandatory field for creating evidence: --%s", Predicate)
+	if commandUtils.AssertValueProvided(ctx, flags.Predicate) != nil && !ctx.IsFlagSet(flags.TypeFlag) {
+		if !evidenceUtils.IsSonarIntegration(ctx.GetStringFlagValue(flags.Integration)) {
+			return errorutils.CheckErrorf("'Predicate' is a mandatory field for creating evidence: --%s", flags.Predicate)
 		}
 	}
 
-	if AssertValueProvided(ctx, PredicateType) != nil && !ctx.IsFlagSet(TypeFlag) {
-		if !evidenceUtils.IsSonarIntegration(ctx.GetStringFlagValue(Integration)) {
-			return errorutils.CheckErrorf("'Predicate-type' is a mandatory field for creating evidence: --%s", PredicateType)
+	if commandUtils.AssertValueProvided(ctx, flags.PredicateType) != nil && !ctx.IsFlagSet(flags.TypeFlag) {
+		if !evidenceUtils.IsSonarIntegration(ctx.GetStringFlagValue(flags.Integration)) {
+			return errorutils.CheckErrorf("'Predicate-type' is a mandatory field for creating evidence: --%s", flags.PredicateType)
 		}
 	}
 
 	// Validate SonarQube requirements when sonar integration is set
-	if evidenceUtils.IsSonarIntegration(ctx.GetStringFlagValue(Integration)) {
+	if evidenceUtils.IsSonarIntegration(ctx.GetStringFlagValue(flags.Integration)) {
 		if err := validateSonarQubeRequirements(); err != nil {
 			return err
 		}
 		// Conflicting flags with sonar evidence type
-		if ctx.IsFlagSet(Predicate) && ctx.GetStringFlagValue(Predicate) != "" {
-			return errorutils.CheckErrorf("--%s cannot be used together with --%s %s", Predicate, Integration, evidenceUtils.SonarIntegration)
+		if ctx.IsFlagSet(flags.Predicate) && ctx.GetStringFlagValue(flags.Predicate) != "" {
+			return errorutils.CheckErrorf("--%s cannot be used together with --%s %s", flags.Predicate, flags.Integration, evidenceUtils.SonarIntegration)
 		}
-		if ctx.IsFlagSet(PredicateType) && ctx.GetStringFlagValue(PredicateType) != "" {
-			return errorutils.CheckErrorf("--%s cannot be used together with --%s %s", PredicateType, Integration, evidenceUtils.SonarIntegration)
+		if ctx.IsFlagSet(flags.PredicateType) && ctx.GetStringFlagValue(flags.PredicateType) != "" {
+			return errorutils.CheckErrorf("--%s cannot be used together with --%s %s", flags.PredicateType, flags.Integration, evidenceUtils.SonarIntegration)
 		}
 	}
 
-	if err := resolveAndNormalizeKey(ctx, Key); err != nil {
+	if err := resolveAndNormalizeKey(ctx, flags.Key); err != nil {
 		return err
 	}
 
-	if !ctx.IsFlagSet(KeyAlias) {
-		setKeyAliasIfProvided(ctx, KeyAlias)
+	if !ctx.IsFlagSet(flags.KeyAlias) {
+		setKeyAliasIfProvided(ctx, flags.KeyAlias)
 	}
 	return nil
 }
@@ -237,28 +240,28 @@ func validateCreateEvidenceCommonContext(ctx *components.Context) error {
 func validateSigstoreBundleArgsConflicts(ctx *components.Context) error {
 	var conflictingParams []string
 
-	if ctx.IsFlagSet(Key) && ctx.GetStringFlagValue(Key) != "" {
-		conflictingParams = append(conflictingParams, "--"+Key)
+	if ctx.IsFlagSet(flags.Key) && ctx.GetStringFlagValue(flags.Key) != "" {
+		conflictingParams = append(conflictingParams, "--"+flags.Key)
 	}
-	if ctx.IsFlagSet(KeyAlias) && ctx.GetStringFlagValue(KeyAlias) != "" {
-		conflictingParams = append(conflictingParams, "--"+KeyAlias)
+	if ctx.IsFlagSet(flags.KeyAlias) && ctx.GetStringFlagValue(flags.KeyAlias) != "" {
+		conflictingParams = append(conflictingParams, "--"+flags.KeyAlias)
 	}
-	if ctx.IsFlagSet(Predicate) && ctx.GetStringFlagValue(Predicate) != "" {
-		conflictingParams = append(conflictingParams, "--"+Predicate)
+	if ctx.IsFlagSet(flags.Predicate) && ctx.GetStringFlagValue(flags.Predicate) != "" {
+		conflictingParams = append(conflictingParams, "--"+flags.Predicate)
 	}
-	if ctx.IsFlagSet(PredicateType) && ctx.GetStringFlagValue(PredicateType) != "" {
-		conflictingParams = append(conflictingParams, "--"+PredicateType)
+	if ctx.IsFlagSet(flags.PredicateType) && ctx.GetStringFlagValue(flags.PredicateType) != "" {
+		conflictingParams = append(conflictingParams, "--"+flags.PredicateType)
 	}
 
 	if len(conflictingParams) > 0 {
-		return errorutils.CheckErrorf("The following parameters cannot be used with --%s: %s. These values are extracted from the bundle itself:", SigstoreBundle, strings.Join(conflictingParams, ", "))
+		return errorutils.CheckErrorf("The following parameters cannot be used with --%s: %s. These values are extracted from the bundle itself:", flags.SigstoreBundle, strings.Join(conflictingParams, ", "))
 	}
 
 	return nil
 }
 
 func resolveAndNormalizeKey(ctx *components.Context, key string) error {
-	if AssertValueProvided(ctx, key) == nil {
+	if commandUtils.AssertValueProvided(ctx, key) == nil {
 		// Trim whitespace and newlines from the flag value
 		keyValue := ctx.GetStringFlagValue(key)
 		log.Debug(fmt.Sprintf("Flag '%s' original value: %q (length: %d)", key, keyValue, len(keyValue)))
@@ -295,21 +298,21 @@ func setKeyAliasIfProvided(ctx *components.Context, keyAlias string) {
 
 func getAndValidateSubject(ctx *components.Context) ([]string, error) {
 	var foundSubjects []string
-	for _, key := range subjectTypes {
+	for _, key := range commandUtils.SubjectTypes {
 		if ctx.GetStringFlagValue(key) != "" {
 			foundSubjects = append(foundSubjects, key)
 		}
 	}
 
 	if len(foundSubjects) == 0 {
-		if AssertValueProvided(ctx, SigstoreBundle) == nil {
-			return []string{SubjectRepoPath}, nil // Return subjectRepoPath as the type for routing
+		if commandUtils.AssertValueProvided(ctx, flags.SigstoreBundle) == nil {
+			return []string{flags.SubjectRepoPath}, nil // Return subjectRepoPath as the type for routing
 		}
 		// If we have no subject - we will try to create EVD on build
 		if !attemptSetBuildNameAndNumber(ctx) {
-			return nil, errorutils.CheckErrorf("subject must be one of the fields: [%s]", strings.Join(subjectTypes, ", "))
+			return nil, errorutils.CheckErrorf("subject must be one of the fields: [%s]", strings.Join(commandUtils.SubjectTypes, ", "))
 		}
-		foundSubjects = append(foundSubjects, BuildName)
+		foundSubjects = append(foundSubjects, flags.BuildName)
 	}
 
 	if err := validateFoundSubjects(ctx, foundSubjects); err != nil {
@@ -320,8 +323,8 @@ func getAndValidateSubject(ctx *components.Context) ([]string, error) {
 }
 
 func attemptSetBuildNameAndNumber(ctx *components.Context) bool {
-	buildNameAdded := setBuildValue(ctx, BuildName, coreUtils.BuildName)
-	buildNumberAdded := setBuildValue(ctx, BuildNumber, coreUtils.BuildNumber)
+	buildNameAdded := setBuildValue(ctx, flags.BuildName, coreUtils.BuildName)
+	buildNumberAdded := setBuildValue(ctx, flags.BuildNumber, coreUtils.BuildNumber)
 
 	return buildNameAdded && buildNumberAdded
 }
@@ -341,22 +344,22 @@ func setBuildValue(ctx *components.Context, flag, envVar string) bool {
 
 func validateKeys(ctx *components.Context) error {
 	signingKeyValue, _ := evidenceUtils.GetEnvVariable(coreUtils.SigningKey)
-	providedKeys := ctx.GetStringsArrFlagValue(PublicKeys)
+	providedKeys := ctx.GetStringsArrFlagValue(flags.PublicKeys)
 	if len(providedKeys) > 0 {
 		joinedKeys := strings.Join(append(providedKeys, signingKeyValue), ";")
-		ctx.SetStringFlagValue(PublicKeys, joinedKeys)
+		ctx.SetStringFlagValue(flags.PublicKeys, joinedKeys)
 	} else {
-		ctx.AddStringFlag(PublicKeys, signingKeyValue)
+		ctx.AddStringFlag(flags.PublicKeys, signingKeyValue)
 	}
 	return nil
 }
 
 func validateFoundSubjects(ctx *components.Context, foundSubjects []string) error {
-	if slices.Contains(foundSubjects, TypeFlag) && slices.Contains(foundSubjects, BuildName) {
+	if slices.Contains(foundSubjects, flags.TypeFlag) && slices.Contains(foundSubjects, flags.BuildName) {
 		return nil
 	}
 
-	if slices.Contains(foundSubjects, TypeFlag) && attemptSetBuildNameAndNumber(ctx) {
+	if slices.Contains(foundSubjects, flags.TypeFlag) && attemptSetBuildNameAndNumber(ctx) {
 		return nil
 	}
 
@@ -395,7 +398,7 @@ func platformToEvidenceUrls(rtDetails *config.ServerDetails) {
 func validateSonarQubeRequirements() error {
 	// Check if SonarQube token is present
 	if os.Getenv("SONAR_TOKEN") == "" && os.Getenv("SONARQUBE_TOKEN") == "" {
-		return errorutils.CheckErrorf("SonarQube token is required when using --%s %s. Please set SONAR_TOKEN or SONARQUBE_TOKEN environment variable", Integration, evidenceUtils.SonarIntegration)
+		return errorutils.CheckErrorf("SonarQube token is required when using --%s %s. Please set SONAR_TOKEN or SONARQUBE_TOKEN environment variable", flags.Integration, evidenceUtils.SonarIntegration)
 	}
 
 	// Check if report-task.txt exists using the detector or config
@@ -418,11 +421,11 @@ func generateKeyPair(ctx *components.Context) error {
 	}
 
 	// Get upload flag, key alias, force flag, Output directory, and key file name
-	uploadKey := ctx.GetBoolFlagValue(UploadPublicKey)
-	alias := ctx.GetStringFlagValue(KeyAlias)
-	forceOverwrite := ctx.GetBoolFlagValue(Force)
-	outputDirectory := ctx.GetStringFlagValue(OutputDir)
-	fileName := ctx.GetStringFlagValue(KeyFileName)
+	uploadKey := ctx.GetBoolFlagValue(flags.UploadPublicKey)
+	alias := ctx.GetStringFlagValue(flags.KeyAlias)
+	forceOverwrite := ctx.GetBoolFlagValue(flags.Force)
+	outputDirectory := ctx.GetStringFlagValue(flags.OutputDir)
+	fileName := ctx.GetStringFlagValue(flags.KeyFileName)
 
 	var serverDetails *config.ServerDetails
 	var err error

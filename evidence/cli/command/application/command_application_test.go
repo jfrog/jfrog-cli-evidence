@@ -2,7 +2,7 @@ package application
 
 import (
 	"flag"
-	"github.com/jfrog/jfrog-cli-evidence/evidence/cli/command"
+	"github.com/jfrog/jfrog-cli-evidence/evidence/cli/command/flags"
 	testUtil "github.com/jfrog/jfrog-cli-evidence/evidence/cli/test"
 	"testing"
 
@@ -23,9 +23,9 @@ func TestEvidenceApplicationCommand_CreateEvidence_SigstoreBundle(t *testing.T) 
 		{
 			name: "Invalid_SigstoreBundle_Not_Supported",
 			flags: []components.Flag{
-				testUtil.SetDefaultValue(command.SigstoreBundle, "/path/to/bundle.json"),
-				testUtil.SetDefaultValue(command.ApplicationKey, "testUtil-app"),
-				testUtil.SetDefaultValue(command.ApplicationVersion, "1.0.0"),
+				testUtil.SetDefaultValue(flags.SigstoreBundle, "/path/to/bundle.json"),
+				testUtil.SetDefaultValue(flags.ApplicationKey, "testUtil-app"),
+				testUtil.SetDefaultValue(flags.ApplicationVersion, "1.0.0"),
 			},
 			expectError:   true,
 			errorContains: "--sigstore-bundle is not supported for application evidence.",
@@ -33,11 +33,11 @@ func TestEvidenceApplicationCommand_CreateEvidence_SigstoreBundle(t *testing.T) 
 		{
 			name: "Valid_Without_SigstoreBundle",
 			flags: []components.Flag{
-				testUtil.SetDefaultValue(command.ApplicationKey, "testUtil-app"),
-				testUtil.SetDefaultValue(command.ApplicationVersion, "1.0.0"),
-				testUtil.SetDefaultValue(command.Predicate, "/path/to/predicate.json"),
-				testUtil.SetDefaultValue(command.PredicateType, "testUtil-type"),
-				testUtil.SetDefaultValue(command.Key, "/path/to/key.pem"),
+				testUtil.SetDefaultValue(flags.ApplicationKey, "testUtil-app"),
+				testUtil.SetDefaultValue(flags.ApplicationVersion, "1.0.0"),
+				testUtil.SetDefaultValue(flags.Predicate, "/path/to/predicate.json"),
+				testUtil.SetDefaultValue(flags.PredicateType, "testUtil-type"),
+				testUtil.SetDefaultValue(flags.Key, "/path/to/key.pem"),
 			},
 			expectError: false,
 		},
@@ -88,15 +88,15 @@ func TestEvidenceApplicationCommand_ValidateEvidenceApplicationContext(t *testin
 		{
 			name: "Valid_All_Required_Fields",
 			flags: []components.Flag{
-				testUtil.SetDefaultValue(command.ApplicationKey, "testUtil-app"),
-				testUtil.SetDefaultValue(command.ApplicationVersion, "1.0.0"),
+				testUtil.SetDefaultValue(flags.ApplicationKey, "testUtil-app"),
+				testUtil.SetDefaultValue(flags.ApplicationVersion, "1.0.0"),
 			},
 			expectError: false,
 		},
 		{
 			name: "Invalid_Missing_ApplicationKey",
 			flags: []components.Flag{
-				testUtil.SetDefaultValue(command.ApplicationVersion, "1.0.0"),
+				testUtil.SetDefaultValue(flags.ApplicationVersion, "1.0.0"),
 			},
 			expectError:   true,
 			errorContains: "--application-key is a mandatory field for creating an Application evidence",
@@ -104,7 +104,7 @@ func TestEvidenceApplicationCommand_ValidateEvidenceApplicationContext(t *testin
 		{
 			name: "Invalid_Missing_ApplicationVersion",
 			flags: []components.Flag{
-				testUtil.SetDefaultValue(command.ApplicationKey, "testUtil-app"),
+				testUtil.SetDefaultValue(flags.ApplicationKey, "testUtil-app"),
 			},
 			expectError:   true,
 			errorContains: "--application-version is a mandatory field for creating an Application evidence",
@@ -112,8 +112,8 @@ func TestEvidenceApplicationCommand_ValidateEvidenceApplicationContext(t *testin
 		{
 			name: "Invalid_Empty_ApplicationKey",
 			flags: []components.Flag{
-				testUtil.SetDefaultValue(command.ApplicationKey, ""),
-				testUtil.SetDefaultValue(command.ApplicationVersion, "1.0.0"),
+				testUtil.SetDefaultValue(flags.ApplicationKey, ""),
+				testUtil.SetDefaultValue(flags.ApplicationVersion, "1.0.0"),
 			},
 			expectError:   true,
 			errorContains: "--application-key is a mandatory field for creating an Application evidence",
@@ -121,8 +121,8 @@ func TestEvidenceApplicationCommand_ValidateEvidenceApplicationContext(t *testin
 		{
 			name: "Invalid_Empty_ApplicationVersion",
 			flags: []components.Flag{
-				testUtil.SetDefaultValue(command.ApplicationKey, "testUtil-app"),
-				testUtil.SetDefaultValue(command.ApplicationVersion, ""),
+				testUtil.SetDefaultValue(flags.ApplicationKey, "testUtil-app"),
+				testUtil.SetDefaultValue(flags.ApplicationVersion, ""),
 			},
 			expectError:   true,
 			errorContains: "--application-version is a mandatory field for creating an Application evidence",
@@ -130,9 +130,9 @@ func TestEvidenceApplicationCommand_ValidateEvidenceApplicationContext(t *testin
 		{
 			name: "Invalid_Project_Flag_Not_Allowed",
 			flags: []components.Flag{
-				testUtil.SetDefaultValue(command.ApplicationKey, "testUtil-app"),
-				testUtil.SetDefaultValue(command.ApplicationVersion, "1.0.0"),
-				testUtil.SetDefaultValue(command.Project, "testUtil-project"),
+				testUtil.SetDefaultValue(flags.ApplicationKey, "testUtil-app"),
+				testUtil.SetDefaultValue(flags.ApplicationVersion, "1.0.0"),
+				testUtil.SetDefaultValue(flags.Project, "testUtil-project"),
 			},
 			expectError:   true,
 			errorContains: "--project flag is not allowed when using application-based evidence creation",
@@ -140,9 +140,9 @@ func TestEvidenceApplicationCommand_ValidateEvidenceApplicationContext(t *testin
 		{
 			name: "Invalid_SigstoreBundle_Not_Supported",
 			flags: []components.Flag{
-				testUtil.SetDefaultValue(command.ApplicationKey, "testUtil-app"),
-				testUtil.SetDefaultValue(command.ApplicationVersion, "1.0.0"),
-				testUtil.SetDefaultValue(command.SigstoreBundle, "/path/to/bundle.json"),
+				testUtil.SetDefaultValue(flags.ApplicationKey, "testUtil-app"),
+				testUtil.SetDefaultValue(flags.ApplicationVersion, "1.0.0"),
+				testUtil.SetDefaultValue(flags.SigstoreBundle, "/path/to/bundle.json"),
 			},
 			expectError:   true,
 			errorContains: "--sigstore-bundle is not supported for application evidence.",

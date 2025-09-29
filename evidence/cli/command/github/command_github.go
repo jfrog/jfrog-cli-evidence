@@ -3,7 +3,9 @@ package github
 import (
 	"github.com/jfrog/jfrog-cli-core/v2/plugins/components"
 	"github.com/jfrog/jfrog-cli-core/v2/utils/config"
-	"github.com/jfrog/jfrog-cli-evidence/evidence/cli/command"
+	"github.com/jfrog/jfrog-cli-evidence/evidence/cli/command/flags"
+	"github.com/jfrog/jfrog-cli-evidence/evidence/cli/command/interface"
+	utils2 "github.com/jfrog/jfrog-cli-evidence/evidence/cli/command/utils"
 	"github.com/jfrog/jfrog-cli-evidence/evidence/create"
 	"github.com/jfrog/jfrog-cli-evidence/evidence/utils"
 	"github.com/jfrog/jfrog-client-go/utils/errorutils"
@@ -11,10 +13,10 @@ import (
 
 type evidenceGitHubCommand struct {
 	ctx     *components.Context
-	execute command.ExecCommandFunc
+	execute utils2.ExecCommandFunc
 }
 
-func NewEvidenceGitHubCommand(ctx *components.Context, execute command.ExecCommandFunc) command.EvidenceCommands {
+func NewEvidenceGitHubCommand(ctx *components.Context, execute utils2.ExecCommandFunc) _interface.EvidenceCommands {
 	return &evidenceGitHubCommand{
 		ctx:     ctx,
 		execute: execute,
@@ -33,15 +35,15 @@ func (ebc *evidenceGitHubCommand) CreateEvidence(ctx *components.Context, server
 
 	createCmd := create.NewCreateGithub(
 		serverDetails,
-		ebc.ctx.GetStringFlagValue(command.Predicate),
-		ebc.ctx.GetStringFlagValue(command.PredicateType),
-		ebc.ctx.GetStringFlagValue(command.Markdown),
-		ebc.ctx.GetStringFlagValue(command.Key),
-		ebc.ctx.GetStringFlagValue(command.KeyAlias),
-		ebc.ctx.GetStringFlagValue(command.Project),
-		ebc.ctx.GetStringFlagValue(command.BuildName),
-		ebc.ctx.GetStringFlagValue(command.BuildNumber),
-		ebc.ctx.GetStringFlagValue(command.TypeFlag))
+		ebc.ctx.GetStringFlagValue(flags.Predicate),
+		ebc.ctx.GetStringFlagValue(flags.PredicateType),
+		ebc.ctx.GetStringFlagValue(flags.Markdown),
+		ebc.ctx.GetStringFlagValue(flags.Key),
+		ebc.ctx.GetStringFlagValue(flags.KeyAlias),
+		ebc.ctx.GetStringFlagValue(flags.Project),
+		ebc.ctx.GetStringFlagValue(flags.BuildName),
+		ebc.ctx.GetStringFlagValue(flags.BuildNumber),
+		ebc.ctx.GetStringFlagValue(flags.TypeFlag))
 	return ebc.execute(createCmd)
 }
 
@@ -52,14 +54,14 @@ func (ebc *evidenceGitHubCommand) VerifyEvidence(_ *components.Context, _ *confi
 
 func (ebc *evidenceGitHubCommand) validateEvidenceGithubContext(ctx *components.Context) error {
 	// buildName is not validated since it is required for the evd context
-	if utils.IsSonarIntegration(ctx.GetStringFlagValue(command.Integration)) {
-		return errorutils.CheckErrorf("--%s %s is not supported for GitHub evidence.", command.Integration, utils.SonarIntegration)
+	if utils.IsSonarIntegration(ctx.GetStringFlagValue(flags.Integration)) {
+		return errorutils.CheckErrorf("--%s %s is not supported for GitHub evidence.", flags.Integration, utils.SonarIntegration)
 	}
-	if ebc.ctx.GetStringFlagValue(command.SigstoreBundle) != "" {
-		return errorutils.CheckErrorf("--%s is not supported for GitHub evidence.", command.SigstoreBundle)
+	if ebc.ctx.GetStringFlagValue(flags.SigstoreBundle) != "" {
+		return errorutils.CheckErrorf("--%s is not supported for GitHub evidence.", flags.SigstoreBundle)
 	}
-	if command.AssertValueProvided(ctx, command.BuildNumber) != nil {
-		return errorutils.CheckErrorf("--%s is a mandatory field for creating a Release Bundle evidence", command.BuildNumber)
+	if utils2.AssertValueProvided(ctx, flags.BuildNumber) != nil {
+		return errorutils.CheckErrorf("--%s is a mandatory field for creating a Release Bundle evidence", flags.BuildNumber)
 	}
 	return nil
 }

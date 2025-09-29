@@ -2,7 +2,7 @@ package _package
 
 import (
 	"flag"
-	"github.com/jfrog/jfrog-cli-evidence/evidence/cli/command"
+	"github.com/jfrog/jfrog-cli-evidence/evidence/cli/command/flags"
 	testUtil "github.com/jfrog/jfrog-cli-evidence/evidence/cli/test"
 	"testing"
 
@@ -23,10 +23,10 @@ func TestEvidencePackageCommand_CreateEvidence_SigstoreBundle(t *testing.T) {
 		{
 			name: "Invalid_SigstoreBundle_Not_Supported",
 			flags: []components.Flag{
-				testUtil.SetDefaultValue(command.SigstoreBundle, "/path/to/bundle.json"),
-				testUtil.SetDefaultValue(command.PackageName, "test-package"),
-				testUtil.SetDefaultValue(command.PackageVersion, "1.0.0"),
-				testUtil.SetDefaultValue(command.PackageRepoName, "test-repo"),
+				testUtil.SetDefaultValue(flags.SigstoreBundle, "/path/to/bundle.json"),
+				testUtil.SetDefaultValue(flags.PackageName, "test-package"),
+				testUtil.SetDefaultValue(flags.PackageVersion, "1.0.0"),
+				testUtil.SetDefaultValue(flags.PackageRepoName, "test-repo"),
 			},
 			expectError:   true,
 			errorContains: "--sigstore-bundle is not supported for package evidence.",
@@ -34,12 +34,12 @@ func TestEvidencePackageCommand_CreateEvidence_SigstoreBundle(t *testing.T) {
 		{
 			name: "Valid_Without_SigstoreBundle",
 			flags: []components.Flag{
-				testUtil.SetDefaultValue(command.PackageName, "test-package"),
-				testUtil.SetDefaultValue(command.PackageVersion, "1.0.0"),
-				testUtil.SetDefaultValue(command.PackageRepoName, "test-repo"),
-				testUtil.SetDefaultValue(command.Predicate, "/path/to/predicate.json"),
-				testUtil.SetDefaultValue(command.PredicateType, "test-type"),
-				testUtil.SetDefaultValue(command.Key, "/path/to/key.pem"),
+				testUtil.SetDefaultValue(flags.PackageName, "test-package"),
+				testUtil.SetDefaultValue(flags.PackageVersion, "1.0.0"),
+				testUtil.SetDefaultValue(flags.PackageRepoName, "test-repo"),
+				testUtil.SetDefaultValue(flags.Predicate, "/path/to/predicate.json"),
+				testUtil.SetDefaultValue(flags.PredicateType, "test-type"),
+				testUtil.SetDefaultValue(flags.Key, "/path/to/key.pem"),
 			},
 			expectError: false,
 		},

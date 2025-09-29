@@ -3,17 +3,19 @@ package application
 import (
 	"github.com/jfrog/jfrog-cli-core/v2/plugins/components"
 	"github.com/jfrog/jfrog-cli-core/v2/utils/config"
-	"github.com/jfrog/jfrog-cli-evidence/evidence/cli/command"
+	"github.com/jfrog/jfrog-cli-evidence/evidence/cli/command/flags"
+	"github.com/jfrog/jfrog-cli-evidence/evidence/cli/command/interface"
+	"github.com/jfrog/jfrog-cli-evidence/evidence/cli/command/utils"
 	"github.com/jfrog/jfrog-cli-evidence/evidence/create"
 	"github.com/jfrog/jfrog-client-go/utils/errorutils"
 )
 
 type evidenceApplicationCommand struct {
 	ctx     *components.Context
-	execute command.ExecCommandFunc
+	execute utils.ExecCommandFunc
 }
 
-func NewEvidenceApplicationCommand(ctx *components.Context, execute command.ExecCommandFunc) command.EvidenceCommands {
+func NewEvidenceApplicationCommand(ctx *components.Context, execute utils.ExecCommandFunc) _interface.EvidenceCommands {
 	return &evidenceApplicationCommand{
 		ctx:     ctx,
 		execute: execute,
@@ -28,15 +30,15 @@ func (eac *evidenceApplicationCommand) CreateEvidence(ctx *components.Context, s
 
 	createCmd := create.NewCreateEvidenceApplication(
 		serverDetails,
-		eac.ctx.GetStringFlagValue(command.Predicate),
-		eac.ctx.GetStringFlagValue(command.PredicateType),
-		eac.ctx.GetStringFlagValue(command.Markdown),
-		eac.ctx.GetStringFlagValue(command.Key),
-		eac.ctx.GetStringFlagValue(command.KeyAlias),
-		eac.ctx.GetStringFlagValue(command.ApplicationKey),
-		eac.ctx.GetStringFlagValue(command.ApplicationVersion),
-		eac.ctx.GetStringFlagValue(command.ProviderId),
-		eac.ctx.GetStringFlagValue(command.Integration))
+		eac.ctx.GetStringFlagValue(flags.Predicate),
+		eac.ctx.GetStringFlagValue(flags.PredicateType),
+		eac.ctx.GetStringFlagValue(flags.Markdown),
+		eac.ctx.GetStringFlagValue(flags.Key),
+		eac.ctx.GetStringFlagValue(flags.KeyAlias),
+		eac.ctx.GetStringFlagValue(flags.ApplicationKey),
+		eac.ctx.GetStringFlagValue(flags.ApplicationVersion),
+		eac.ctx.GetStringFlagValue(flags.ProviderId),
+		eac.ctx.GetStringFlagValue(flags.Integration))
 	return eac.execute(createCmd)
 }
 
@@ -49,17 +51,17 @@ func (eac *evidenceApplicationCommand) VerifyEvidence(_ *components.Context, _ *
 }
 
 func (eac *evidenceApplicationCommand) validateEvidenceApplicationContext(ctx *components.Context) error {
-	if eac.ctx.GetStringFlagValue(command.SigstoreBundle) != "" {
-		return errorutils.CheckErrorf("--%s is not supported for application evidence.", command.SigstoreBundle)
+	if eac.ctx.GetStringFlagValue(flags.SigstoreBundle) != "" {
+		return errorutils.CheckErrorf("--%s is not supported for application evidence.", flags.SigstoreBundle)
 	}
-	if command.AssertValueProvided(ctx, command.ApplicationKey) != nil {
-		return errorutils.CheckErrorf("--%s is a mandatory field for creating an Application evidence", command.ApplicationKey)
+	if utils.AssertValueProvided(ctx, flags.ApplicationKey) != nil {
+		return errorutils.CheckErrorf("--%s is a mandatory field for creating an Application evidence", flags.ApplicationKey)
 	}
-	if command.AssertValueProvided(ctx, command.ApplicationVersion) != nil {
-		return errorutils.CheckErrorf("--%s is a mandatory field for creating an Application evidence", command.ApplicationVersion)
+	if utils.AssertValueProvided(ctx, flags.ApplicationVersion) != nil {
+		return errorutils.CheckErrorf("--%s is a mandatory field for creating an Application evidence", flags.ApplicationVersion)
 	}
-	if ctx.IsFlagSet(command.Project) {
-		return errorutils.CheckErrorf("--%s flag is not allowed when using application-based evidence creation. The project will be automatically determined from the application details", command.Project)
+	if ctx.IsFlagSet(flags.Project) {
+		return errorutils.CheckErrorf("--%s flag is not allowed when using application-based evidence creation. The project will be automatically determined from the application details", flags.Project)
 	}
 	return nil
 }

@@ -1,8 +1,9 @@
-package command
+package utils
 
 import (
 	"github.com/jfrog/jfrog-cli-core/v2/common/commands"
 	"github.com/jfrog/jfrog-cli-core/v2/plugins/components"
+	"github.com/jfrog/jfrog-cli-evidence/evidence/cli/command/flags"
 	"github.com/jfrog/jfrog-client-go/utils/errorutils"
 )
 
@@ -12,13 +13,13 @@ func Exec(command commands.Command) error {
 	return commands.Exec(command)
 }
 
-var subjectTypes = []string{
-	SubjectRepoPath,
-	ReleaseBundle,
-	BuildName,
-	PackageName,
-	TypeFlag,
-	ApplicationKey,
+var SubjectTypes = []string{
+	flags.SubjectRepoPath,
+	flags.ReleaseBundle,
+	flags.BuildName,
+	flags.PackageName,
+	flags.TypeFlag,
+	flags.ApplicationKey,
 }
 
 func AssertValueProvided(c *components.Context, fieldName string) error {

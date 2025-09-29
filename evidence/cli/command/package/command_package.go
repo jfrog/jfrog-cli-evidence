@@ -3,7 +3,9 @@ package _package
 import (
 	"github.com/jfrog/jfrog-cli-core/v2/plugins/components"
 	"github.com/jfrog/jfrog-cli-core/v2/utils/config"
-	"github.com/jfrog/jfrog-cli-evidence/evidence/cli/command"
+	"github.com/jfrog/jfrog-cli-evidence/evidence/cli/command/flags"
+	"github.com/jfrog/jfrog-cli-evidence/evidence/cli/command/interface"
+	"github.com/jfrog/jfrog-cli-evidence/evidence/cli/command/utils"
 	"github.com/jfrog/jfrog-cli-evidence/evidence/create"
 	"github.com/jfrog/jfrog-cli-evidence/evidence/verify"
 	"github.com/jfrog/jfrog-client-go/utils/errorutils"
@@ -11,10 +13,10 @@ import (
 
 type evidencePackageCommand struct {
 	ctx     *components.Context
-	execute command.ExecCommandFunc
+	execute utils.ExecCommandFunc
 }
 
-func NewEvidencePackageCommand(ctx *components.Context, execute command.ExecCommandFunc) command.EvidenceCommands {
+func NewEvidencePackageCommand(ctx *components.Context, execute utils.ExecCommandFunc) _interface.EvidenceCommands {
 	return &evidencePackageCommand{
 		ctx:     ctx,
 		execute: execute,
@@ -29,16 +31,16 @@ func (epc *evidencePackageCommand) CreateEvidence(ctx *components.Context, serve
 
 	createCmd := create.NewCreateEvidencePackage(
 		serverDetails,
-		epc.ctx.GetStringFlagValue(command.Predicate),
-		epc.ctx.GetStringFlagValue(command.PredicateType),
-		epc.ctx.GetStringFlagValue(command.Markdown),
-		epc.ctx.GetStringFlagValue(command.Key),
-		epc.ctx.GetStringFlagValue(command.KeyAlias),
-		epc.ctx.GetStringFlagValue(command.PackageName),
-		epc.ctx.GetStringFlagValue(command.PackageVersion),
-		epc.ctx.GetStringFlagValue(command.PackageRepoName),
-		epc.ctx.GetStringFlagValue(command.ProviderId),
-		epc.ctx.GetStringFlagValue(command.Integration))
+		epc.ctx.GetStringFlagValue(flags.Predicate),
+		epc.ctx.GetStringFlagValue(flags.PredicateType),
+		epc.ctx.GetStringFlagValue(flags.Markdown),
+		epc.ctx.GetStringFlagValue(flags.Key),
+		epc.ctx.GetStringFlagValue(flags.KeyAlias),
+		epc.ctx.GetStringFlagValue(flags.PackageName),
+		epc.ctx.GetStringFlagValue(flags.PackageVersion),
+		epc.ctx.GetStringFlagValue(flags.PackageRepoName),
+		epc.ctx.GetStringFlagValue(flags.ProviderId),
+		epc.ctx.GetStringFlagValue(flags.Integration))
 	return epc.execute(createCmd)
 }
 
@@ -54,25 +56,25 @@ func (epc *evidencePackageCommand) VerifyEvidence(ctx *components.Context, serve
 
 	verifyCmd := verify.NewVerifyEvidencePackage(
 		serverDetails,
-		epc.ctx.GetStringFlagValue(command.Format),
-		epc.ctx.GetStringFlagValue(command.PackageName),
-		epc.ctx.GetStringFlagValue(command.PackageVersion),
-		epc.ctx.GetStringFlagValue(command.PackageRepoName),
-		epc.ctx.GetStringsArrFlagValue(command.PublicKeys),
-		epc.ctx.GetBoolFlagValue(command.UseArtifactoryKeys),
+		epc.ctx.GetStringFlagValue(flags.Format),
+		epc.ctx.GetStringFlagValue(flags.PackageName),
+		epc.ctx.GetStringFlagValue(flags.PackageVersion),
+		epc.ctx.GetStringFlagValue(flags.PackageRepoName),
+		epc.ctx.GetStringsArrFlagValue(flags.PublicKeys),
+		epc.ctx.GetBoolFlagValue(flags.UseArtifactoryKeys),
 	)
 	return epc.execute(verifyCmd)
 }
 
 func (epc *evidencePackageCommand) validateEvidencePackageContext(ctx *components.Context) error {
-	if epc.ctx.GetStringFlagValue(command.SigstoreBundle) != "" {
-		return errorutils.CheckErrorf("--%s is not supported for package evidence.", command.SigstoreBundle)
+	if epc.ctx.GetStringFlagValue(flags.SigstoreBundle) != "" {
+		return errorutils.CheckErrorf("--%s is not supported for package evidence.", flags.SigstoreBundle)
 	}
-	if command.AssertValueProvided(ctx, command.PackageVersion) != nil {
-		return errorutils.CheckErrorf("--%s is a mandatory field for creating a Package evidence", command.PackageVersion)
+	if utils.AssertValueProvided(ctx, flags.PackageVersion) != nil {
+		return errorutils.CheckErrorf("--%s is a mandatory field for creating a Package evidence", flags.PackageVersion)
 	}
-	if command.AssertValueProvided(ctx, command.PackageRepoName) != nil {
-		return errorutils.CheckErrorf("--%s is a mandatory field for creating a Package evidence", command.PackageRepoName)
+	if utils.AssertValueProvided(ctx, flags.PackageRepoName) != nil {
+		return errorutils.CheckErrorf("--%s is a mandatory field for creating a Package evidence", flags.PackageRepoName)
 	}
 	return nil
 }
