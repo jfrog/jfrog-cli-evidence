@@ -47,8 +47,7 @@ const (
 	SigstoreBundle     = "sigstore-bundle"
 	ArtifactsLimit     = "artifacts-limit"
 	UploadPublicKey    = "upload-public-key"
-	Force              = "force"
-	OutputDir          = "Output-dir"
+	KeyFilePath        = "key-file-path"
 	KeyFileName        = "key-file-name"
 )
 
@@ -89,9 +88,8 @@ var flagsMap = map[string]components.Flag{
 	UseArtifactoryKeys: components.NewBoolFlag(UseArtifactoryKeys, "Use Artifactory keys for verification. When enabled, the verify command retrieves keys from Artifactory.", components.WithBoolDefaultValueFalse()),
 	ArtifactsLimit:     components.NewStringFlag(ArtifactsLimit, "The number of artifacts in a release bundle to be included in the evidences file. The default value is 1000 artifacts", func(f *components.StringFlag) { f.Mandatory = false }),
 	Integration:        components.NewStringFlag(Integration, "Specify an integration to automatically generate the Predicate. Supported: 'sonar'. When using 'sonar', the 'SONAR_TOKEN' or 'SONARQUBE_TOKEN' environment variable must be set.", func(f *components.StringFlag) { f.Mandatory = false }),
-	UploadPublicKey:    components.NewBoolFlag(UploadPublicKey, "Upload the generated public key to JFrog platform trusted keys. Requires server connection.", components.WithBoolDefaultValueFalse()),
-	Force:              components.NewBoolFlag(Force, "Overwrite existing key files if they exist.", components.WithBoolDefaultValueFalse()),
-	OutputDir:          components.NewStringFlag(OutputDir, "Output directory for key files. Creates the directory if it doesn't exist. Defaults to current directory.", func(f *components.StringFlag) { f.Mandatory = false }),
+	UploadPublicKey:    components.NewBoolFlag(UploadPublicKey, "Upload the generated public key to JFrog platform trusted keys. Requires server connection.", components.WithBoolDefaultValueTrue()),
+	KeyFilePath:        components.NewStringFlag(KeyFilePath, "Directory path for key files. Creates the directory if it doesn't exist. Defaults to current directory.", func(f *components.StringFlag) { f.Mandatory = false }),
 	KeyFileName:        components.NewStringFlag(KeyFileName, "Base name for key files (without extension). Private key will be saved as <name>.key and public key as <name>.pub. Defaults to 'evidence'.", func(f *components.StringFlag) { f.Mandatory = false }),
 }
 
@@ -162,8 +160,7 @@ var commandFlags = map[string][]string{
 		ServerId,
 		UploadPublicKey,
 		KeyAlias,
-		Force,
-		OutputDir,
+		KeyFilePath,
 		KeyFileName,
 	},
 }

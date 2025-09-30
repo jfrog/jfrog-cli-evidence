@@ -47,7 +47,7 @@ func TestGenerateKeyPairCommand(t *testing.T) {
 		os.Remove("test-key.pub")
 	}()
 
-	cmd := NewGenerateKeyPairCommand(nil, false, "test-alias", true, "", "test-key") // uploadPublicKey=false, force=true, keyFileName="test-key"
+	cmd := NewGenerateKeyPairCommand(nil, false, "test-alias", "", "test-key") // uploadPublicKey=false, keyFileName="test-key"
 	assert.NotNil(t, cmd)
 	assert.Equal(t, "generate-key-pair", cmd.CommandName())
 
@@ -100,7 +100,7 @@ func TestGenerateKeyPairCommandWithOutputDir(t *testing.T) {
 		os.RemoveAll("test-output")
 	}()
 
-	cmd := NewGenerateKeyPairCommand(nil, false, "test-alias", true, "test-output", "custom-key") // uploadPublicKey=false, force=true, outputDir="test-output", keyFileName="custom-key"
+	cmd := NewGenerateKeyPairCommand(nil, false, "test-alias", "test-output", "custom-key") // uploadPublicKey=false, keyFilePath="test-output", keyFileName="custom-key"
 	assert.NotNil(t, cmd)
 
 	// Test Run without upload
@@ -127,20 +127,19 @@ func TestNewGenerateKeyPairCommand(t *testing.T) {
 		Url: "https://test.jfrog.io",
 	}
 
-	cmd := NewGenerateKeyPairCommand(serverDetails, true, "test-alias", false, "/tmp", "my-key")
+	cmd := NewGenerateKeyPairCommand(serverDetails, true, "test-alias", "/tmp", "my-key")
 	
 	assert.NotNil(t, cmd)
 	assert.Equal(t, serverDetails, cmd.serverDetails)
 	assert.True(t, cmd.uploadPublicKey)
 	assert.Equal(t, "test-alias", cmd.keyAlias)
-	assert.False(t, cmd.forceOverwrite)
-	assert.Equal(t, "/tmp", cmd.outputDir)
+	assert.Equal(t, "/tmp", cmd.keyFilePath)
 	assert.Equal(t, "my-key", cmd.keyFileName)
 }
 
 // TestKeyPairCommand_CommandName tests the CommandName method
 func TestKeyPairCommand_CommandName(t *testing.T) {
-	cmd := NewGenerateKeyPairCommand(nil, false, "", false, "", "")
+	cmd := NewGenerateKeyPairCommand(nil, false, "", "", "")
 	assert.Equal(t, "generate-key-pair", cmd.CommandName())
 }
 
@@ -165,7 +164,7 @@ func TestKeyPairCommand_generateOrGetAlias(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			cmd := NewGenerateKeyPairCommand(nil, false, tt.keyAlias, false, "", "")
+			cmd := NewGenerateKeyPairCommand(nil, false, tt.keyAlias, "", "")
 			result := cmd.generateOrGetAlias()
 			
 			if tt.keyAlias != "" {
@@ -205,7 +204,7 @@ func TestKeyPairCommand_prepareOutputDirectory(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			cmd := NewGenerateKeyPairCommand(nil, false, "", false, tt.outputDir, "")
+			cmd := NewGenerateKeyPairCommand(nil, false, "", tt.outputDir, "")
 			
 			// Clean up after test
 			defer func() {
@@ -214,7 +213,7 @@ func TestKeyPairCommand_prepareOutputDirectory(t *testing.T) {
 				}
 			}()
 
-			result, err := cmd.prepareOutputDirectory()
+			result, err := cmd.prepareKeyFilePath()
 			assert.NoError(t, err)
 			assert.Equal(t, tt.want, result)
 
@@ -261,7 +260,7 @@ func TestKeyPairCommand_buildKeyFilePaths(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			cmd := NewGenerateKeyPairCommand(nil, false, "", false, tt.outputDir, tt.keyFileName)
+			cmd := NewGenerateKeyPairCommand(nil, false, "", tt.outputDir, tt.keyFileName)
 			
 			privPath, pubPath, err := cmd.buildKeyFilePaths(tt.outputDir)
 			assert.NoError(t, err)
@@ -290,25 +289,18 @@ func TestKeyPairCommand_validateExistingFiles(t *testing.T) {
 	require.NoError(t, err)
 
 	tests := []struct {
-		name          string
-		forceOverwrite bool
-		wantError     bool
+		name      string
+		wantError bool
 	}{
 		{
-			name:          "files exist without force",
-			forceOverwrite: false,
-			wantError:     true,
-		},
-		{
-			name:          "files exist with force",
-			forceOverwrite: true,
-			wantError:     false,
+			name:      "files exist",
+			wantError: true,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			cmd := NewGenerateKeyPairCommand(nil, false, "", tt.forceOverwrite, "", "")
+			cmd := NewGenerateKeyPairCommand(nil, false, "", "", "")
 			
 			err := cmd.validateExistingFiles(testPrivPath, testPubPath)
 			if tt.wantError {
@@ -323,7 +315,7 @@ func TestKeyPairCommand_validateExistingFiles(t *testing.T) {
 
 // TestKeyPairCommand_generateKeyPair tests key generation
 func TestKeyPairCommand_generateKeyPair(t *testing.T) {
-	cmd := NewGenerateKeyPairCommand(nil, false, "", false, "", "")
+	cmd := NewGenerateKeyPairCommand(nil, false, "", "", "")
 	
 	privPEM, pubPEM, err := cmd.generateKeyPair()
 	assert.NoError(t, err)
@@ -357,7 +349,7 @@ func TestKeyPairCommand_writeKeyFiles(t *testing.T) {
 		os.Remove(testPubPath)
 	}()
 
-	cmd := NewGenerateKeyPairCommand(nil, false, "", false, "", "")
+	cmd := NewGenerateKeyPairCommand(nil, false, "", "", "")
 	
 	// Generate test keys
 	privPEM, pubPEM, err := cmd.generateKeyPair()
@@ -414,16 +406,14 @@ func TestGenerateKeyPairCommandWithAllFlags(t *testing.T) {
 		nil,                    // serverDetails
 		false,                  // uploadPublicKey
 		"test-complete-alias",  // keyAlias
-		true,                   // forceOverwrite
-		"test-complete",        // outputDir
+		"test-complete",        // keyFilePath
 		"complete-test",        // keyFileName
 	)
 
 	assert.NotNil(t, cmd)
 	assert.Equal(t, "test-complete-alias", cmd.keyAlias)
-	assert.Equal(t, "test-complete", cmd.outputDir)
+	assert.Equal(t, "test-complete", cmd.keyFilePath)
 	assert.Equal(t, "complete-test", cmd.keyFileName)
-	assert.True(t, cmd.forceOverwrite)
 	assert.False(t, cmd.uploadPublicKey)
 
 	// Test Run
@@ -463,25 +453,9 @@ func TestGenerateKeyPairCommandFileOverwrite(t *testing.T) {
 	err = os.WriteFile(testPubPath, []byte("old public key"), 0644)
 	require.NoError(t, err)
 
-	// Test without force (should fail)
-	cmd1 := NewGenerateKeyPairCommand(nil, false, "", false, "", "test-overwrite")
-	err = cmd1.Run()
+	// Test with existing files (should fail)
+	cmd := NewGenerateKeyPairCommand(nil, false, "", "", "test-overwrite")
+	err = cmd.Run()
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "already exists")
-
-	// Test with force (should succeed)
-	cmd2 := NewGenerateKeyPairCommand(nil, false, "", true, "", "test-overwrite")
-	err = cmd2.Run()
-	assert.NoError(t, err)
-
-	// Verify files were overwritten
-	privContent, err := os.ReadFile(testPrivPath)
-	assert.NoError(t, err)
-	assert.NotEqual(t, "old private key", string(privContent))
-	assert.Contains(t, string(privContent), "-----BEGIN PRIVATE KEY-----")
-
-	pubContent, err := os.ReadFile(testPubPath)
-	assert.NoError(t, err)
-	assert.NotEqual(t, "old public key", string(pubContent))
-	assert.Contains(t, string(pubContent), "-----BEGIN PUBLIC KEY-----")
 }

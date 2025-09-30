@@ -420,17 +420,16 @@ func generateKeyPair(ctx *components.Context) error {
 		return pluginsCommon.WrongNumberOfArgumentsHandler(ctx)
 	}
 
-	// Get upload flag, key alias, force flag, Output directory, and key file name
+	// Get upload flag, key alias, key file path, and key file name
 	uploadKey := ctx.GetBoolFlagValue(flags.UploadPublicKey)
 	alias := ctx.GetStringFlagValue(flags.KeyAlias)
-	forceOverwrite := ctx.GetBoolFlagValue(flags.Force)
-	outputDirectory := ctx.GetStringFlagValue(flags.OutputDir)
+	keyFilePath := ctx.GetStringFlagValue(flags.KeyFilePath)
 	fileName := ctx.GetStringFlagValue(flags.KeyFileName)
 
 	var serverDetails *config.ServerDetails
 	var err error
 
-	// Only get server details if upload is requested
+	// Get server details for upload (default is true now)
 	if uploadKey {
 		serverDetails, err = evidenceDetailsByFlags(ctx)
 		if err != nil {
@@ -438,6 +437,6 @@ func generateKeyPair(ctx *components.Context) error {
 		}
 	}
 
-	cmd := generateCmd.NewGenerateKeyPairCommand(serverDetails, uploadKey, alias, forceOverwrite, outputDirectory, fileName)
+	cmd := generateCmd.NewGenerateKeyPairCommand(serverDetails, uploadKey, alias, keyFilePath, fileName)
 	return cmd.Run()
 }

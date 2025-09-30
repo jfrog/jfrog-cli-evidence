@@ -36,8 +36,7 @@ type KeyPairCommand struct {
 	serverDetails   *config.ServerDetails
 	uploadPublicKey bool
 	keyAlias        string
-	forceOverwrite  bool
-	outputDir       string
+	keyFilePath     string
 	keyFileName     string
 }
 
@@ -46,24 +45,21 @@ type KeyPairCommand struct {
 //   - serverDetails: JFrog platform connection details (required for trusted keys upload)
 //   - uploadPublicKey: whether to upload the generated public key to trusted keys
 //   - keyAlias: custom alias for the key (empty for auto-generated timestamp-based alias)
-//   - forceOverwrite: whether to overwrite existing key files
-//   - outputDir: directory to save key files (empty for current directory)
+//   - keyFilePath: directory to save key files (empty for current directory)
 //   - keyFileName: base name for key files (empty for default "evidence")
-func NewGenerateKeyPairCommand(serverDetails *config.ServerDetails, uploadPublicKey bool, keyAlias string, forceOverwrite bool, outputDir string, keyFileName string) *KeyPairCommand {
+func NewGenerateKeyPairCommand(serverDetails *config.ServerDetails, uploadPublicKey bool, keyAlias string, keyFilePath string, keyFileName string) *KeyPairCommand {
 	return &KeyPairCommand{
 		serverDetails:   serverDetails,
 		uploadPublicKey: uploadPublicKey,
 		keyAlias:        keyAlias,
-		forceOverwrite:  forceOverwrite,
-		outputDir:       outputDir,
+		keyFilePath:     keyFilePath,
 		keyFileName:     keyFileName,
 	}
 }
 
 // Run executes the complete key pair generation workflow.
 // It generates ECDSA P-256 keys, saves them to files with proper permissions,
-// validates alias availability if upload is requested, and optionally uploads
-// the public key to JFrog platform trusted keys.
+// and optionally uploads the public key to JFrog platform trusted keys.
 // Returns an error if any step fails.
 func (cmd *KeyPairCommand) Run() error {
 	log.Info("🔑 JFrog Evidence Key Pair Generation")
@@ -71,21 +67,17 @@ func (cmd *KeyPairCommand) Run() error {
 
 	alias := cmd.generateOrGetAlias()
 
-	outputDir, err := cmd.prepareOutputDirectory()
+	keyFilePath, err := cmd.prepareKeyFilePath()
 	if err != nil {
 		return err
 	}
 
-	privateKeyPath, publicKeyPath, err := cmd.buildKeyFilePaths(outputDir)
+	privateKeyPath, publicKeyPath, err := cmd.buildKeyFilePaths(keyFilePath)
 	if err != nil {
 		return err
 	}
 
 	if err := cmd.validateExistingFiles(privateKeyPath, publicKeyPath); err != nil {
-		return err
-	}
-
-	if err := cmd.preValidateAliasIfNeeded(alias); err != nil {
 		return err
 	}
 
@@ -119,73 +111,55 @@ func (cmd *KeyPairCommand) generateOrGetAlias() string {
 	return fmt.Sprintf("evd-key-%s", timestamp)
 }
 
-// prepareOutputDirectory creates the output directory if needed.
-// If outputDir is empty, it defaults to the current directory.
+// prepareKeyFilePath creates the key file path directory if needed.
+// If keyFilePath is empty, it defaults to the current directory.
 // Creates the directory with proper permissions if it doesn't exist.
-func (cmd *KeyPairCommand) prepareOutputDirectory() (string, error) {
-	outputDir := cmd.outputDir
-	if outputDir == "" {
-		outputDir = "." // Current directory
+func (cmd *KeyPairCommand) prepareKeyFilePath() (string, error) {
+	keyFilePath := cmd.keyFilePath
+	if keyFilePath == "" {
+		keyFilePath = "." // Current directory
 	}
 
-	if outputDir != "." {
-		if err := os.MkdirAll(outputDir, DirectoryPermissions); err != nil {
-			return "", fmt.Errorf("failed to create output directory %s: %w", outputDir, err)
+	if keyFilePath != "." {
+		if err := os.MkdirAll(keyFilePath, DirectoryPermissions); err != nil {
+			return "", fmt.Errorf("failed to create key file path directory %s: %w", keyFilePath, err)
 		}
-		log.Info(fmt.Sprintf("📁 Output directory: %s", outputDir))
+		log.Info(fmt.Sprintf("📁 Key file path: %s", keyFilePath))
 	}
 
-	return outputDir, nil
+	return keyFilePath, nil
 }
 
 // buildKeyFilePaths constructs the full paths for private and public key files.
 // Uses the configured keyFileName or defaults to "evidence".
 // Returns the private key path (.key) and public key path (.pub).
-func (cmd *KeyPairCommand) buildKeyFilePaths(outputDir string) (string, string, error) {
+func (cmd *KeyPairCommand) buildKeyFilePaths(keyFilePath string) (string, string, error) {
 	keyFileName := cmd.keyFileName
 	if keyFileName == "" {
 		keyFileName = "evidence" // Default file name
 	}
 
-	privateKeyPath := filepath.Join(outputDir, keyFileName+".key")
-	publicKeyPath := filepath.Join(outputDir, keyFileName+".pub")
+	privateKeyPath := filepath.Join(keyFilePath, keyFileName+".key")
+	publicKeyPath := filepath.Join(keyFilePath, keyFileName+".pub")
 
 	return privateKeyPath, publicKeyPath, nil
 }
 
-// validateExistingFiles checks if key files already exist and handles overwrite logic.
-// If files exist and forceOverwrite is false, returns an error with helpful message.
-// If forceOverwrite is true, logs overwrite warnings and allows continuation.
+// validateExistingFiles checks if key files already exist and returns an error with helpful message.
 func (cmd *KeyPairCommand) validateExistingFiles(privateKeyPath, publicKeyPath string) error {
 	log.Debug("Checking for existing key files...")
 
 	if _, err := os.Stat(privateKeyPath); err == nil {
-		if cmd.forceOverwrite {
-			log.Info("🔄 Overwriting existing private key file (--force enabled)")
-		} else {
-			return fmt.Errorf("private key file %s already exists - please remove it first, use --force to overwrite, or use a different location", privateKeyPath)
-		}
+		return fmt.Errorf("private key file %s already exists - please remove it first or use a different location", privateKeyPath)
 	}
 
 	if _, err := os.Stat(publicKeyPath); err == nil {
-		if cmd.forceOverwrite {
-			log.Info("🔄 Overwriting existing public key file (--force enabled)")
-		} else {
-			return fmt.Errorf("public key file %s already exists - please remove it first, use --force to overwrite, or use a different location", publicKeyPath)
-		}
+		return fmt.Errorf("public key file %s already exists - please remove it first or use a different location", publicKeyPath)
 	}
 
 	return nil
 }
 
-// preValidateAliasIfNeeded validates alias availability if upload is requested.
-// Only performs validation when uploadPublicKey is true to avoid unnecessary API calls.
-func (cmd *KeyPairCommand) preValidateAliasIfNeeded(alias string) error {
-	if cmd.uploadPublicKey {
-		return cmd.preValidateAlias(alias)
-	}
-	return nil
-}
 
 // generateKeyPair creates a new ECDSA P-256 key pair using cryptox.GenerateECDSAKeyPair.
 // Returns PEM-encoded private and public keys as strings.
@@ -283,43 +257,6 @@ func (cmd *KeyPairCommand) uploadToTrustedKeys(publicKeyPEM string, alias string
 	return nil
 }
 
-// preValidateAlias validates the alias before key generation to fail fast.
-// Checks if the alias already exists in the JFrog platform trusted keys.
-// If validation fails (network issues), logs a warning but continues with generation.
-func (cmd *KeyPairCommand) preValidateAlias(alias string) error {
-	if cmd.serverDetails == nil {
-		return fmt.Errorf("server details required for uploading to trusted keys")
-	}
-
-	// Use the pre-generated alias for validation
-	log.Info(fmt.Sprintf("🔍 Validating alias '%s' availability...", alias))
-
-	// Create Artifactory service manager
-	serviceManager, err := utils.CreateUploadServiceManager(cmd.serverDetails, DefaultRetries, DefaultTimeout, DefaultThreads, DefaultDryRun, nil)
-	if err != nil {
-		return fmt.Errorf("failed to create service manager for alias validation: %w", err)
-	}
-
-	// Check if alias exists
-	exists, err := serviceManager.CheckAliasExists(alias)
-	if err != nil {
-		log.Warn("⚠️ Could not validate alias availability - proceeding with generation")
-		log.Debug(fmt.Sprintf("Alias validation error: %v", err))
-		return nil // Don't fail on validation errors, just warn
-	}
-
-	if exists {
-		if cmd.keyAlias == "" {
-			// This shouldn't happen with timestamp-based aliases, but handle gracefully
-			return fmt.Errorf("default alias '%s' already exists - please specify a unique alias with --key-alias", alias)
-		} else {
-			return fmt.Errorf("alias '%s' already exists - please choose a different alias", alias)
-		}
-	}
-
-	log.Info("✅ Alias is available")
-	return nil
-}
 
 // CommandName returns the command name for error handling and logging purposes.
 func (cmd *KeyPairCommand) CommandName() string {
