@@ -1117,6 +1117,8 @@ github.com/jfrog/jfrog-cli-artifactory v0.7.1 h1:MNKrC21z/sfnIGZ9wopFEMuOHAgWPzS
 github.com/jfrog/jfrog-cli-artifactory v0.7.1/go.mod h1:tmhbLMaRjB6ENFjDTKwbqVqYAHBuZxe8vCu2iSTPGvE=
 github.com/jfrog/jfrog-cli-core/v2 v2.60.1-0.20250925111014-7f3ef52c8b8f h1:x8CgpkB6uMfiWTfOgIKgpoyGtxQtFnpsNdssJo8N5qg=
 github.com/jfrog/jfrog-cli-core/v2 v2.60.1-0.20250925111014-7f3ef52c8b8f/go.mod h1:4TfYAfDKgsextn4kjBRUNWi2E1cEncjhSG2XnFGDR+o=
+github.com/jfrog/jfrog-client-go v1.55.1-0.20250930132408-a9fbd1cd0967 h1:+bfy3c+3cIA3waeKVuAaBTFum4eMTiFwzHFe6iGJXD4=
+github.com/jfrog/jfrog-client-go v1.55.1-0.20250930132408-a9fbd1cd0967/go.mod h1:UYhn61e3VNb7Oo4dWpzI9TaObxTbdFosagEfcPlkvmg=
 github.com/jmespath/go-jmespath v0.4.1-0.20220621161143-b0104c826a24 h1:liMMTbpW34dhU4az1GN0pTPADwNmvoRSeoZ6PItiqnY=
 github.com/jmespath/go-jmespath v0.4.1-0.20220621161143-b0104c826a24/go.mod h1:T8mJZnbsbmF+m6zOOFylbeCJqk5+pHWvzYPziyZiYoo=
 github.com/jmhodges/clock v1.2.0 h1:eq4kys+NI0PLngzaHEe7AmPT90XMGIEySD1JfV1PDIs=

@@ -10,7 +10,7 @@ require (
 	github.com/jfrog/gofrog v1.7.6
 	github.com/jfrog/jfrog-cli-artifactory v0.7.1
 	github.com/jfrog/jfrog-cli-core/v2 v2.60.1-0.20250925111014-7f3ef52c8b8f
-	github.com/jfrog/jfrog-client-go v1.55.1-0.20250925090554-63938590da62
+	github.com/jfrog/jfrog-client-go v1.55.1-0.20250930132408-a9fbd1cd0967
 	github.com/pkg/errors v0.9.1
 	github.com/secure-systems-lab/go-securesystemslib v0.9.1
 	github.com/sigstore/protobuf-specs v0.5.0
@@ -213,5 +213,3 @@ require (
 // replace github.com/jfrog/jfrog-cli-core/v2 => github.com/jfrog/jfrog-cli-core/v2 v2.31.1-0.20250527091824-60a3b4b741aa
 
 // replace github.com/jfrog/jfrog-client-go => github.com/jfrog/jfrog-client-go v1.28.1-0.20250508130334-f159cff9b11a
-// Use local jfrog-client-go for testing trusted keys functionality
-replace github.com/jfrog/jfrog-client-go => /Users/osaidw/dev/github/fork/jfrog-client-go
