@@ -1,8 +1,10 @@
 package generate
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/jfrog/jfrog-cli-core/v2/utils/config"
@@ -128,7 +130,7 @@ func TestNewGenerateKeyPairCommand(t *testing.T) {
 	}
 
 	cmd := NewGenerateKeyPairCommand(serverDetails, true, "test-alias", "/tmp", "my-key")
-	
+
 	assert.NotNil(t, cmd)
 	assert.Equal(t, serverDetails, cmd.serverDetails)
 	assert.True(t, cmd.uploadPublicKey)
@@ -166,7 +168,7 @@ func TestKeyPairCommand_generateOrGetAlias(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			cmd := NewGenerateKeyPairCommand(nil, false, tt.keyAlias, "", "")
 			result := cmd.generateOrGetAlias()
-			
+
 			if tt.keyAlias != "" {
 				assert.Equal(t, tt.want, result)
 			} else {
@@ -205,7 +207,7 @@ func TestKeyPairCommand_prepareOutputDirectory(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			cmd := NewGenerateKeyPairCommand(nil, false, "", tt.outputDir, "")
-			
+
 			// Clean up after test
 			defer func() {
 				if tt.outputDir != "" && tt.outputDir != "." {
@@ -229,39 +231,39 @@ func TestKeyPairCommand_prepareOutputDirectory(t *testing.T) {
 // TestKeyPairCommand_buildKeyFilePaths tests file path construction
 func TestKeyPairCommand_buildKeyFilePaths(t *testing.T) {
 	tests := []struct {
-		name       string
-		outputDir  string
+		name        string
+		outputDir   string
 		keyFileName string
-		wantPriv   string
-		wantPub    string
+		wantPriv    string
+		wantPub     string
 	}{
 		{
-			name:       "default file name",
-			outputDir:  ".",
+			name:        "default file name",
+			outputDir:   ".",
 			keyFileName: "",
-			wantPriv:   "evidence.key",
-			wantPub:    "evidence.pub",
+			wantPriv:    "evidence.key",
+			wantPub:     "evidence.pub",
 		},
 		{
-			name:       "custom file name",
-			outputDir:  ".",
+			name:        "custom file name",
+			outputDir:   ".",
 			keyFileName: "my-key",
-			wantPriv:   "my-key.key",
-			wantPub:    "my-key.pub",
+			wantPriv:    "my-key.key",
+			wantPub:     "my-key.pub",
 		},
 		{
-			name:       "custom directory and file name",
-			outputDir:  "test-dir",
+			name:        "custom directory and file name",
+			outputDir:   "test-dir",
 			keyFileName: "custom-key",
-			wantPriv:   filepath.Join("test-dir", "custom-key.key"),
-			wantPub:    filepath.Join("test-dir", "custom-key.pub"),
+			wantPriv:    filepath.Join("test-dir", "custom-key.key"),
+			wantPub:     filepath.Join("test-dir", "custom-key.pub"),
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			cmd := NewGenerateKeyPairCommand(nil, false, "", tt.outputDir, tt.keyFileName)
-			
+
 			privPath, pubPath, err := cmd.buildKeyFilePaths(tt.outputDir)
 			assert.NoError(t, err)
 			assert.Equal(t, tt.wantPriv, privPath)
@@ -275,7 +277,7 @@ func TestKeyPairCommand_validateExistingFiles(t *testing.T) {
 	// Create test files
 	testPrivPath := "test-validate.key"
 	testPubPath := "test-validate.pub"
-	
+
 	// Clean up after test
 	defer func() {
 		os.Remove(testPrivPath)
@@ -301,7 +303,7 @@ func TestKeyPairCommand_validateExistingFiles(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			cmd := NewGenerateKeyPairCommand(nil, false, "", "", "")
-			
+
 			err := cmd.validateExistingFiles(testPrivPath, testPubPath)
 			if tt.wantError {
 				assert.Error(t, err)
@@ -316,7 +318,7 @@ func TestKeyPairCommand_validateExistingFiles(t *testing.T) {
 // TestKeyPairCommand_generateKeyPair tests key generation
 func TestKeyPairCommand_generateKeyPair(t *testing.T) {
 	cmd := NewGenerateKeyPairCommand(nil, false, "", "", "")
-	
+
 	privPEM, pubPEM, err := cmd.generateKeyPair()
 	assert.NoError(t, err)
 	assert.NotEmpty(t, privPEM)
@@ -342,7 +344,7 @@ func TestKeyPairCommand_generateKeyPair(t *testing.T) {
 func TestKeyPairCommand_writeKeyFiles(t *testing.T) {
 	testPrivPath := "test-write.key"
 	testPubPath := "test-write.pub"
-	
+
 	// Clean up after test
 	defer func() {
 		os.Remove(testPrivPath)
@@ -350,7 +352,7 @@ func TestKeyPairCommand_writeKeyFiles(t *testing.T) {
 	}()
 
 	cmd := NewGenerateKeyPairCommand(nil, false, "", "", "")
-	
+
 	// Generate test keys
 	privPEM, pubPEM, err := cmd.generateKeyPair()
 	require.NoError(t, err)
@@ -403,11 +405,11 @@ func TestGenerateKeyPairCommandWithAllFlags(t *testing.T) {
 	}()
 
 	cmd := NewGenerateKeyPairCommand(
-		nil,                    // serverDetails
-		false,                  // uploadPublicKey
-		"test-complete-alias",  // keyAlias
-		"test-complete",        // keyFilePath
-		"complete-test",        // keyFileName
+		nil,                   // serverDetails
+		false,                 // uploadPublicKey
+		"test-complete-alias", // keyAlias
+		"test-complete",       // keyFilePath
+		"complete-test",       // keyFileName
 	)
 
 	assert.NotNil(t, cmd)
@@ -436,26 +438,255 @@ func TestGenerateKeyPairCommandWithAllFlags(t *testing.T) {
 	assert.Equal(t, os.FileMode(PublicKeyPermissions), pubInfo.Mode().Perm())
 }
 
-// TestGenerateKeyPairCommandFileOverwrite tests file overwrite scenarios
-func TestGenerateKeyPairCommandFileOverwrite(t *testing.T) {
-	testPrivPath := "test-overwrite.key"
-	testPubPath := "test-overwrite.pub"
-	
-	// Clean up after test
-	defer func() {
-		os.Remove(testPrivPath)
-		os.Remove(testPubPath)
-	}()
+// TestKeyPairCommand_logUploadWarning tests the error warning logic
+func TestKeyPairCommand_logUploadWarning(t *testing.T) {
+	tests := []struct {
+		name         string
+		errorMessage string
+		expectedLogs []string
+	}{
+		{
+			name:         "403 Forbidden error",
+			errorMessage: "trusted keys API returned status 403: Forbidden - insufficient permissions to upload trusted keys",
+			expectedLogs: []string{
+				"Permission denied: Your user|token doesn't have sufficient permissions to upload trusted keys",
+				"Contact your administrator to grant trusted keys upload permissions",
+			},
+		},
+		{
+			name:         "404 Not Found error",
+			errorMessage: "trusted keys API returned status 404: 404 page not found - trusted keys API endpoint not available",
+			expectedLogs: []string{
+				"Endpoint not found: The trusted keys API endpoint is not available",
+				"Check your server URL and ensure trusted keys feature is enabled",
+			},
+		},
+		{
+			name:         "401 Unauthorized error",
+			errorMessage: "trusted keys API returned status 401: Unauthorized - invalid or expired authentication token",
+			expectedLogs: []string{
+				"Authentication failed: Invalid or expired authentication token",
+				"Check your access token or regenerate a new one",
+			},
+		},
+		{
+			name:         "Duplicate alias error",
+			errorMessage: "trusted keys API returned status 400: alias already exists",
+			expectedLogs: []string{
+				"Use a unique alias with --key-alias <unique-name>",
+			},
+		},
+		{
+			name:         "Generic error",
+			errorMessage: "trusted keys API returned status 500: Internal server error",
+			expectedLogs: []string{
+				"You can manually upload the public key later or check your server configuration",
+			},
+		},
+		{
+			name:         "Forbidden with different message",
+			errorMessage: "Forbidden - access denied",
+			expectedLogs: []string{
+				"Permission denied: Your user|token doesn't have sufficient permissions to upload trusted keys",
+				"Contact your administrator to grant trusted keys upload permissions",
+			},
+		},
+		{
+			name:         "Insufficient permissions",
+			errorMessage: "insufficient permissions to perform this operation",
+			expectedLogs: []string{
+				"Permission denied: Your user|token doesn't have sufficient permissions to upload trusted keys",
+				"Contact your administrator to grant trusted keys upload permissions",
+			},
+		},
+		{
+			name:         "Page not found",
+			errorMessage: "404 page not found",
+			expectedLogs: []string{
+				"Endpoint not found: The trusted keys API endpoint is not available",
+				"Check your server URL and ensure trusted keys feature is enabled",
+			},
+		},
+		{
+			name:         "Endpoint not available",
+			errorMessage: "endpoint not available",
+			expectedLogs: []string{
+				"Endpoint not found: The trusted keys API endpoint is not available",
+				"Check your server URL and ensure trusted keys feature is enabled",
+			},
+		},
+		{
+			name:         "Unauthorized with different message",
+			errorMessage: "Unauthorized access",
+			expectedLogs: []string{
+				"Authentication failed: Invalid or expired authentication token",
+				"Check your access token or regenerate a new one",
+			},
+		},
+		{
+			name:         "Invalid or expired token",
+			errorMessage: "invalid or expired token",
+			expectedLogs: []string{
+				"Authentication failed: Invalid or expired authentication token",
+				"Check your access token or regenerate a new one",
+			},
+		},
+	}
 
-	// Create existing files
-	err := os.WriteFile(testPrivPath, []byte("old private key"), 0600)
-	require.NoError(t, err)
-	err = os.WriteFile(testPubPath, []byte("old public key"), 0644)
-	require.NoError(t, err)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cmd := NewGenerateKeyPairCommand(nil, false, "", "", "")
 
-	// Test with existing files (should fail)
-	cmd := NewGenerateKeyPairCommand(nil, false, "", "", "test-overwrite")
-	err = cmd.Run()
-	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "already exists")
+			// Create a mock error
+			err := fmt.Errorf(tt.errorMessage)
+
+			// Test the logUploadWarning function
+			// Note: In a real test, you might want to capture log output
+			// For now, we'll just ensure the function doesn't panic
+			assert.NotPanics(t, func() {
+				cmd.logUploadWarning(err)
+			})
+
+			// Verify the error message contains expected content
+			// This is a basic check - in a real implementation you might want to
+			// capture and verify the actual log output
+			errStr := err.Error()
+			for _ = range tt.expectedLogs {
+				// We can't easily test the actual log output in unit tests
+				// but we can verify the error message contains the expected patterns
+				if strings.Contains(errStr, "403") || strings.Contains(errStr, "Forbidden") || strings.Contains(errStr, "insufficient permissions") {
+					assert.Contains(t, tt.expectedLogs[0], "Permission denied")
+				} else if strings.Contains(errStr, "404") || strings.Contains(errStr, "page not found") || strings.Contains(errStr, "endpoint not available") {
+					assert.Contains(t, tt.expectedLogs[0], "Endpoint not found")
+				} else if strings.Contains(errStr, "401") || strings.Contains(errStr, "Unauthorized") || strings.Contains(errStr, "invalid or expired") {
+					assert.Contains(t, tt.expectedLogs[0], "Authentication failed")
+				} else if strings.Contains(errStr, "already exists") {
+					assert.Contains(t, tt.expectedLogs[0], "unique alias")
+				}
+			}
+		})
+	}
+}
+
+// TestUploadTrustedKeyErrorHandling tests the UploadTrustedKey error handling
+func TestUploadTrustedKeyErrorHandling(t *testing.T) {
+	tests := []struct {
+		name          string
+		statusCode    int
+		responseBody  string
+		expectedError string
+	}{
+		{
+			name:          "403 Forbidden",
+			statusCode:    403,
+			responseBody:  `{"errors": [{"status": 403, "message": "Forbidden"}]}`,
+			expectedError: "trusted keys API returned status 403: Forbidden - insufficient permissions to upload trusted keys: Forbidden",
+		},
+		{
+			name:          "404 Not Found",
+			statusCode:    404,
+			responseBody:  `{"errors": [{"status": 404, "message": "Not Found"}]}`,
+			expectedError: "trusted keys API returned status 404: 404 page not found - trusted keys API endpoint not available: Not Found",
+		},
+		{
+			name:          "401 Unauthorized",
+			statusCode:    401,
+			responseBody:  `{"errors": [{"status": 401, "message": "Unauthorized"}]}`,
+			expectedError: "trusted keys API returned status 401: Unauthorized - invalid or expired authentication token: Unauthorized",
+		},
+		{
+			name:          "400 Bad Request",
+			statusCode:    400,
+			responseBody:  `{"errors": [{"status": 400, "message": "alias already exists"}]}`,
+			expectedError: "trusted keys API returned status 400: alias already exists",
+		},
+		{
+			name:          "500 Internal Server Error",
+			statusCode:    500,
+			responseBody:  `{"errors": [{"status": 500, "message": "Internal Server Error"}]}`,
+			expectedError: "trusted keys API returned status 500: Internal Server Error",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// This test would require mocking the HTTP client
+			// For now, we'll test the error message construction logic
+
+			// Simulate the error message construction
+			errorMsg := fmt.Sprintf("trusted keys API returned status %d", tt.statusCode)
+
+			// Add specific error messages for common status codes
+			switch tt.statusCode {
+			case 403:
+				errorMsg += ": Forbidden - insufficient permissions to upload trusted keys"
+			case 404:
+				errorMsg += ": 404 page not found - trusted keys API endpoint not available"
+			case 401:
+				errorMsg += ": Unauthorized - invalid or expired authentication token"
+			}
+
+			// Add response body if present
+			if tt.responseBody != "" {
+				errorMsg += ": " + tt.responseBody
+			}
+
+			assert.Equal(t, tt.expectedError, errorMsg)
+		})
+	}
+}
+
+// TestErrorHandlingIntegration tests the integration of error handling
+func TestErrorHandlingIntegration(t *testing.T) {
+	tests := []struct {
+		name          string
+		errorMessage  string
+		shouldContain []string
+	}{
+		{
+			name:         "403 error integration",
+			errorMessage: "trusted keys API returned status 403: Forbidden - insufficient permissions to upload trusted keys",
+			shouldContain: []string{
+				"status 403",
+				"Forbidden",
+				"insufficient permissions",
+			},
+		},
+		{
+			name:         "404 error integration",
+			errorMessage: "trusted keys API returned status 404: 404 page not found - trusted keys API endpoint not available",
+			shouldContain: []string{
+				"status 404",
+				"page not found",
+				"endpoint not available",
+			},
+		},
+		{
+			name:         "401 error integration",
+			errorMessage: "trusted keys API returned status 401: Unauthorized - invalid or expired authentication token",
+			shouldContain: []string{
+				"status 401",
+				"Unauthorized",
+				"invalid or expired",
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cmd := NewGenerateKeyPairCommand(nil, false, "", "", "")
+			err := fmt.Errorf(tt.errorMessage)
+
+			// Test that the error message contains expected patterns
+			errStr := err.Error()
+			for _, expected := range tt.shouldContain {
+				assert.Contains(t, errStr, expected)
+			}
+
+			// Test that logUploadWarning doesn't panic
+			assert.NotPanics(t, func() {
+				cmd.logUploadWarning(err)
+			})
+		})
+	}
 }

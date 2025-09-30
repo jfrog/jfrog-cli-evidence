@@ -160,7 +160,6 @@ func (cmd *KeyPairCommand) validateExistingFiles(privateKeyPath, publicKeyPath s
 	return nil
 }
 
-
 // generateKeyPair creates a new ECDSA P-256 key pair using cryptox.GenerateECDSAKeyPair.
 // Returns PEM-encoded private and public keys as strings.
 func (cmd *KeyPairCommand) generateKeyPair() (string, string, error) {
@@ -211,13 +210,23 @@ func (cmd *KeyPairCommand) uploadPublicKeyIfNeeded(publicKeyPEM, alias string) e
 }
 
 // logUploadWarning logs appropriate warning messages for upload failures.
-// Provides specific guidance based on the error type (duplicate alias vs other issues).
+// Provides specific guidance based on the error type (duplicate alias, permission issues, etc.).
 func (cmd *KeyPairCommand) logUploadWarning(err error) {
 	log.Warn("❌ Failed to upload public key to JFrog platform:", err.Error())
 	log.Warn("⚠️ Key pair was generated successfully, but trusted keys upload failed")
 
-	if strings.Contains(err.Error(), "already exists") {
+	errStr := err.Error()
+	if strings.Contains(errStr, "already exists") {
 		log.Warn("💡 To resolve: Use a unique alias with --key-alias <unique-name>")
+	} else if strings.Contains(errStr, "status 403") || strings.Contains(errStr, "Forbidden") || strings.Contains(errStr, "insufficient permissions") {
+		log.Warn("💡 Permission denied: Your user|token doesn't have sufficient permissions to upload trusted keys")
+		log.Warn("💡 To resolve: Contact your administrator to grant trusted keys upload permissions")
+	} else if strings.Contains(errStr, "status 404") || strings.Contains(errStr, "page not found") || strings.Contains(errStr, "endpoint not available") {
+		log.Warn("💡 Endpoint not found: The trusted keys API endpoint is not available")
+		log.Warn("💡 To resolve: Check your server URL and ensure trusted keys feature is enabled")
+	} else if strings.Contains(errStr, "status 401") || strings.Contains(errStr, "Unauthorized") || strings.Contains(errStr, "invalid or expired") {
+		log.Warn("💡 Authentication failed: Invalid or expired authentication token")
+		log.Warn("💡 To resolve: Check your access token or regenerate a new one")
 	} else {
 		log.Warn("💡 You can manually upload the public key later or check your server configuration")
 	}
@@ -256,7 +265,6 @@ func (cmd *KeyPairCommand) uploadToTrustedKeys(publicKeyPEM string, alias string
 	log.Debug(fmt.Sprintf("Trusted keys upload response: %+v", response))
 	return nil
 }
-
 
 // CommandName returns the command name for error handling and logging purposes.
 func (cmd *KeyPairCommand) CommandName() string {
