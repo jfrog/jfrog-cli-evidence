@@ -147,7 +147,7 @@ func createSSLibKeyFromRSAPublic(key *rsa.PublicKey, pemBlock *pem.Block) (*SSLi
 	}, nil
 }
 
-func createSSLibKeyFromED25519(key ed25519.PrivateKey, _ *pem.Block, fileContent []byte) (*SSLibKey, error) {
+func createSSLibKeyFromED25519(key ed25519.PrivateKey, _ *pem.Block, _ []byte) (*SSLibKey, error) {
 	keyID, err := calculateKeyIDFromED25519(key)
 	if err != nil {
 		return nil, err
