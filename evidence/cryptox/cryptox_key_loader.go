@@ -9,6 +9,7 @@ import (
 	"encoding/hex"
 	"encoding/pem"
 	"errors"
+	"strings"
 	"github.com/jfrog/jfrog-client-go/utils/errorutils"
 	"github.com/secure-systems-lab/go-securesystemslib/cjson"
 )
@@ -63,6 +64,8 @@ func LoadKey(fileContent []byte) (*SSLibKey, error) {
 		return createSSLibKeyFromRSAPublic(k, pemBlock)
 	case ed25519.PrivateKey:
 		return createSSLibKeyFromED25519(k, pemBlock, fileContent)
+	case *ed25519.PrivateKey:
+		return createSSLibKeyFromED25519(*k, pemBlock, fileContent)
 	case ed25519.PublicKey:
 		return createSSLibKeyFromED25519Public(k, pemBlock)
 	default:
@@ -81,7 +84,7 @@ func createSSLibKeyFromECDSA(key *ecdsa.PrivateKey, pemBlock *pem.Block, fileCon
 	if err != nil {
 		return nil, err
 	}
-	publicKeyPEM := string(generatePEMBlock(publicKeyBytes, PublicKeyPEM))
+	publicKeyPEM := strings.TrimSpace(string(generatePEMBlock(publicKeyBytes, PublicKeyPEM)))
 
 	return &SSLibKey{
 		KeyType:             ECDSAKeyType,
@@ -103,7 +106,7 @@ func createSSLibKeyFromECDSAPublic(key *ecdsa.PublicKey, pemBlock *pem.Block) (*
 		Scheme:              ECDSAKeyScheme,
 		KeyIDHashAlgorithms: KeyIDHashAlgorithms,
 		KeyID:               keyID,
-		KeyVal:              KeyVal{Public: string(pem.EncodeToMemory(pemBlock))},
+		KeyVal:              KeyVal{Public: strings.TrimSpace(string(pem.EncodeToMemory(pemBlock)))},
 	}, nil
 }
 
@@ -113,12 +116,19 @@ func createSSLibKeyFromRSA(key *rsa.PrivateKey, pemBlock *pem.Block, fileContent
 		return nil, err
 	}
 
+	// Generate public key PEM from the private key
+	publicKeyBytes, err := x509.MarshalPKIXPublicKey(&key.PublicKey)
+	if err != nil {
+		return nil, err
+	}
+	publicKeyPEM := strings.TrimSpace(string(generatePEMBlock(publicKeyBytes, PublicKeyPEM)))
+
 	return &SSLibKey{
 		KeyType:             RSAKeyType,
 		Scheme:              RSAKeyScheme,
 		KeyIDHashAlgorithms: KeyIDHashAlgorithms,
 		KeyID:               keyID,
-		KeyVal:              KeyVal{Private: string(fileContent), Public: string(pem.EncodeToMemory(pemBlock))},
+		KeyVal:              KeyVal{Private: string(fileContent), Public: publicKeyPEM},
 	}, nil
 }
 
@@ -133,7 +143,7 @@ func createSSLibKeyFromRSAPublic(key *rsa.PublicKey, pemBlock *pem.Block) (*SSLi
 		Scheme:              RSAKeyScheme,
 		KeyIDHashAlgorithms: KeyIDHashAlgorithms,
 		KeyID:               keyID,
-		KeyVal:              KeyVal{Public: string(pem.EncodeToMemory(pemBlock))},
+		KeyVal:              KeyVal{Public: strings.TrimSpace(string(pem.EncodeToMemory(pemBlock)))},
 	}, nil
 }
 
@@ -143,12 +153,16 @@ func createSSLibKeyFromED25519(key ed25519.PrivateKey, pemBlock *pem.Block, file
 		return nil, err
 	}
 
+	// Store keys as hex strings for ED25519
+	publicKeyHex := hex.EncodeToString(key.Public().(ed25519.PublicKey))
+	privateKeyHex := hex.EncodeToString(key)
+
 	return &SSLibKey{
 		KeyType:             ED25519KeyType,
 		Scheme:              ED25519KeyScheme,
 		KeyIDHashAlgorithms: KeyIDHashAlgorithms,
 		KeyID:               keyID,
-		KeyVal:              KeyVal{Private: string(fileContent), Public: string(pem.EncodeToMemory(pemBlock))},
+		KeyVal:              KeyVal{Private: privateKeyHex, Public: publicKeyHex},
 	}, nil
 }
 
@@ -158,12 +172,15 @@ func createSSLibKeyFromED25519Public(key ed25519.PublicKey, pemBlock *pem.Block)
 		return nil, err
 	}
 
+	// Store public key as hex string for ED25519
+	publicKeyHex := hex.EncodeToString(key)
+
 	return &SSLibKey{
 		KeyType:             ED25519KeyType,
 		Scheme:              ED25519KeyScheme,
 		KeyIDHashAlgorithms: KeyIDHashAlgorithms,
 		KeyID:               keyID,
-		KeyVal:              KeyVal{Public: string(pem.EncodeToMemory(pemBlock))},
+		KeyVal:              KeyVal{Public: publicKeyHex},
 	}, nil
 }
 

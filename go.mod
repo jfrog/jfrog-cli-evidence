@@ -9,7 +9,7 @@ require (
 	github.com/jfrog/froggit-go v1.20.3
 	github.com/jfrog/gofrog v1.7.6
 	github.com/jfrog/jfrog-cli-artifactory v0.7.1
-	github.com/jfrog/jfrog-cli-core/v2 v2.60.1-0.20250925111014-7f3ef52c8b8f
+	github.com/jfrog/jfrog-cli-core/v2 v2.60.1-0.20250929083739-7ec32085edd8
 	github.com/jfrog/jfrog-client-go v1.55.1-0.20250930132408-a9fbd1cd0967
 	github.com/pkg/errors v0.9.1
 	github.com/secure-systems-lab/go-securesystemslib v0.9.1

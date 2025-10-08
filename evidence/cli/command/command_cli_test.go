@@ -436,7 +436,7 @@ func TestCreateEvidenceValidation_SigstoreBundle(t *testing.T) {
 				test.SetDefaultValue(flags.Predicate, "/path/to/Predicate.json"),
 			},
 			expectError:   true,
-			errorContains: "The following parameters cannot be used with --sigstore-bundle: --Predicate",
+			errorContains: "The following parameters cannot be used with --sigstore-bundle: --predicate",
 		},
 		{
 			name: "InvalidContext_-_SigstoreBundle_With_PredicateType",
@@ -445,7 +445,7 @@ func TestCreateEvidenceValidation_SigstoreBundle(t *testing.T) {
 				test.SetDefaultValue(flags.PredicateType, "test-type"),
 			},
 			expectError:   true,
-			errorContains: "The following parameters cannot be used with --sigstore-bundle: --Predicate-type",
+			errorContains: "The following parameters cannot be used with --sigstore-bundle: --predicate-type",
 		},
 		{
 			name: "InvalidContext_-_SigstoreBundle_With_Multiple_Conflicting_Params",
@@ -457,7 +457,7 @@ func TestCreateEvidenceValidation_SigstoreBundle(t *testing.T) {
 				test.SetDefaultValue(flags.PredicateType, "test-type"),
 			},
 			expectError:   true,
-			errorContains: "The following parameters cannot be used with --sigstore-bundle: --key, --key-alias, --Predicate, --Predicate-type",
+			errorContains: "The following parameters cannot be used with --sigstore-bundle: --key, --key-alias, --predicate, --predicate-type",
 		},
 	}
 
@@ -586,7 +586,7 @@ func TestValidateSigstoreBundleConflicts(t *testing.T) {
 				test.SetDefaultValue(flags.Predicate, "/path/to/Predicate"),
 			},
 			expectError:   true,
-			errorContains: "--key, --key-alias, --Predicate",
+			errorContains: "--key, --key-alias, --predicate",
 		},
 	}
 

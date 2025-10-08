@@ -1,6 +1,7 @@
 package generate
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -538,7 +539,7 @@ func TestKeyPairCommand_logUploadWarning(t *testing.T) {
 			cmd := NewGenerateKeyPairCommand(nil, false, "", "", "")
 
 			// Create a mock error
-			err := fmt.Errorf(tt.errorMessage)
+			err := fmt.Errorf("%s", tt.errorMessage)
 
 			// Test the logUploadWarning function
 			// Note: In a real test, you might want to capture log output
@@ -628,7 +629,18 @@ func TestUploadTrustedKeyErrorHandling(t *testing.T) {
 
 			// Add response body if present
 			if tt.responseBody != "" {
-				errorMsg += ": " + tt.responseBody
+				// Parse JSON response to extract message
+				var response struct {
+					Errors []struct {
+						Status  int    `json:"status"`
+						Message string `json:"message"`
+					} `json:"errors"`
+				}
+				if err := json.Unmarshal([]byte(tt.responseBody), &response); err == nil && len(response.Errors) > 0 {
+					errorMsg += ": " + response.Errors[0].Message
+				} else {
+					errorMsg += ": " + tt.responseBody
+				}
 			}
 
 			assert.Equal(t, tt.expectedError, errorMsg)
@@ -675,7 +687,7 @@ func TestErrorHandlingIntegration(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			cmd := NewGenerateKeyPairCommand(nil, false, "", "", "")
-			err := fmt.Errorf(tt.errorMessage)
+			err := fmt.Errorf("%s", tt.errorMessage)
 
 			// Test that the error message contains expected patterns
 			errStr := err.Error()
