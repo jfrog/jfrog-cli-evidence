@@ -29,6 +29,26 @@ func TestCreateEvidence_Context(t *testing.T) {
 		assert.NoError(t, os.Unsetenv(coreUtils.BuildName), "Failed to unset env: JFROG_CLI_BUILD_NAME")
 	}()
 
+	// Set up test environment variables for this test suite only
+	originalServerID := os.Getenv("JFROG_CLI_SERVER_ID")
+	originalURL := os.Getenv("JFROG_CLI_URL")
+	
+	os.Setenv("JFROG_CLI_SERVER_ID", "test-server")
+	os.Setenv("JFROG_CLI_URL", "https://test.jfrog.io")
+	
+	defer func() {
+		if originalServerID != "" {
+			os.Setenv("JFROG_CLI_SERVER_ID", originalServerID)
+		} else {
+			os.Unsetenv("JFROG_CLI_SERVER_ID")
+		}
+		if originalURL != "" {
+			os.Setenv("JFROG_CLI_URL", originalURL)
+		} else {
+			os.Unsetenv("JFROG_CLI_URL")
+		}
+	}()
+
 	app := cli.NewApp()
 	app.Commands = []cli.Command{
 		{
@@ -36,6 +56,12 @@ func TestCreateEvidence_Context(t *testing.T) {
 		},
 	}
 	set := flag.NewFlagSet(flags.Predicate, 0)
+	// Register all necessary flags for server details
+	set.String("url", "", "JFrog Platform URL")
+	set.String("user", "", "JFrog Platform username")
+	set.String("password", "", "JFrog Platform password")
+	set.String("access-token", "", "JFrog Platform access token")
+	set.String("server-id", "", "Server ID")
 	ctx := cli.NewContext(app, set, nil)
 
 	tests := []struct {
@@ -230,6 +256,26 @@ func TestVerifyEvidence_Context(t *testing.T) {
 		assert.NoError(t, os.Unsetenv(coreUtils.BuildName), "Failed to unset env: JFROG_CLI_BUILD_NAME")
 	}()
 
+	// Set up test environment variables for this test suite only
+	originalServerID := os.Getenv("JFROG_CLI_SERVER_ID")
+	originalURL := os.Getenv("JFROG_CLI_URL")
+	
+	os.Setenv("JFROG_CLI_SERVER_ID", "test-server")
+	os.Setenv("JFROG_CLI_URL", "https://test.jfrog.io")
+	
+	defer func() {
+		if originalServerID != "" {
+			os.Setenv("JFROG_CLI_SERVER_ID", originalServerID)
+		} else {
+			os.Unsetenv("JFROG_CLI_SERVER_ID")
+		}
+		if originalURL != "" {
+			os.Setenv("JFROG_CLI_URL", originalURL)
+		} else {
+			os.Unsetenv("JFROG_CLI_URL")
+		}
+	}()
+
 	app := cli.NewApp()
 	app.Commands = []cli.Command{
 		{
@@ -237,6 +283,8 @@ func TestVerifyEvidence_Context(t *testing.T) {
 		},
 	}
 	set := flag.NewFlagSet(flags.Predicate, 0)
+	// Register the URL flag properly
+	set.String("url", "", "JFrog Platform URL")
 	ctx := cli.NewContext(app, set, nil)
 
 	tests := []struct {

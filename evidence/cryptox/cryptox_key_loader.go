@@ -73,7 +73,7 @@ func LoadKey(fileContent []byte) (*SSLibKey, error) {
 	}
 }
 
-func createSSLibKeyFromECDSA(key *ecdsa.PrivateKey, pemBlock *pem.Block, fileContent []byte) (*SSLibKey, error) {
+func createSSLibKeyFromECDSA(key *ecdsa.PrivateKey, _ *pem.Block, fileContent []byte) (*SSLibKey, error) {
 	keyID, err := calculateKeyIDFromECDSA(key)
 	if err != nil {
 		return nil, err
@@ -110,7 +110,7 @@ func createSSLibKeyFromECDSAPublic(key *ecdsa.PublicKey, pemBlock *pem.Block) (*
 	}, nil
 }
 
-func createSSLibKeyFromRSA(key *rsa.PrivateKey, pemBlock *pem.Block, fileContent []byte) (*SSLibKey, error) {
+func createSSLibKeyFromRSA(key *rsa.PrivateKey, _ *pem.Block, fileContent []byte) (*SSLibKey, error) {
 	keyID, err := calculateKeyIDFromRSA(key)
 	if err != nil {
 		return nil, err
@@ -147,14 +147,18 @@ func createSSLibKeyFromRSAPublic(key *rsa.PublicKey, pemBlock *pem.Block) (*SSLi
 	}, nil
 }
 
-func createSSLibKeyFromED25519(key ed25519.PrivateKey, pemBlock *pem.Block, fileContent []byte) (*SSLibKey, error) {
+func createSSLibKeyFromED25519(key ed25519.PrivateKey, _ *pem.Block, fileContent []byte) (*SSLibKey, error) {
 	keyID, err := calculateKeyIDFromED25519(key)
 	if err != nil {
 		return nil, err
 	}
 
 	// Store keys as hex strings for ED25519
-	publicKeyHex := hex.EncodeToString(key.Public().(ed25519.PublicKey))
+	publicKey, ok := key.Public().(ed25519.PublicKey)
+	if !ok {
+		return nil, errorutils.CheckErrorf("failed to convert to ed25519 public key")
+	}
+	publicKeyHex := hex.EncodeToString(publicKey)
 	privateKeyHex := hex.EncodeToString(key)
 
 	return &SSLibKey{
@@ -166,7 +170,7 @@ func createSSLibKeyFromED25519(key ed25519.PrivateKey, pemBlock *pem.Block, file
 	}, nil
 }
 
-func createSSLibKeyFromED25519Public(key ed25519.PublicKey, pemBlock *pem.Block) (*SSLibKey, error) {
+func createSSLibKeyFromED25519Public(key ed25519.PublicKey, _ *pem.Block) (*SSLibKey, error) {
 	keyID, err := calculateKeyIDFromED25519Public(key)
 	if err != nil {
 		return nil, err
@@ -209,7 +213,11 @@ func calculateKeyIDFromRSAPublic(key *rsa.PublicKey) (string, error) {
 }
 
 func calculateKeyIDFromED25519(key ed25519.PrivateKey) (string, error) {
-	return calculateKeyIDFromED25519Public(key.Public().(ed25519.PublicKey))
+	publicKey, ok := key.Public().(ed25519.PublicKey)
+	if !ok {
+		return "", errorutils.CheckErrorf("failed to convert to ed25519 public key")
+	}
+	return calculateKeyIDFromED25519Public(publicKey)
 }
 
 func calculateKeyIDFromED25519Public(key ed25519.PublicKey) (string, error) {

@@ -46,8 +46,8 @@ func TestGenerateECDSAKeyPair(t *testing.T) {
 func TestGenerateKeyPairCommand(t *testing.T) {
 	// Clean up any existing files
 	defer func() {
-		os.Remove("test-key.key")
-		os.Remove("test-key.pub")
+		_ = os.Remove("test-key.key")
+		_ = os.Remove("test-key.pub")
 	}()
 
 	cmd := NewGenerateKeyPairCommand(nil, false, "test-alias", "", "test-key") // uploadPublicKey=false, keyFileName="test-key"
@@ -100,7 +100,7 @@ AgAMAwUGCCqGSM49BAMCAA==
 func TestGenerateKeyPairCommandWithOutputDir(t *testing.T) {
 	// Clean up any existing files
 	defer func() {
-		os.RemoveAll("test-output")
+		_ = os.RemoveAll("test-output")
 	}()
 
 	cmd := NewGenerateKeyPairCommand(nil, false, "test-alias", "test-output", "custom-key") // uploadPublicKey=false, keyFilePath="test-output", keyFileName="custom-key"
@@ -212,7 +212,7 @@ func TestKeyPairCommand_prepareOutputDirectory(t *testing.T) {
 			// Clean up after test
 			defer func() {
 				if tt.outputDir != "" && tt.outputDir != "." {
-					os.RemoveAll(tt.outputDir)
+					_ = os.RemoveAll(tt.outputDir)
 				}
 			}()
 
@@ -281,8 +281,8 @@ func TestKeyPairCommand_validateExistingFiles(t *testing.T) {
 
 	// Clean up after test
 	defer func() {
-		os.Remove(testPrivPath)
-		os.Remove(testPubPath)
+		_ = os.Remove(testPrivPath)
+		_ = os.Remove(testPubPath)
 	}()
 
 	// Create existing files
@@ -348,8 +348,8 @@ func TestKeyPairCommand_writeKeyFiles(t *testing.T) {
 
 	// Clean up after test
 	defer func() {
-		os.Remove(testPrivPath)
-		os.Remove(testPubPath)
+		_ = os.Remove(testPrivPath)
+		_ = os.Remove(testPubPath)
 	}()
 
 	cmd := NewGenerateKeyPairCommand(nil, false, "", "", "")
@@ -402,7 +402,7 @@ func TestConstants(t *testing.T) {
 func TestGenerateKeyPairCommandWithAllFlags(t *testing.T) {
 	// Clean up after test
 	defer func() {
-		os.RemoveAll("test-complete")
+		_ = os.RemoveAll("test-complete")
 	}()
 
 	cmd := NewGenerateKeyPairCommand(
@@ -552,16 +552,17 @@ func TestKeyPairCommand_logUploadWarning(t *testing.T) {
 			// This is a basic check - in a real implementation you might want to
 			// capture and verify the actual log output
 			errStr := err.Error()
-			for _ = range tt.expectedLogs {
+			for range tt.expectedLogs {
 				// We can't easily test the actual log output in unit tests
 				// but we can verify the error message contains the expected patterns
-				if strings.Contains(errStr, "403") || strings.Contains(errStr, "Forbidden") || strings.Contains(errStr, "insufficient permissions") {
+				switch {
+				case strings.Contains(errStr, "403") || strings.Contains(errStr, "Forbidden") || strings.Contains(errStr, "insufficient permissions"):
 					assert.Contains(t, tt.expectedLogs[0], "Permission denied")
-				} else if strings.Contains(errStr, "404") || strings.Contains(errStr, "page not found") || strings.Contains(errStr, "endpoint not available") {
+				case strings.Contains(errStr, "404") || strings.Contains(errStr, "page not found") || strings.Contains(errStr, "endpoint not available"):
 					assert.Contains(t, tt.expectedLogs[0], "Endpoint not found")
-				} else if strings.Contains(errStr, "401") || strings.Contains(errStr, "Unauthorized") || strings.Contains(errStr, "invalid or expired") {
+				case strings.Contains(errStr, "401") || strings.Contains(errStr, "Unauthorized") || strings.Contains(errStr, "invalid or expired"):
 					assert.Contains(t, tt.expectedLogs[0], "Authentication failed")
-				} else if strings.Contains(errStr, "already exists") {
+				case strings.Contains(errStr, "already exists"):
 					assert.Contains(t, tt.expectedLogs[0], "unique alias")
 				}
 			}

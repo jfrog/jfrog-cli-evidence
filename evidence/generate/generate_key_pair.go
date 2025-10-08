@@ -72,10 +72,7 @@ func (cmd *KeyPairCommand) Run() error {
 		return err
 	}
 
-	privateKeyPath, publicKeyPath, err := cmd.buildKeyFilePaths(keyFilePath)
-	if err != nil {
-		return err
-	}
+	privateKeyPath, publicKeyPath := cmd.buildKeyFilePaths(keyFilePath)
 
 	if err := cmd.validateExistingFiles(privateKeyPath, publicKeyPath); err != nil {
 		return err
@@ -133,7 +130,7 @@ func (cmd *KeyPairCommand) prepareKeyFilePath() (string, error) {
 // buildKeyFilePaths constructs the full paths for private and public key files.
 // Uses the configured keyFileName or defaults to "evidence".
 // Returns the private key path (.key) and public key path (.pub).
-func (cmd *KeyPairCommand) buildKeyFilePaths(keyFilePath string) (string, string, error) {
+func (cmd *KeyPairCommand) buildKeyFilePaths(keyFilePath string) (string, string) {
 	keyFileName := cmd.keyFileName
 	if keyFileName == "" {
 		keyFileName = "evidence" // Default file name
@@ -142,7 +139,7 @@ func (cmd *KeyPairCommand) buildKeyFilePaths(keyFilePath string) (string, string
 	privateKeyPath := filepath.Join(keyFilePath, keyFileName+".key")
 	publicKeyPath := filepath.Join(keyFilePath, keyFileName+".pub")
 
-	return privateKeyPath, publicKeyPath, nil
+	return privateKeyPath, publicKeyPath
 }
 
 // validateExistingFiles checks if key files already exist and returns an error with helpful message.
@@ -216,18 +213,19 @@ func (cmd *KeyPairCommand) logUploadWarning(err error) {
 	log.Warn("⚠️ Key pair was generated successfully, but trusted keys upload failed")
 
 	errStr := err.Error()
-	if strings.Contains(errStr, "already exists") {
+	switch {
+	case strings.Contains(errStr, "already exists"):
 		log.Warn("💡 To resolve: Use a unique alias with --key-alias <unique-name>")
-	} else if strings.Contains(errStr, "status 403") || strings.Contains(errStr, "Forbidden") || strings.Contains(errStr, "insufficient permissions") {
+	case strings.Contains(errStr, "status 403") || strings.Contains(errStr, "Forbidden") || strings.Contains(errStr, "insufficient permissions"):
 		log.Warn("💡 Permission denied: Your user|token doesn't have sufficient permissions to upload trusted keys")
 		log.Warn("💡 To resolve: Contact your administrator to grant trusted keys upload permissions")
-	} else if strings.Contains(errStr, "status 404") || strings.Contains(errStr, "page not found") || strings.Contains(errStr, "endpoint not available") {
+	case strings.Contains(errStr, "status 404") || strings.Contains(errStr, "page not found") || strings.Contains(errStr, "endpoint not available"):
 		log.Warn("💡 Endpoint not found: The trusted keys API endpoint is not available")
 		log.Warn("💡 To resolve: Check your server URL and ensure trusted keys feature is enabled")
-	} else if strings.Contains(errStr, "status 401") || strings.Contains(errStr, "Unauthorized") || strings.Contains(errStr, "invalid or expired") {
+	case strings.Contains(errStr, "status 401") || strings.Contains(errStr, "Unauthorized") || strings.Contains(errStr, "invalid or expired"):
 		log.Warn("💡 Authentication failed: Invalid or expired authentication token")
 		log.Warn("💡 To resolve: Check your access token or regenerate a new one")
-	} else {
+	default:
 		log.Warn("💡 You can manually upload the public key later or check your server configuration")
 	}
 }
