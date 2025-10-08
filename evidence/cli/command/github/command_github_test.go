@@ -1,7 +1,9 @@
-package cli
+package github
 
 import (
 	"flag"
+	"github.com/jfrog/jfrog-cli-evidence/evidence/cli/command/flags"
+	testUtil "github.com/jfrog/jfrog-cli-evidence/evidence/cli/test"
 	"testing"
 
 	"github.com/jfrog/jfrog-cli-core/v2/common/commands"
@@ -21,10 +23,10 @@ func TestEvidenceGitHubCommand_CreateEvidence_SigstoreBundle(t *testing.T) {
 		{
 			name: "Invalid_SigstoreBundle_Not_Supported",
 			flags: []components.Flag{
-				setDefaultValue(sigstoreBundle, "/path/to/bundle.json"),
-				setDefaultValue(buildName, "test-build"),
-				setDefaultValue(buildNumber, "123"),
-				setDefaultValue(typeFlag, "github"),
+				testUtil.SetDefaultValue(flags.SigstoreBundle, "/path/to/bundle.json"),
+				testUtil.SetDefaultValue(flags.BuildName, "test-build"),
+				testUtil.SetDefaultValue(flags.BuildNumber, "123"),
+				testUtil.SetDefaultValue(flags.TypeFlag, "github"),
 			},
 			expectError:   true,
 			errorContains: "--sigstore-bundle is not supported for GitHub evidence.",
@@ -32,12 +34,12 @@ func TestEvidenceGitHubCommand_CreateEvidence_SigstoreBundle(t *testing.T) {
 		{
 			name: "Valid_Without_SigstoreBundle",
 			flags: []components.Flag{
-				setDefaultValue(buildName, "test-build"),
-				setDefaultValue(buildNumber, "123"),
-				setDefaultValue(typeFlag, "github"),
-				setDefaultValue(predicate, "/path/to/predicate.json"),
-				setDefaultValue(predicateType, "test-type"),
-				setDefaultValue(key, "/path/to/key.pem"),
+				testUtil.SetDefaultValue(flags.BuildName, "test-build"),
+				testUtil.SetDefaultValue(flags.BuildNumber, "123"),
+				testUtil.SetDefaultValue(flags.TypeFlag, "github"),
+				testUtil.SetDefaultValue(flags.Predicate, "/path/to/predicate.json"),
+				testUtil.SetDefaultValue(flags.PredicateType, "test-type"),
+				testUtil.SetDefaultValue(flags.Key, "/path/to/key.pem"),
 			},
 			expectError: false,
 		},

@@ -8,7 +8,10 @@ import (
 	"github.com/jfrog/jfrog-client-go/utils/errorutils"
 )
 
-const ED25519KeyType = "ed25519"
+const (
+	ED25519KeyType   = "ed25519"
+	ED25519KeyScheme = "ed25519"
+)
 
 // ED25519SignerVerifier is a dsse.SignerVerifier compliant interface to sign
 // and verify signatures using ED25519 keys.

@@ -22,7 +22,7 @@ import (
 const searchEvidenceQueryWithPublicKey = `{"query":"{ evidence { searchEvidence( where: { hasSubjectWith: { repositoryKey: \"%s\", path: \"%s\", name: \"%s\" }} ) { edges { cursor node { downloadPath predicateType createdAt createdBy subject { sha256 } signingKey {alias, publicKey} } } } } }"}`
 const searchEvidenceQueryWithoutPublicKey = `{"query":"{ evidence { searchEvidence( where: { hasSubjectWith: { repositoryKey: \"%s\", path: \"%s\", name: \"%s\" }} ) { edges { cursor node { downloadPath predicateType createdAt createdBy subject { sha256 } } } } } }"}`
 
-// verifyEvidenceBase provides shared logic for evidence verification commands.
+// verifyEvidenceBase provides shared logic for evidence verification command.
 type verifyEvidenceBase struct {
 	serverDetails      *config.ServerDetails
 	format             string

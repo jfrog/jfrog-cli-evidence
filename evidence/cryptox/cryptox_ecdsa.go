@@ -3,10 +3,14 @@ package cryptox
 import (
 	"crypto"
 	"crypto/ecdsa"
+	"crypto/elliptic"
 	"crypto/rand"
 	"crypto/sha256"
 	"crypto/sha512"
+	"crypto/x509"
+	"encoding/pem"
 	"fmt"
+
 	"github.com/jfrog/jfrog-client-go/utils/errorutils"
 )
 
@@ -107,4 +111,37 @@ func getECDSAHashedData(data []byte, curveSize int) []byte {
 		return hashBeforeSigning(data, sha512.New())
 	}
 	return []byte{}
+}
+
+// GenerateECDSAKeyPair generates a new ECDSA P-256 key pair and returns it as PEM-encoded strings
+func GenerateECDSAKeyPair() (privateKeyPEM, publicKeyPEM string, err error) {
+	// Generate ECDSA key pair with P-256 curve
+	privateKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	if err != nil {
+		return "", "", errorutils.CheckError(fmt.Errorf("failed to generate ECDSA key pair: %w", err))
+	}
+
+	// Marshal private key to PKCS#8 format
+	privateKeyBytes, err := x509.MarshalPKCS8PrivateKey(privateKey)
+	if err != nil {
+		return "", "", errorutils.CheckError(fmt.Errorf("failed to marshal private key: %w", err))
+	}
+
+	// Create PEM block for unencrypted private key
+	privateKeyBlock := &pem.Block{
+		Type:  "PRIVATE KEY",
+		Bytes: privateKeyBytes,
+	}
+	privateKeyPEM = string(pem.EncodeToMemory(privateKeyBlock))
+
+	// Marshal public key to PKIX format
+	publicKeyBytes, err := x509.MarshalPKIXPublicKey(&privateKey.PublicKey)
+	if err != nil {
+		return "", "", errorutils.CheckError(fmt.Errorf("failed to marshal public key: %w", err))
+	}
+
+	// Create PEM block for public key
+	publicKeyPEM = string(generatePEMBlock(publicKeyBytes, PublicKeyPEM))
+
+	return privateKeyPEM, publicKeyPEM, nil
 }

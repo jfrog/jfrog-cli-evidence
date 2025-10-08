@@ -354,7 +354,7 @@ func enhanceKeyError(originalErr error, keyId string) error {
 		return fmt.Errorf("key pair is incorrect or key alias '%s' was not found in Artifactory. Original error: %w", keyId, originalErr)
 	}
 	// If no keyId, provide general guidance
-	return fmt.Errorf("failed to load private key. Please verify the provided key is correct or check if the key alias exists in Artifactory. Original error: %w", originalErr)
+	return fmt.Errorf("failed to load private key. Please verify the provided key is correct. Original error: %w", originalErr)
 }
 
 // addSubjectAndStageToStatement injects subject and stage into the given in-toto statement JSON.

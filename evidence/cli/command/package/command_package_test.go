@@ -1,7 +1,9 @@
-package cli
+package _package
 
 import (
 	"flag"
+	"github.com/jfrog/jfrog-cli-evidence/evidence/cli/command/flags"
+	testUtil "github.com/jfrog/jfrog-cli-evidence/evidence/cli/test"
 	"testing"
 
 	"github.com/jfrog/jfrog-cli-core/v2/common/commands"
@@ -11,7 +13,7 @@ import (
 	"github.com/urfave/cli"
 )
 
-func TestEvidenceReleaseBundleCommand_CreateEvidence_SigstoreBundle(t *testing.T) {
+func TestEvidencePackageCommand_CreateEvidence_SigstoreBundle(t *testing.T) {
 	tests := []struct {
 		name          string
 		flags         []components.Flag
@@ -21,21 +23,23 @@ func TestEvidenceReleaseBundleCommand_CreateEvidence_SigstoreBundle(t *testing.T
 		{
 			name: "Invalid_SigstoreBundle_Not_Supported",
 			flags: []components.Flag{
-				setDefaultValue(sigstoreBundle, "/path/to/bundle.json"),
-				setDefaultValue(releaseBundle, "test-release-bundle"),
-				setDefaultValue(releaseBundleVersion, "1.0.0"),
+				testUtil.SetDefaultValue(flags.SigstoreBundle, "/path/to/bundle.json"),
+				testUtil.SetDefaultValue(flags.PackageName, "test-package"),
+				testUtil.SetDefaultValue(flags.PackageVersion, "1.0.0"),
+				testUtil.SetDefaultValue(flags.PackageRepoName, "test-repo"),
 			},
 			expectError:   true,
-			errorContains: "--sigstore-bundle is not supported for release bundle evidence.",
+			errorContains: "--sigstore-bundle is not supported for package evidence.",
 		},
 		{
 			name: "Valid_Without_SigstoreBundle",
 			flags: []components.Flag{
-				setDefaultValue(releaseBundle, "test-release-bundle"),
-				setDefaultValue(releaseBundleVersion, "1.0.0"),
-				setDefaultValue(predicate, "/path/to/predicate.json"),
-				setDefaultValue(predicateType, "test-type"),
-				setDefaultValue(key, "/path/to/key.pem"),
+				testUtil.SetDefaultValue(flags.PackageName, "test-package"),
+				testUtil.SetDefaultValue(flags.PackageVersion, "1.0.0"),
+				testUtil.SetDefaultValue(flags.PackageRepoName, "test-repo"),
+				testUtil.SetDefaultValue(flags.Predicate, "/path/to/predicate.json"),
+				testUtil.SetDefaultValue(flags.PredicateType, "test-type"),
+				testUtil.SetDefaultValue(flags.Key, "/path/to/key.pem"),
 			},
 			expectError: false,
 		},
@@ -56,7 +60,7 @@ func TestEvidenceReleaseBundleCommand_CreateEvidence_SigstoreBundle(t *testing.T
 				return nil
 			}
 
-			cmd := NewEvidenceReleaseBundleCommand(ctx, mockExec)
+			cmd := NewEvidencePackageCommand(ctx, mockExec)
 			serverDetails := &config.ServerDetails{}
 
 			err = cmd.CreateEvidence(ctx, serverDetails)

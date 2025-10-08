@@ -1,0 +1,84 @@
+package artifacts
+
+import (
+	"flag"
+	"github.com/jfrog/jfrog-cli-evidence/evidence/cli/command/flags"
+	testUtils "github.com/jfrog/jfrog-cli-evidence/evidence/cli/test"
+	"testing"
+
+	"github.com/jfrog/jfrog-cli-core/v2/common/commands"
+	"github.com/jfrog/jfrog-cli-core/v2/plugins/components"
+	"github.com/jfrog/jfrog-cli-core/v2/utils/config"
+	"github.com/stretchr/testify/assert"
+	"github.com/urfave/cli"
+)
+
+func TestEvidenceCustomCommand_CreateEvidence_SigstoreBundle(t *testing.T) {
+	tests := []struct {
+		name          string
+		flags         []components.Flag
+		expectError   bool
+		errorContains string
+	}{
+		{
+			name: "Valid_SigstoreBundle_Without_SubjectSha256",
+			flags: []components.Flag{
+				testUtils.SetDefaultValue(flags.SigstoreBundle, "/path/to/bundle.json"),
+				testUtils.SetDefaultValue(flags.SubjectRepoPath, "test-repo/test-artifact"),
+			},
+			expectError: false,
+		},
+		{
+			name: "Invalid_SigstoreBundle_With_SubjectSha256",
+			flags: []components.Flag{
+				testUtils.SetDefaultValue(flags.SigstoreBundle, "/path/to/bundle.json"),
+				testUtils.SetDefaultValue(flags.SubjectRepoPath, "test-repo/test-artifact"),
+				testUtils.SetDefaultValue(flags.SubjectSha256, "abcd1234567890"),
+			},
+			expectError:   true,
+			errorContains: "The parameter --subject-sha256 cannot be used with --sigstore-bundle",
+		},
+		{
+			name: "Valid_No_SigstoreBundle_With_SubjectSha256",
+			flags: []components.Flag{
+				testUtils.SetDefaultValue(flags.SubjectRepoPath, "test-repo/test-artifact"),
+				testUtils.SetDefaultValue(flags.SubjectSha256, "abcd1234567890"),
+				testUtils.SetDefaultValue(flags.Predicate, "/path/to/predicate.json"),
+				testUtils.SetDefaultValue(flags.PredicateType, "test-type"),
+				testUtils.SetDefaultValue(flags.Key, "/path/to/key.pem"),
+			},
+			expectError: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			app := cli.NewApp()
+			app.Commands = []cli.Command{{Name: "create"}}
+			set := flag.NewFlagSet("test", 0)
+			cliCtx := cli.NewContext(app, set, nil)
+
+			ctx, err := components.ConvertContext(cliCtx, tt.flags...)
+			assert.NoError(t, err)
+
+			mockExec := func(cmd commands.Command) error {
+				// Mock successful execution
+				return nil
+			}
+
+			cmd := NewEvidenceCustomCommand(ctx, mockExec)
+			serverDetails := &config.ServerDetails{}
+
+			err = cmd.CreateEvidence(ctx, serverDetails)
+
+			if tt.expectError {
+				assert.Error(t, err)
+				if tt.errorContains != "" {
+					assert.Contains(t, err.Error(), tt.errorContains)
+				}
+			} else {
+				assert.NoError(t, err)
+			}
+		})
+	}
+}

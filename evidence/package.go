@@ -46,7 +46,7 @@ func NewPackageService(name, version, repoName string) PackageService {
 	}
 }
 
-// basePackage provides shared logic for package evidence commands (create/verify)
+// basePackage provides shared logic for package evidence command (create/verify)
 // It implements the PackageService interface
 type basePackage struct {
 	PackageName     string

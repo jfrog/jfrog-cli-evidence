@@ -1,7 +1,9 @@
-package cli
+package application
 
 import (
 	"flag"
+	"github.com/jfrog/jfrog-cli-evidence/evidence/cli/command/flags"
+	testUtil "github.com/jfrog/jfrog-cli-evidence/evidence/cli/test"
 	"testing"
 
 	"github.com/jfrog/jfrog-cli-core/v2/common/commands"
@@ -21,9 +23,9 @@ func TestEvidenceApplicationCommand_CreateEvidence_SigstoreBundle(t *testing.T) 
 		{
 			name: "Invalid_SigstoreBundle_Not_Supported",
 			flags: []components.Flag{
-				setDefaultValue(sigstoreBundle, "/path/to/bundle.json"),
-				setDefaultValue(applicationKey, "test-app"),
-				setDefaultValue(applicationVersion, "1.0.0"),
+				testUtil.SetDefaultValue(flags.SigstoreBundle, "/path/to/bundle.json"),
+				testUtil.SetDefaultValue(flags.ApplicationKey, "testUtil-app"),
+				testUtil.SetDefaultValue(flags.ApplicationVersion, "1.0.0"),
 			},
 			expectError:   true,
 			errorContains: "--sigstore-bundle is not supported for application evidence.",
@@ -31,11 +33,11 @@ func TestEvidenceApplicationCommand_CreateEvidence_SigstoreBundle(t *testing.T) 
 		{
 			name: "Valid_Without_SigstoreBundle",
 			flags: []components.Flag{
-				setDefaultValue(applicationKey, "test-app"),
-				setDefaultValue(applicationVersion, "1.0.0"),
-				setDefaultValue(predicate, "/path/to/predicate.json"),
-				setDefaultValue(predicateType, "test-type"),
-				setDefaultValue(key, "/path/to/key.pem"),
+				testUtil.SetDefaultValue(flags.ApplicationKey, "testUtil-app"),
+				testUtil.SetDefaultValue(flags.ApplicationVersion, "1.0.0"),
+				testUtil.SetDefaultValue(flags.Predicate, "/path/to/predicate.json"),
+				testUtil.SetDefaultValue(flags.PredicateType, "testUtil-type"),
+				testUtil.SetDefaultValue(flags.Key, "/path/to/key.pem"),
 			},
 			expectError: false,
 		},
@@ -45,7 +47,7 @@ func TestEvidenceApplicationCommand_CreateEvidence_SigstoreBundle(t *testing.T) 
 		t.Run(tt.name, func(t *testing.T) {
 			app := cli.NewApp()
 			app.Commands = []cli.Command{{Name: "create"}}
-			set := flag.NewFlagSet("test", 0)
+			set := flag.NewFlagSet("testUtil", 0)
 			cliCtx := cli.NewContext(app, set, nil)
 
 			ctx, err := components.ConvertContext(cliCtx, tt.flags...)
@@ -86,15 +88,15 @@ func TestEvidenceApplicationCommand_ValidateEvidenceApplicationContext(t *testin
 		{
 			name: "Valid_All_Required_Fields",
 			flags: []components.Flag{
-				setDefaultValue(applicationKey, "test-app"),
-				setDefaultValue(applicationVersion, "1.0.0"),
+				testUtil.SetDefaultValue(flags.ApplicationKey, "testUtil-app"),
+				testUtil.SetDefaultValue(flags.ApplicationVersion, "1.0.0"),
 			},
 			expectError: false,
 		},
 		{
 			name: "Invalid_Missing_ApplicationKey",
 			flags: []components.Flag{
-				setDefaultValue(applicationVersion, "1.0.0"),
+				testUtil.SetDefaultValue(flags.ApplicationVersion, "1.0.0"),
 			},
 			expectError:   true,
 			errorContains: "--application-key is a mandatory field for creating an Application evidence",
@@ -102,7 +104,7 @@ func TestEvidenceApplicationCommand_ValidateEvidenceApplicationContext(t *testin
 		{
 			name: "Invalid_Missing_ApplicationVersion",
 			flags: []components.Flag{
-				setDefaultValue(applicationKey, "test-app"),
+				testUtil.SetDefaultValue(flags.ApplicationKey, "testUtil-app"),
 			},
 			expectError:   true,
 			errorContains: "--application-version is a mandatory field for creating an Application evidence",
@@ -110,8 +112,8 @@ func TestEvidenceApplicationCommand_ValidateEvidenceApplicationContext(t *testin
 		{
 			name: "Invalid_Empty_ApplicationKey",
 			flags: []components.Flag{
-				setDefaultValue(applicationKey, ""),
-				setDefaultValue(applicationVersion, "1.0.0"),
+				testUtil.SetDefaultValue(flags.ApplicationKey, ""),
+				testUtil.SetDefaultValue(flags.ApplicationVersion, "1.0.0"),
 			},
 			expectError:   true,
 			errorContains: "--application-key is a mandatory field for creating an Application evidence",
@@ -119,8 +121,8 @@ func TestEvidenceApplicationCommand_ValidateEvidenceApplicationContext(t *testin
 		{
 			name: "Invalid_Empty_ApplicationVersion",
 			flags: []components.Flag{
-				setDefaultValue(applicationKey, "test-app"),
-				setDefaultValue(applicationVersion, ""),
+				testUtil.SetDefaultValue(flags.ApplicationKey, "testUtil-app"),
+				testUtil.SetDefaultValue(flags.ApplicationVersion, ""),
 			},
 			expectError:   true,
 			errorContains: "--application-version is a mandatory field for creating an Application evidence",
@@ -128,9 +130,9 @@ func TestEvidenceApplicationCommand_ValidateEvidenceApplicationContext(t *testin
 		{
 			name: "Invalid_Project_Flag_Not_Allowed",
 			flags: []components.Flag{
-				setDefaultValue(applicationKey, "test-app"),
-				setDefaultValue(applicationVersion, "1.0.0"),
-				setDefaultValue(project, "test-project"),
+				testUtil.SetDefaultValue(flags.ApplicationKey, "testUtil-app"),
+				testUtil.SetDefaultValue(flags.ApplicationVersion, "1.0.0"),
+				testUtil.SetDefaultValue(flags.Project, "testUtil-project"),
 			},
 			expectError:   true,
 			errorContains: "--project flag is not allowed when using application-based evidence creation",
@@ -138,9 +140,9 @@ func TestEvidenceApplicationCommand_ValidateEvidenceApplicationContext(t *testin
 		{
 			name: "Invalid_SigstoreBundle_Not_Supported",
 			flags: []components.Flag{
-				setDefaultValue(applicationKey, "test-app"),
-				setDefaultValue(applicationVersion, "1.0.0"),
-				setDefaultValue(sigstoreBundle, "/path/to/bundle.json"),
+				testUtil.SetDefaultValue(flags.ApplicationKey, "testUtil-app"),
+				testUtil.SetDefaultValue(flags.ApplicationVersion, "1.0.0"),
+				testUtil.SetDefaultValue(flags.SigstoreBundle, "/path/to/bundle.json"),
 			},
 			expectError:   true,
 			errorContains: "--sigstore-bundle is not supported for application evidence.",
@@ -151,7 +153,7 @@ func TestEvidenceApplicationCommand_ValidateEvidenceApplicationContext(t *testin
 		t.Run(tt.name, func(t *testing.T) {
 			app := cli.NewApp()
 			app.Commands = []cli.Command{{Name: "create"}}
-			set := flag.NewFlagSet("test", 0)
+			set := flag.NewFlagSet("testUtil", 0)
 			cliCtx := cli.NewContext(app, set, nil)
 
 			ctx, err := components.ConvertContext(cliCtx, tt.flags...)
@@ -183,7 +185,7 @@ func TestEvidenceApplicationCommand_ValidateEvidenceApplicationContext(t *testin
 func TestEvidenceApplicationCommand_GetEvidence(t *testing.T) {
 	app := cli.NewApp()
 	app.Commands = []cli.Command{{Name: "get"}}
-	set := flag.NewFlagSet("test", 0)
+	set := flag.NewFlagSet("testUtil", 0)
 	cliCtx := cli.NewContext(app, set, nil)
 
 	ctx, err := components.ConvertContext(cliCtx)
@@ -208,7 +210,7 @@ func TestEvidenceApplicationCommand_GetEvidence(t *testing.T) {
 func TestEvidenceApplicationCommand_VerifyEvidence(t *testing.T) {
 	app := cli.NewApp()
 	app.Commands = []cli.Command{{Name: "verify"}}
-	set := flag.NewFlagSet("test", 0)
+	set := flag.NewFlagSet("testUtil", 0)
 	cliCtx := cli.NewContext(app, set, nil)
 
 	ctx, err := components.ConvertContext(cliCtx)
@@ -229,7 +231,7 @@ func TestEvidenceApplicationCommand_VerifyEvidence(t *testing.T) {
 
 func TestNewEvidenceApplicationCommand(t *testing.T) {
 	app := cli.NewApp()
-	set := flag.NewFlagSet("test", 0)
+	set := flag.NewFlagSet("testUtil", 0)
 	cliCtx := cli.NewContext(app, set, nil)
 
 	ctx, err := components.ConvertContext(cliCtx)

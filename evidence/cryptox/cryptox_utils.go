@@ -13,13 +13,13 @@ import (
 	"errors"
 	"fmt"
 	"hash"
+	"strings"
 	"testing"
 
 	"github.com/jfrog/jfrog-cli-evidence/evidence/dsse"
 	"github.com/jfrog/jfrog-client-go/utils/errorutils"
-	"golang.org/x/crypto/ssh"
-
 	"github.com/secure-systems-lab/go-securesystemslib/cjson"
+	"golang.org/x/crypto/ssh"
 )
 
 /*
@@ -31,6 +31,8 @@ var (
 	ErrNoPEMBlock = errors.New("failed to decode the data as PEM block (are you sure this is a pem file?)")
 	// ErrFailedPEMParsing gets returned when PKCS1, PKCS8 or PKIX key parsing fails
 	ErrFailedPEMParsing = errors.New("failed parsing the PEM block: unsupported PEM type")
+	// ErrEncryptedKeyNotSupported gets returned when an encrypted key is encountered
+	ErrEncryptedKeyNotSupported = errors.New("encrypted private keys are not supported - please use an unencrypted key")
 )
 
 func calculateKeyID(k *SSLibKey) (string, error) {
@@ -89,12 +91,38 @@ func decodeAndParsePEM(pemBytes []byte) (*pem.Block, any, error) {
 		}
 		return data, key, nil
 	}
+
+	// Check if it's an encrypted key type - we don't support encrypted keys
+	if isEncryptedPEMType(data.Type) {
+		return nil, nil, errorutils.CheckError(ErrEncryptedKeyNotSupported)
+	}
+
 	// Try to load private key, if this fails try to load key as public key
 	key, err := parsePEMKey(data.Bytes)
 	if err != nil {
 		return nil, nil, errorutils.CheckError(err)
 	}
 	return data, key, nil
+}
+
+// isEncryptedPEMType checks if the PEM type indicates an encrypted key
+func isEncryptedPEMType(pemType string) bool {
+	encryptedTypes := []string{
+		"ENCRYPTED PRIVATE KEY",
+		"ENCRYPTED COSIGN PRIVATE KEY",
+		"ENCRYPTED SIGSTORE PRIVATE KEY",
+	}
+
+	for _, encryptedType := range encryptedTypes {
+		if pemType == encryptedType {
+			return true
+		}
+	}
+
+	// Check for OpenSSL encrypted format
+	return strings.Contains(pemType, "PRIVATE KEY") &&
+		(strings.Contains(pemType, "ENCRYPTED") ||
+			strings.Contains(pemType, "Proc-Type: 4,ENCRYPTED"))
 }
 
 func parseSSHKey(keyBytes []byte) (any, error) {
@@ -162,7 +190,7 @@ func hexDecode(t *testing.T, data string) ([]byte, error) {
 	return b, nil
 }
 
-// СreateVerifier creates dsse.Verifier(s) from an SSLibKey.
+// CreateVerifier creates dsse.Verifier(s) from an SSLibKey.
 func CreateVerifier(publicKey *SSLibKey) ([]dsse.Verifier, error) {
 	var verifiers []dsse.Verifier
 

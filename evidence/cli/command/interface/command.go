@@ -1,4 +1,4 @@
-package cli
+package _interface
 
 //go:generate ${PROJECT_DIR}/scripts/mockgen.sh ${GOFILE}
 

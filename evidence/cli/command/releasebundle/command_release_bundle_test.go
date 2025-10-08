@@ -1,7 +1,9 @@
-package cli
+package releasebundle
 
 import (
 	"flag"
+	"github.com/jfrog/jfrog-cli-evidence/evidence/cli/command/flags"
+	testUtil "github.com/jfrog/jfrog-cli-evidence/evidence/cli/test"
 	"testing"
 
 	"github.com/jfrog/jfrog-cli-core/v2/common/commands"
@@ -11,7 +13,7 @@ import (
 	"github.com/urfave/cli"
 )
 
-func TestEvidenceCustomCommand_CreateEvidence_SigstoreBundle(t *testing.T) {
+func TestEvidenceReleaseBundleCommand_CreateEvidence_SigstoreBundle(t *testing.T) {
 	tests := []struct {
 		name          string
 		flags         []components.Flag
@@ -19,31 +21,23 @@ func TestEvidenceCustomCommand_CreateEvidence_SigstoreBundle(t *testing.T) {
 		errorContains string
 	}{
 		{
-			name: "Valid_SigstoreBundle_Without_SubjectSha256",
+			name: "Invalid_SigstoreBundle_Not_Supported",
 			flags: []components.Flag{
-				setDefaultValue(sigstoreBundle, "/path/to/bundle.json"),
-				setDefaultValue(subjectRepoPath, "test-repo/test-artifact"),
-			},
-			expectError: false,
-		},
-		{
-			name: "Invalid_SigstoreBundle_With_SubjectSha256",
-			flags: []components.Flag{
-				setDefaultValue(sigstoreBundle, "/path/to/bundle.json"),
-				setDefaultValue(subjectRepoPath, "test-repo/test-artifact"),
-				setDefaultValue(subjectSha256, "abcd1234567890"),
+				testUtil.SetDefaultValue(flags.SigstoreBundle, "/path/to/bundle.json"),
+				testUtil.SetDefaultValue(flags.ReleaseBundle, "test-release-bundle"),
+				testUtil.SetDefaultValue(flags.ReleaseBundleVersion, "1.0.0"),
 			},
 			expectError:   true,
-			errorContains: "The parameter --subject-sha256 cannot be used with --sigstore-bundle",
+			errorContains: "--sigstore-bundle is not supported for release bundle evidence.",
 		},
 		{
-			name: "Valid_No_SigstoreBundle_With_SubjectSha256",
+			name: "Valid_Without_SigstoreBundle",
 			flags: []components.Flag{
-				setDefaultValue(subjectRepoPath, "test-repo/test-artifact"),
-				setDefaultValue(subjectSha256, "abcd1234567890"),
-				setDefaultValue(predicate, "/path/to/predicate.json"),
-				setDefaultValue(predicateType, "test-type"),
-				setDefaultValue(key, "/path/to/key.pem"),
+				testUtil.SetDefaultValue(flags.ReleaseBundle, "test-release-bundle"),
+				testUtil.SetDefaultValue(flags.ReleaseBundleVersion, "1.0.0"),
+				testUtil.SetDefaultValue(flags.Predicate, "/path/to/predicate.json"),
+				testUtil.SetDefaultValue(flags.PredicateType, "test-type"),
+				testUtil.SetDefaultValue(flags.Key, "/path/to/key.pem"),
 			},
 			expectError: false,
 		},
@@ -64,7 +58,7 @@ func TestEvidenceCustomCommand_CreateEvidence_SigstoreBundle(t *testing.T) {
 				return nil
 			}
 
-			cmd := NewEvidenceCustomCommand(ctx, mockExec)
+			cmd := NewEvidenceReleaseBundleCommand(ctx, mockExec)
 			serverDetails := &config.ServerDetails{}
 
 			err = cmd.CreateEvidence(ctx, serverDetails)

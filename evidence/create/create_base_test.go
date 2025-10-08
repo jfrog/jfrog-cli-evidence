@@ -185,7 +185,7 @@ func TestCreateAndSignEnvelope(t *testing.T) {
 			keyPath:          "tests/testdata/public_key.pem",
 			keyId:            "",
 			expectError:      true,
-			expectedErrorMsg: "failed to load private key. Please verify the provided key is correct or check if the key alias exists in Artifactory. Original error: failed to load private key",
+			expectedErrorMsg: "failed to load private key. Please verify the provided key is correct. Original error: failed to load private key",
 		},
 	}
 

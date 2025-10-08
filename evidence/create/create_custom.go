@@ -196,6 +196,21 @@ func (c *createEvidenceCustom) handleSubjectNotFound(subjectRepoPath string, err
 		log.Debug("Server response error:", err.Error())
 		return c.newSubjectError("Subject '" + subjectRepoPath + "' is not found. Please ensure the subject exists.")
 	}
+
+	// Handle 400 errors that might be key alias related
+	if strings.Contains(errStr, "400 Bad Request") && strings.Contains(errStr, "not found") {
+		log.Debug("Server response error:", err.Error())
+		// Check if this is likely a key alias issue by looking for key-related context
+		if c.keyId != "" {
+			// If we have a keyId and the error is generic "not found" without specific context,
+			// it's likely a key alias issue since subject errors usually have more context
+			if !strings.Contains(errStr, "subject") && !strings.Contains(errStr, "repository") && !strings.Contains(errStr, "artifact") && !strings.Contains(errStr, "file") {
+				return c.newSubjectError("Key alias '" + c.keyId + "' is not found in Artifactory trusted keys. Please ensure the alias exists or upload the public key first using 'generate-key-pair --upload-public-key'.")
+			}
+		}
+		return c.newSubjectError("Subject '" + subjectRepoPath + "' is invalid or not found. Please ensure the subject exists and follows the correct format: <repo>/<path>/<name> or <repo>/<name>")
+	}
+
 	return err
 }
 
