@@ -265,8 +265,7 @@ func TestKeyPairCommand_buildKeyFilePaths(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			cmd := NewGenerateKeyPairCommand(nil, false, "", tt.outputDir, tt.keyFileName)
 
-			privPath, pubPath, err := cmd.buildKeyFilePaths(tt.outputDir)
-			assert.NoError(t, err)
+			privPath, pubPath := cmd.buildKeyFilePaths(tt.outputDir)
 			assert.Equal(t, tt.wantPriv, privPath)
 			assert.Equal(t, tt.wantPub, pubPath)
 		})
