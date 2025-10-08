@@ -33,19 +33,19 @@ func TestCreateEvidence_Context(t *testing.T) {
 	originalServerID := os.Getenv("JFROG_CLI_SERVER_ID")
 	originalURL := os.Getenv("JFROG_CLI_URL")
 	
-	os.Setenv("JFROG_CLI_SERVER_ID", "test-server")
-	os.Setenv("JFROG_CLI_URL", "https://test.jfrog.io")
+	_ = os.Setenv("JFROG_CLI_SERVER_ID", "test-server")
+	_ = os.Setenv("JFROG_CLI_URL", "https://test.jfrog.io")
 	
 	defer func() {
 		if originalServerID != "" {
-			os.Setenv("JFROG_CLI_SERVER_ID", originalServerID)
+			_ = os.Setenv("JFROG_CLI_SERVER_ID", originalServerID)
 		} else {
-			os.Unsetenv("JFROG_CLI_SERVER_ID")
+			_ = os.Unsetenv("JFROG_CLI_SERVER_ID")
 		}
 		if originalURL != "" {
-			os.Setenv("JFROG_CLI_URL", originalURL)
+			_ = os.Setenv("JFROG_CLI_URL", originalURL)
 		} else {
-			os.Unsetenv("JFROG_CLI_URL")
+			_ = os.Unsetenv("JFROG_CLI_URL")
 		}
 	}()
 
@@ -260,19 +260,19 @@ func TestVerifyEvidence_Context(t *testing.T) {
 	originalServerID := os.Getenv("JFROG_CLI_SERVER_ID")
 	originalURL := os.Getenv("JFROG_CLI_URL")
 	
-	os.Setenv("JFROG_CLI_SERVER_ID", "test-server")
-	os.Setenv("JFROG_CLI_URL", "https://test.jfrog.io")
+	_ = os.Setenv("JFROG_CLI_SERVER_ID", "test-server")
+	_ = os.Setenv("JFROG_CLI_URL", "https://test.jfrog.io")
 	
 	defer func() {
 		if originalServerID != "" {
-			os.Setenv("JFROG_CLI_SERVER_ID", originalServerID)
+			_ = os.Setenv("JFROG_CLI_SERVER_ID", originalServerID)
 		} else {
-			os.Unsetenv("JFROG_CLI_SERVER_ID")
+			_ = os.Unsetenv("JFROG_CLI_SERVER_ID")
 		}
 		if originalURL != "" {
-			os.Setenv("JFROG_CLI_URL", originalURL)
+			_ = os.Setenv("JFROG_CLI_URL", originalURL)
 		} else {
-			os.Unsetenv("JFROG_CLI_URL")
+			_ = os.Unsetenv("JFROG_CLI_URL")
 		}
 	}()
 
