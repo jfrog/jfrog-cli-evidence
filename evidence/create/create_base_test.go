@@ -245,8 +245,10 @@ func TestCreateEnvelope_Intoto_AndUploadDetails(t *testing.T) {
 	dir := t.TempDir()
 	pred := filepath.Join(dir, "predicate.json")
 	md := filepath.Join(dir, "notes.md")
+	image := filepath.Join(dir, "image.svg")
 	assert.NoError(t, os.WriteFile(pred, []byte(`{"k":"v"}`), 0600))
-	assert.NoError(t, os.WriteFile(md, []byte("hello"), 0600))
+	assert.NoError(t, os.WriteFile(md, []byte("![image](./image.svg)"), 0600))
+	assert.NoError(t, os.WriteFile(image, []byte("<svg width=\"10\" height=\"10\" xmlns=\"http://www.w3.org/2000/svg\"><rect width=\"10\" height=\"10\" fill=\"red\"/></svg>"), 0600))
 
 	keyContent, err := os.ReadFile(filepath.Join("../..", "tests/testdata/ecdsa_key.pem"))
 	assert.NoError(t, err)
@@ -278,7 +280,7 @@ func TestCreateEnvelope_Intoto_AndUploadDetails(t *testing.T) {
 	assert.NoError(t, json.Unmarshal(decoded, &st))
 	assert.Equal(t, "test-type", st.PredicateType)
 	assert.Equal(t, "abc123", st.Subject[0].Digest.Sha256)
-	assert.Equal(t, "hello", st.Markdown)
+	assert.Equal(t, "![image](data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTAiIGhlaWdodD0iMTAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PHJlY3Qgd2lkdGg9IjEwIiBoZWlnaHQ9IjEwIiBmaWxsPSJyZWQiLz48L3N2Zz4=)", st.Markdown)
 	assert.Equal(t, "alice", st.CreatedBy)
 
 	resp, err := c.uploadEvidence(env, "repo/path/name")

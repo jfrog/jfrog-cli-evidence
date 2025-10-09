@@ -5,8 +5,10 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 
+	markdownUtils "github.com/jfrog/jfrog-cli-core/v2/utils/markdown"
 	"github.com/jfrog/jfrog-cli-evidence/evidence/cryptox"
 	"github.com/jfrog/jfrog-cli-evidence/evidence/dsse"
 	"github.com/jfrog/jfrog-cli-evidence/evidence/intoto"
@@ -30,6 +32,8 @@ type evidenceUploader interface {
 }
 
 const sonarProviderId = "sonar"
+
+const maxImageSizePixels = 400
 
 type createEvidenceBase struct {
 	serverDetails     *config.ServerDetails
@@ -211,7 +215,12 @@ func (c *createEvidenceBase) setMarkdown(statement *intoto.Statement) error {
 			log.Warn(fmt.Sprintf("failed to read markdown file '%s'", c.markdownFilePath))
 			return err
 		}
-		statement.SetMarkdown(markdown)
+		result, err := markdownUtils.EmbedMarkdownImages(markdown, filepath.Dir(c.markdownFilePath), maxImageSizePixels, maxImageSizePixels)
+		if err != nil {
+			log.Warn(fmt.Sprintf("failed to embed markdown images for '%v'", err))
+			statement.SetMarkdown(markdown)
+		}
+		statement.SetMarkdown(result)
 	}
 	return nil
 }
