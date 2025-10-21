@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	artifactoryUtils "github.com/jfrog/jfrog-cli-artifactory/artifactory/utils"
+	"github.com/jfrog/jfrog-cli-evidence/evidence/model"
 
 	"github.com/jfrog/jfrog-cli-core/v2/common/build"
 	"github.com/jfrog/jfrog-cli-core/v2/utils/config"
