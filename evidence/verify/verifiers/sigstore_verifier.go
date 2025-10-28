@@ -17,7 +17,6 @@ import (
 const (
 	sigstoreKeySource = "Sigstore Bundle Key"
 	gitHubIssuerOrg   = "GitHub, Inc."
-	publicGood        = "public-good"
 )
 
 type sigstoreVerifierInterface interface {
@@ -95,7 +94,7 @@ func (v *sigstoreVerifier) prepareVerificationData(issuer string) (root.TrustedM
 			verify.WithSignedTimestamps(1),
 		}
 		return trustedMaterial, verifierConfig, nil
-	case publicGood:
+	default:
 		trustedMaterial, err := v.rootCertificateProvider.LoadTUFRootCertificate()
 		if err != nil {
 			return nil, nil, fmt.Errorf("failed to load TUF root trustedMaterial: %v", err)
@@ -105,12 +104,8 @@ func (v *sigstoreVerifier) prepareVerificationData(issuer string) (root.TrustedM
 			verify.WithObserverTimestamps(1),
 			verify.WithTransparencyLog(1),
 		}
-
 		return trustedMaterial, verifierConfig, nil
-	default:
-		return nil, nil, fmt.Errorf("unsupported issuer: %s", issuer)
 	}
-
 }
 
 func extractIssuerFromBundle(bundle *v1.Bundle) (string, error) {
@@ -131,6 +126,8 @@ func extractIssuerFromBundle(bundle *v1.Bundle) (string, error) {
 		if content.Certificate != nil {
 			certDER = content.Certificate.RawBytes
 		}
+	case *v1.VerificationMaterial_PublicKey:
+		return "", nil
 	default:
 		return "", fmt.Errorf("unsupported verification material type: %T", content)
 	}

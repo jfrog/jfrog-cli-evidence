@@ -304,18 +304,22 @@ func TestSigstoreVerifier_PrepareVerificationData(t *testing.T) {
 			expectedVerifierOptions: 3, // WithSignedCertificateTimestamps, WithObserverTimestamps, WithTransparencyLog
 		},
 		{
-			name:        "Unsupported issuer returns error",
-			issuer:      "Other Org",
-			setupMock:   func(mockProvider *MockTUFRootCertificateProvider) {},
-			expectError: true,
-			errorMsg:    "unsupported issuer: Other Org",
+			name:   "Other issuer uses public Sigstore certificate",
+			issuer: "Other Org",
+			setupMock: func(mockProvider *MockTUFRootCertificateProvider) {
+				mockProvider.On("LoadTUFRootCertificate").Return(nil, nil)
+			},
+			expectError:             false,
+			expectedVerifierOptions: 3, // WithSignedCertificateTimestamps, WithObserverTimestamps, WithTransparencyLog
 		},
 		{
-			name:        "Empty issuer returns error",
-			issuer:      "",
-			setupMock:   func(mockProvider *MockTUFRootCertificateProvider) {},
-			expectError: true,
-			errorMsg:    "unsupported issuer:",
+			name:   "Empty issuer uses public Sigstore certificate",
+			issuer: "",
+			setupMock: func(mockProvider *MockTUFRootCertificateProvider) {
+				mockProvider.On("LoadTUFRootCertificate").Return(nil, nil)
+			},
+			expectError:             false,
+			expectedVerifierOptions: 3, // WithSignedCertificateTimestamps, WithObserverTimestamps, WithTransparencyLog
 		},
 		{
 			name:   "GitHub certificate loading failure",
@@ -410,13 +414,13 @@ func TestSigstoreVerifier_GitHubCertificateLoading(t *testing.T) {
 			errorMsg:    "failed to load TUF root trustedMaterial",
 		},
 		{
-			name: "Unsupported issuer returns error",
+			name: "Unsupported issuer uses public Sigstore certificate",
 			setupMock: func(mockProvider *MockTUFRootCertificateProvider) {
-				// No certificate loading should be attempted for unsupported issuer
+				// Should call LoadTUFRootCertificate for any non-GitHub issuer
+				mockProvider.On("LoadTUFRootCertificate").Return(nil, nil)
 			},
 			issuer:      "Other Org",
-			expectError: true,
-			errorMsg:    "unsupported issuer",
+			expectError: false,
 		},
 	}
 
