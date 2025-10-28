@@ -4,9 +4,10 @@ import (
 	"bytes"
 	"crypto"
 	"encoding/json"
-	"github.com/stretchr/testify/assert"
 	"io"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
 
 	"github.com/jfrog/jfrog-cli-evidence/evidence/dsse"
 	"github.com/jfrog/jfrog-cli-evidence/evidence/model"
@@ -144,6 +145,17 @@ type MockTUFRootCertificateProvider struct {
 }
 
 func (m *MockTUFRootCertificateProvider) LoadTUFRootCertificate() (root.TrustedMaterial, error) {
+	args := m.Called()
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	if trustedMaterial, ok := args.Get(0).(root.TrustedMaterial); ok {
+		return trustedMaterial, args.Error(1)
+	}
+	return nil, args.Error(1)
+}
+
+func (m *MockTUFRootCertificateProvider) LoadTUFRootGithubCertificate() (root.TrustedMaterial, error) {
 	args := m.Called()
 	if args.Get(0) == nil {
 		return nil, args.Error(1)
