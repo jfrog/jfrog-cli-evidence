@@ -85,6 +85,7 @@ func (v *verifyEvidenceBase) verifyEvidence(client *artifactory.ArtifactoryServi
 		return err
 	}
 
+	v.quitProgress()
 	err = v.printVerifyResult(verify)
 	if verify.OverallVerificationStatus == model.Failed {
 		return coreutils.CliError{ExitCode: coreutils.ExitCodeError}

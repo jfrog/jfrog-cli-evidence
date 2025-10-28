@@ -12,7 +12,12 @@ func TestNewTUFRootCertificateProvider(t *testing.T) {
 	assert.IsType(t, &tufRootCertificateProvider{}, provider)
 }
 
-func TestTUFRootCertificateProvider_ImplementsInterface(t *testing.T) {
-	var _ TUFRootCertificateProvider = (*tufRootCertificateProvider)(nil)
-	// This test ensures the struct implements the interface
+func TestLoadTUFRootGithubCertificate(t *testing.T) {
+	provider := NewTUFRootCertificateProvider()
+	assert.NotNil(t, provider)
+
+	// Test loading GitHub certificate
+	trustedRoot, err := provider.LoadTUFRootGithubCertificate()
+	assert.NoError(t, err)
+	assert.NotNil(t, trustedRoot)
 }
