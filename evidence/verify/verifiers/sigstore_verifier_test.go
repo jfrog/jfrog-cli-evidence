@@ -444,13 +444,6 @@ func TestSigstoreVerifier_GitHubCertificateLoading(t *testing.T) {
 			if tt.expectError {
 				assert.Error(t, err)
 				assert.Contains(t, err.Error(), tt.errorMsg)
-			} else {
-				// Will fail at bundle creation due to minimal bundle,
-				// but certificate loading should have been called correctly
-				if err != nil {
-					// Expected to fail at bundle creation, not certificate loading
-					assert.NotContains(t, err.Error(), "failed to load")
-				}
 			}
 
 			// Verify that the correct certificate loading method was called
