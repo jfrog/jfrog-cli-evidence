@@ -34,7 +34,7 @@ const (
 
 	Predicate          = "predicate"
 	PredicateType      = "predicate-type"
-	IncludePredicate   = "include-Predicate"
+	IncludePredicate   = "include-predicate"
 	Markdown           = "markdown"
 	SubjectRepoPath    = "subject-repo-path"
 	SubjectSha256      = "subject-sha256"

@@ -9,7 +9,7 @@ import (
 	"github.com/jfrog/jfrog-cli-core/v2/utils/config"
 )
 
-const aqlBuildQueryTemplate = "items.find({\"repo\":\"%s\",\"path\":\"%s\",\"name\":{\"$match\":\"%s*\"}}).include(\"sha256\",\"name\").sort({\"$desc\":[\"name\"]}).limit(1)"
+const aqlBuildQueryTemplate = "items.find({\"repo\":\"%s\",\"path\":\"%s\",\"name\":{\"$match\":\"%s*\"}}).include(\"repo\",\"path\",\"name\",\"sha256\").sort({\"$desc\":[\"name\"]}).limit(1)"
 
 // verifyEvidenceBuild verifies evidence for a build.
 type verifyEvidenceBuild struct {
