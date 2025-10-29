@@ -1,3 +1,13 @@
 /.idea/
 /build/
 /coverage/
+
+# OS files
+.DS_Store
+
+# E2E Test Secrets (NEVER commit these!)
+tests/e2e/.access_token
+tests/e2e/*.lic
+tests/e2e/.env
+.env
+*.lic

@@ -242,6 +242,8 @@ stop-e2e-env: ## Stop E2E test environment
 e2e-full: clean build stop-e2e-env ## Full E2E test cycle (clean, build, start env, test, stop)
 	@echo "$(GREEN)Starting full E2E test cycle...$(NC)"
 	@cd $(E2E_DIR) && (docker compose down -v 2>/dev/null || docker-compose down -v)
+	@rm -f $(E2E_DIR)/.access_token
+	@echo "$(YELLOW)Removed old access token to force fresh bootstrap$(NC)"
 	@$(MAKE) start-e2e-env
 	@echo "$(YELLOW)Waiting 5 seconds for services to stabilize...$(NC)"
 	@sleep 5

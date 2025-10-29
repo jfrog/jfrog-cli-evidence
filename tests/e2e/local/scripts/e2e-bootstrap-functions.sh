@@ -283,6 +283,7 @@ create_user_token() {
     log_info "Creating access token for user: ${username}..." >&2
     
     # Step 1: Get system token (admin)
+    # FOR LOCAL TESTING ONLY - matches docker-compose.yml JF_SHARED_SECURITY_JOINKEY
     local JOIN_KEY="cc949ef041b726994a225dc20e018f23"
     
     local system_token_response
@@ -395,7 +396,7 @@ generate_access_token() {
     
     # Use the join-key approach (same as Evidence project's tokengen.sh)
     # Step 1: Get a system token using the join-key
-    # The join-key is defined in docker-compose.yml as JF_SHARED_SECURITY_JOINKEY
+    # FOR LOCAL TESTING ONLY - matches docker-compose.yml JF_SHARED_SECURITY_JOINKEY
     local JOIN_KEY="cc949ef041b726994a225dc20e018f23"
     
     log_info "Getting system token using join-key..." >&2
