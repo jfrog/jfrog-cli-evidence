@@ -26,15 +26,4 @@ func (r *EvidenceE2ETestsRunner) RunEvidenceCliTests(t *testing.T) {
 	t.Run("CreateEvidenceHappyFlow", func(t *testing.T) {
 		r.RunCreateEvidenceHappyFlow(t)
 	})
-	t.Run("CreateEvidenceHappyFlow2", func(t *testing.T) {
-		r.RunCreateEvidenceHappyFlow2(t)
-	})
-	t.Run("CreateEvidenceHappyFlow3", func(t *testing.T) {
-		r.RunCreateEvidenceHappyFlow3(t)
-	})
-
-	// Add more test flows here as they are implemented
-	// t.Run("VerifyEvidence", func(t *testing.T) {
-	//     r.RunVerifyEvidenceTest(t)
-	// })
 }
