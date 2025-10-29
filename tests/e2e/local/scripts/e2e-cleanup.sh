@@ -42,8 +42,8 @@ log_info "Cleaning up user..."
 delete_user "${TEST_USER}" "${ADMIN_TOKEN}"
 
 # Delete token file
-if [[ -f "${SCRIPT_DIR}/../.access_token" ]]; then
-    rm -f "${SCRIPT_DIR}/../.access_token"
+if [[ -f "${SCRIPT_DIR}/../../.access_token" ]]; then
+    rm -f "${SCRIPT_DIR}/../../.access_token"
     log_success "Deleted .access_token file"
 fi
 

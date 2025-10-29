@@ -26,10 +26,6 @@ var (
 	EvidenceAccessToken *string
 )
 
-const (
-	Out = "out"
-)
-
 func init() {
 	JfrogUrl = flag.String("jfrog.url", "http://localhost:8082", "JFrog platform url")
 	JfrogUser = flag.String("jfrog.user", "admin", "JFrog platform username")
@@ -60,8 +56,8 @@ func TearDownE2ETests() {
 
 // CleanFileSystem removes temporary test files
 func CleanFileSystem() {
-	if _, err := os.Stat(Out); err == nil {
-		err := os.RemoveAll(Out)
+	if _, err := os.Stat("out"); err == nil {
+		err := os.RemoveAll("out")
 		if err != nil {
 			return
 		}
@@ -107,7 +103,7 @@ func authenticateEvidence() string {
 
 	// Priority: Evidence token from flag > Token file (local Docker)
 	var token string
-	
+
 	if *EvidenceAccessToken != "" {
 		// Use dedicated Evidence token (SaaS environment)
 		token = *EvidenceAccessToken
@@ -143,12 +139,12 @@ func authenticateEvidence() string {
 func updateArtifactoryDetails() {
 	*JfrogUrl = clientUtils.AddTrailingSlashIfNeeded(*JfrogUrl)
 	artifactoryUrl := clientUtils.AddTrailingSlashIfNeeded(*JfrogUrl) + "artifactory/"
-	
+
 	artifactoryDetails = &config.ServerDetails{
 		Url:            *JfrogUrl,
 		ArtifactoryUrl: artifactoryUrl,
 	}
-	
+
 	// Use access token if provided (SaaS), otherwise use username/password (localhost Docker)
 	if *JfrogAccessToken != "" {
 		artifactoryDetails.AccessToken = *JfrogAccessToken

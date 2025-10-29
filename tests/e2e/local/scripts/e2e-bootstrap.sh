@@ -65,7 +65,7 @@ if [[ -z "$USER_TOKEN" ]]; then
 fi
 
 # Save token to file for Go tests to read
-echo "$USER_TOKEN" > "${SCRIPT_DIR}/../.access_token"
+echo "$USER_TOKEN" > "${SCRIPT_DIR}/../../.access_token"
 log_success "User token saved to .access_token file"
 
 log_success "=========================================="

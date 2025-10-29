@@ -94,7 +94,7 @@ configure_jfrog_cli() {
 # Install Artifactory license
 install_license() {
     local license=""
-    local license_file="${SCRIPT_DIR}/../artifactory.lic"
+    local license_file="${SCRIPT_DIR}/../../artifactory.lic"
     
     # Try to read from .lic file first (for local development)
     if [[ -f "${license_file}" ]]; then

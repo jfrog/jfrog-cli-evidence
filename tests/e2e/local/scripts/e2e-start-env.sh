@@ -6,7 +6,7 @@
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-E2E_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
+E2E_DIR="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 PROJECT_ROOT="$(cd "${E2E_DIR}/../.." && pwd)"
 
 source "${SCRIPT_DIR}/e2e-bootstrap-functions.sh"
