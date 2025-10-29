@@ -19,10 +19,11 @@ import (
 
 // Test configuration flags
 var (
-	JfrogUrl         *string
-	JfrogUser        *string
-	JfrogPassword    *string
-	JfrogAccessToken *string
+	JfrogUrl            *string
+	JfrogUser           *string
+	JfrogPassword       *string
+	JfrogAccessToken    *string
+	EvidenceAccessToken *string
 )
 
 const (
@@ -33,7 +34,8 @@ func init() {
 	JfrogUrl = flag.String("jfrog.url", "http://localhost:8082", "JFrog platform url")
 	JfrogUser = flag.String("jfrog.user", "admin", "JFrog platform username")
 	JfrogPassword = flag.String("jfrog.password", "password", "JFrog platform password")
-	JfrogAccessToken = flag.String("jfrog.adminToken", "", "JFrog platform admin token")
+	JfrogAccessToken = flag.String("jfrog.adminToken", "", "JFrog platform admin token (for Artifactory)")
+	EvidenceAccessToken = flag.String("jfrog.evidenceToken", "", "Evidence service access token")
 }
 
 var (
@@ -103,22 +105,29 @@ func getTokenFilePath() string {
 func authenticateEvidence() string {
 	*JfrogUrl = clientUtils.AddTrailingSlashIfNeeded(*JfrogUrl)
 
-	if *JfrogAccessToken == "" {
+	// Priority: Evidence token from flag > Token file (local Docker)
+	var token string
+	
+	if *EvidenceAccessToken != "" {
+		// Use dedicated Evidence token (SaaS environment)
+		token = *EvidenceAccessToken
+		fmt.Printf("✓ Using Evidence access token from flag\n")
+	} else {
+		// Try to read from file (local Docker environment)
 		tokenFile := getTokenFilePath()
 		if data, err := os.ReadFile(tokenFile); err == nil {
-			token := strings.TrimSpace(string(data))
+			token = strings.TrimSpace(string(data))
 			if token != "" && token != "null" {
-				JfrogAccessToken = &token
-				fmt.Printf("✓ Using access token from %s\n", tokenFile)
+				fmt.Printf("✓ Using Evidence access token from %s\n", tokenFile)
 			}
 		}
 	}
 
-	if *JfrogAccessToken == "" {
+	if token == "" {
 		fmt.Printf("ERROR: Evidence service requires an access token.\n")
 		fmt.Printf("Options:\n")
-		fmt.Printf("  1. Run bootstrap: make start-e2e-env\n")
-		fmt.Printf("  2. Provide flag: --jfrog.adminToken=YOUR_TOKEN\n")
+		fmt.Printf("  1. For Docker: Run bootstrap: make start-e2e-env\n")
+		fmt.Printf("  2. For SaaS: Provide flag: --jfrog.evidenceToken=YOUR_TOKEN\n")
 		os.Exit(1)
 	}
 
@@ -126,7 +135,7 @@ func authenticateEvidence() string {
 
 	evidenceDetails := &config.ServerDetails{
 		Url:         *JfrogUrl,
-		AccessToken: *JfrogAccessToken,
+		AccessToken: token,
 	}
 	return fmt.Sprintf("--url=%s --access-token=%s", evidenceDetails.Url, evidenceDetails.AccessToken)
 }
@@ -134,13 +143,21 @@ func authenticateEvidence() string {
 func updateArtifactoryDetails() {
 	*JfrogUrl = clientUtils.AddTrailingSlashIfNeeded(*JfrogUrl)
 	artifactoryUrl := clientUtils.AddTrailingSlashIfNeeded(*JfrogUrl) + "artifactory/"
+	
 	artifactoryDetails = &config.ServerDetails{
 		Url:            *JfrogUrl,
 		ArtifactoryUrl: artifactoryUrl,
-		User:           *JfrogUser,
-		Password:       *JfrogPassword,
 	}
-	fmt.Printf("✓ Artifactory authentication configured for: %s\n", artifactoryUrl)
+	
+	// Use access token if provided (SaaS), otherwise use username/password (localhost Docker)
+	if *JfrogAccessToken != "" {
+		artifactoryDetails.AccessToken = *JfrogAccessToken
+		fmt.Printf("✓ Artifactory authentication configured with access token for: %s\n", artifactoryUrl)
+	} else {
+		artifactoryDetails.User = *JfrogUser
+		artifactoryDetails.Password = *JfrogPassword
+		fmt.Printf("✓ Artifactory authentication configured with username/password for: %s\n", artifactoryUrl)
+	}
 }
 
 func execEvidenceCliMain() error {

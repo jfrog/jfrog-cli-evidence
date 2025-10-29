@@ -244,15 +244,15 @@ restart-e2e-env: stop-e2e-env start-e2e-env ## Restart E2E test environment
 
 e2e-logs: ## Show E2E environment logs
 	@echo "$(BLUE)E2E Environment Logs:$(NC)"
-	@cd $(E2E_DIR) && docker-compose logs -f
+	@cd $(E2E_DIR) && (docker compose logs -f 2>/dev/null || docker-compose logs -f)
 
 e2e-status: ## Show E2E environment status
 	@echo "$(BLUE)E2E Environment Status:$(NC)"
-	@cd $(E2E_DIR) && docker-compose ps
+	@cd $(E2E_DIR) && (docker compose ps 2>/dev/null || docker-compose ps)
 
 e2e-clean: stop-e2e-env ## Clean E2E environment (including volumes)
 	@echo "$(YELLOW)Cleaning E2E environment...$(NC)"
-	@cd $(E2E_DIR) && docker-compose down -v
+	@cd $(E2E_DIR) && (docker compose down -v 2>/dev/null || docker-compose down -v)
 	@echo "$(GREEN)E2E environment cleaned$(NC)"
 
 e2e-bootstrap: ## Re-run bootstrap script (with environment running)
@@ -266,7 +266,7 @@ e2e-cleanup: ## Clean up E2E test data (users, permissions)
 
 e2e-full: clean build stop-e2e-env ## Full E2E test cycle (stop, clean volumes, build, start, test, stop)
 	@echo "$(GREEN)Starting full E2E test cycle...$(NC)"
-	@cd $(E2E_DIR) && docker-compose down -v
+	@cd $(E2E_DIR) && (docker compose down -v 2>/dev/null || docker-compose down -v)
 	@$(MAKE) start-e2e-env
 	@sleep 5
 	@$(MAKE) test-e2e
