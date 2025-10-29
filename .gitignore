@@ -1,3 +1,23 @@
 /.idea/
 /build/
 /coverage/
+
+# OS files
+.DS_Store
+
+# E2E Test Secrets (NEVER commit these!)
+tests/e2e/local/.access_token
+tests/e2e/local/.admin_token
+tests/e2e/local/.project_token
+tests/e2e/local/.project_key
+tests/e2e/local/*.lic
+*.lic
+
+# E2E Test Generated Files
+tests/e2e/testdata/
+tests/e2e/*.key
+tests/e2e/*.pub
+tests/e2e/test-logs/
+tests/e2e/.docker/
+tests/e2e/*.tmp
+tests/e2e/*.temp

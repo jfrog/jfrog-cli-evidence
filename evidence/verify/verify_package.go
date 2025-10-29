@@ -12,7 +12,7 @@ import (
 	"github.com/jfrog/jfrog-cli-core/v2/utils/config"
 )
 
-const aqlPackageQueryTemplate = "items.find({\"repo\": \"%s\",\"path\": \"%s\",\"name\": \"%s\"}).include(\"sha256\")"
+const aqlPackageQueryTemplate = "items.find({\"repo\": \"%s\",\"path\": \"%s\",\"name\": \"%s\"}).include(\"repo\",\"path\",\"name\",\"sha256\")"
 
 // verifyEvidencePackage verifies evidence for a package.
 type verifyEvidencePackage struct {

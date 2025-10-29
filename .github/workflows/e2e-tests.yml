@@ -1,0 +1,44 @@
+name: E2E Tests (SaaS)
+
+on:
+  push:
+    branches: [ '**' ]  # Run on all branches
+  pull_request:
+    branches: [ '**' ]  # Run on all PRs
+  workflow_dispatch:  # Allow manual trigger
+
+jobs:
+  e2e-tests-saas:
+    name: E2E Tests on SaaS Environment
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version: '1.24'
+          cache: true
+
+      - name: Setup JFrog CLI
+        uses: jfrog/setup-jfrog-cli@v4
+        with:
+          version: latest
+        env:
+          JF_URL: ${{ secrets.PLATFORM_URL }}
+          JF_ACCESS_TOKEN: ${{ secrets.PLATFORM_ADMIN_TOKEN }}
+
+      - name: Run E2E tests against SaaS
+        run: |
+          go test -v -timeout 30m -p 1 ./tests/e2e/... \
+            --jfrog.url=${{ secrets.PLATFORM_URL }} \
+            --jfrog.adminToken=${{ secrets.PLATFORM_ADMIN_TOKEN }} \
+            --jfrog.evidenceToken=${{ secrets.EVIDENCE_USER_TOKEN }} \
+            --jfrog.projectToken=${{ secrets.EVIDENCE_PROJECT_TOKEN }} \
+            --jfrog.projectKey=${{ secrets.EVIDENCE_PROJECT_KEY }}
+        env:
+          CI: true
+

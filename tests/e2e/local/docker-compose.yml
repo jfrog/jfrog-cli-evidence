@@ -1,0 +1,155 @@
+services:
+  postgres:
+    image: ${POSTGRES_IMAGE}
+    container_name: evidence-e2e-postgres
+    hostname: postgres
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_DB: evidence
+      POSTGRES_USER: evidence
+      POSTGRES_PASSWORD: password
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U evidence"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # JFrog Artifactory with Evidence Integration
+  artifactory:
+    image: ${ARTIFACTORY_IMAGE}
+    container_name: evidence-e2e-artifactory
+    hostname: artifactory
+    ports:
+      - "8046:8046"  # Internal router port
+      - "8081:8081"  # Artifactory UI
+      - "8082:8082"  # Artifactory API
+    environment:
+      # Node configuration
+      JF_SHARED_NODE_ID: evidence-e2e-node
+      
+      # Database configuration
+      JF_SHARED_DATABASE_TYPE: postgresql
+      JF_SHARED_DATABASE_DRIVER: org.postgresql.Driver
+      JF_SHARED_DATABASE_URL: jdbc:postgresql://postgres:5432/evidence
+      JF_SHARED_DATABASE_USERNAME: evidence
+      JF_SHARED_DATABASE_PASSWORD: password
+      
+      # Security keys (for local testing only!)
+      JF_SHARED_SECURITY_JOINKEY: cc949ef041b726994a225dc20e018f23
+      JF_SHARED_SECURITY_MASTERKEY: b055e9d06d17a293f1934109d4c4b560
+      
+      # Router configuration
+      JF_ROUTER_DEV_MAKE_INTERNAL_PORTS_PUBLIC: "true"
+      JF_ROUTER_ENTRYPOINTS_EXTERNALPORT: 8082
+      
+      # Evidence integration
+      JF_ARTIFACTORY_EVIDENCE_ENABLED: "true"
+      JF_EVIDENCE_NAVIGATION_ENABLED: "true"
+      JF_EVIDENCE_ENABLED: "false"  # Evidence runs as separate service
+      
+      # OneModel integration (Single-Tenant mode)
+      JF_ONEMODEL_ENABLED: "true"
+      JF_ROUTER_MULTITENANT_SERVICES_ONEMODEL_SERVICEURL: http://onemodel:8082
+      
+      # Performance tuning for tests
+      EXTRA_JAVA_OPTIONS: "-Dstaging.mode=true -Xms512m -Xmx2048m"
+      JF_ACCESS_EXTRAJAVAOPTS: "-Dstaging.mode=true"
+      
+      # Speed up evidence event retries for testing
+      # A factor below 1 decreases the back-off delay with each retry (to speed up the e2e test).
+      # Having 0.1 leads to the: 6s -> 600ms -> 60ms -> 6 ms -> <no-delay>.
+      JF_ARTIFACTORY_EVIDENCE_EVENTS_BACKOFF_FACTOR: 0.1
+      # As the back-off factor is 0, set a high number of retries in order
+      # to not run out of the attempts too soon resulting in a false positive.
+      JF_ARTIFACTORY_EVIDENCE_EVENTS_BACKOFF_RETRIES: 20000
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  # Evidence Service
+  evidence-service:
+    image: ${EVIDENCE_IMAGE}
+    container_name: evidence-e2e-service
+    environment:
+      # Node configuration
+      JF_SHARED_NODE_ID: evidence-e2e-node
+      
+      # Database configuration
+      JF_SHARED_DATABASE_TYPE: postgresql
+      JF_SHARED_DATABASE_DRIVER: org.postgresql.Driver
+      JF_SHARED_DATABASE_URL: jdbc:postgresql://postgres:5432/evidence
+      JF_SHARED_DATABASE_USERNAME: evidence
+      JF_SHARED_DATABASE_PASSWORD: password
+      
+      # Security keys (must match Artifactory)
+      JF_SHARED_SECURITY_JOINKEY: cc949ef041b726994a225dc20e018f23
+      JF_SHARED_SECURITY_MASTERKEY: b055e9d06d17a293f1934109d4c4b560
+      
+      # Evidence service configuration
+      JF_EVIDENCE_HTTP_PORT: 8051
+      JF_EVIDENCE_LOGGING_APPLICATION_LEVEL: ${EVIDENCE_LOG_LEVEL}
+      JF_ROUTER_ENTRYPOINTS_INTERNALPORT: 8046
+      
+      # License caching for tests
+      JF_EVIDENCE_CACHING_LICENSE_EXPIRATIONSECS: 1
+    network_mode: service:artifactory
+    restart: on-failure
+    depends_on:
+      - postgres
+      - artifactory
+
+  # OneModel Router (Single-Tenant mode - no etcd needed!)
+  onemodel-router:
+    image: ${ROUTER_IMAGE}
+    container_name: evidence-e2e-onemodel-router
+    hostname: onemodel
+    ports:
+      - "8083:8082"  # OneModel API (external access)
+    environment:
+      - JF_SHARED_SECURITY_JOINKEY=cc949ef041b726994a225dc20e018f23
+      - JF_SHARED_SECURITY_MASTERKEY=b055e9d06d17a293f1934109d4c4b560
+      - JF_ROUTER_TOPOLOGY_LOCAL_REQUIREDSERVICETYPES=jfomr
+      - JF_SHARED_JFROGURL=http://artifactory:8082
+      - JF_SHARED_NODE_ID=onemodel
+
+  # OneModel Apollo Router
+  onemodel-apollo:
+    image: ${ONEMODEL_APOLLO_IMAGE}
+    container_name: evidence-e2e-onemodel-apollo
+    network_mode: "service:onemodel-router"
+    user: "1117:1117"
+    command:
+      - "--hot-reload"
+      - "--config"
+      - "/config.yaml"
+      - "--supergraph"
+      - "/shared/data/onemodel/supergraph.graphqls"
+    environment:
+      - APOLLO_ROUTER_LOG=${APOLLO_LOG_LEVEL}
+      - APOLLO_TELEMETRY_DISABLED=true
+      - ONEMODEL_VERSION=${ONEMODEL_VERSION}
+      - ONEMODEL_ADVANCED_TROUBLESHOOTING=true
+    volumes:
+      - ./local/config/onemodel-apollo-config.yaml:/config.yaml
+      - onemodel-data:/shared
+
+  # OneModel Registry (Single-Tenant mode)
+  onemodel-registry:
+    image: ${ONEMODEL_REGISTRY_IMAGE}
+    container_name: evidence-e2e-onemodel-registry
+    network_mode: "service:onemodel-router"
+    environment:
+      - JF_SHARED_SECURITY_JOINKEY=cc949ef041b726994a225dc20e018f23
+      - JF_SHARED_SECURITY_MASTERKEY=b055e9d06d17a293f1934109d4c4b560
+      - JF_EVIDENCE_ENABLED=true
+      - JF_SHARED_JFROGURL=http://artifactory:8082
+      - JF_SHARED_NODE_ID=onemodel
+      - JF_ONEMODEL_COMPOSITION_SCHEDULEDTASKDELAYSECS=10
+    volumes:
+      - onemodel-data:/opt/jfrog/onemodel/var
+
+volumes:
+  onemodel-data:
+    name: evidence-e2e-onemodel-data
+
