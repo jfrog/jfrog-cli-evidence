@@ -58,7 +58,7 @@ jobs:
         if: failure()
         run: |
           echo "=== Docker Compose Logs ==="
-          cd tests/e2e && docker-compose logs --tail=100
+          cd tests/e2e && docker compose logs --tail=100
 
       - name: Cleanup
         if: always()

@@ -18,12 +18,17 @@ log_info "Project root: ${PROJECT_ROOT}"
 log_info "E2E directory: ${E2E_DIR}"
 log_info ""
 
-# Check if docker-compose is available
-if ! command -v docker-compose &> /dev/null; then
-    log_error "docker-compose is not installed"
-    log_error "Please install docker-compose: https://docs.docker.com/compose/install/"
+# Detect Docker Compose command (V1 or V2)
+if command -v docker-compose &> /dev/null; then
+    DOCKER_COMPOSE="docker-compose"
+elif docker compose version &> /dev/null; then
+    DOCKER_COMPOSE="docker compose"
+else
+    log_error "Docker Compose is not installed"
+    log_error "Please install Docker Compose: https://docs.docker.com/compose/install/"
     exit 1
 fi
+log_info "Using Docker Compose: ${DOCKER_COMPOSE}"
 
 # Build the CLI binary first
 log_info "Building JFrog CLI Evidence binary..."
@@ -44,10 +49,10 @@ elif [[ -f "${E2E_DIR}/versions.env" ]]; then
     set +a
 fi
 
-# Start docker-compose services
+# Start Docker Compose services
 log_info "Starting Docker Compose services..."
 cd "${E2E_DIR}"
-docker-compose up -d
+${DOCKER_COMPOSE} up -d
 
 # Wait for services to be healthy
 log_info "Waiting for services to be healthy..."
@@ -82,6 +87,6 @@ log_info ""
 log_info "Next steps:"
 log_info "  1. Run E2E tests: make test-e2e"
 log_info "  2. Stop environment: make stop-e2e-env"
-log_info "  3. View logs: docker-compose -f tests/e2e/docker-compose.yml logs -f"
+log_info "  3. View logs: cd tests/e2e && ${DOCKER_COMPOSE} logs -f"
 log_info ""
 
