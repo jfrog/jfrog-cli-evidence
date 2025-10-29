@@ -32,13 +32,3 @@ jobs:
         env:
           CI: true
 
-      - name: Upload test results
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: e2e-test-results-saas
-          path: |
-            tests/e2e/out/
-            build/
-
-
