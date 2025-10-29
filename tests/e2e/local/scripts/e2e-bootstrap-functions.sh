@@ -105,16 +105,18 @@ install_license() {
         log_info "Using license from RTLIC environment variable"
         license=$(echo "${RTLIC}" | tr -d '\n\r')
     else
-        log_warning "No license found:"
-        log_warning "  - Local: Place license in ${license_file}"
-        log_warning "  - CI: Set RTLIC environment variable"
-        log_warning "Note: Some features may not work without a valid license"
-        return 0
+        # No license found - simple error message
+        echo "" >&2
+        log_error "Artifactory license is missing." >&2
+        log_error "Please provide license file at: ${license_file}" >&2
+        log_error "Or set RTLIC environment variable." >&2
+        echo "" >&2
+        return 1
     fi
     
     if [[ -z "${license}" ]]; then
-        log_warning "License is empty - skipping installation"
-        return 0
+        log_error "License is empty - cannot proceed"
+        return 1
     fi
     
     log_info "Installing Artifactory license via API..."

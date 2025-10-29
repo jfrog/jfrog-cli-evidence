@@ -181,7 +181,7 @@ clean: ## Clean build artifacts
 	rm -f $(BINARY_NAME)
 	@echo "$(GREEN)Clean complete$(NC)"
 
-clean-all: clean clean-mocks ## Clean everything including mocks and vendor
+clean-all: clean ## Clean everything including vendor
 	@echo "$(YELLOW)Cleaning all generated files...$(NC)"
 	rm -rf vendor/
 	@echo "$(GREEN)Full clean complete$(NC)"
@@ -225,13 +225,13 @@ fixme: ## Show FIXME items in code
 
 
 ##@ E2E Testing
-test-e2e: build ## Run E2E tests (requires running environment)
+test-e2e: ## Run E2E tests (requires running environment)
 	@echo "$(GREEN)Running E2E tests...$(NC)"
 	@echo "$(YELLOW)Note: Make sure E2E environment is running (make start-e2e-env)$(NC)"
 	$(GOTEST) $(E2E_TEST_FLAGS) -p $(E2E_PARALLEL) ./tests/e2e/...
 	@echo "$(GREEN)E2E tests complete$(NC)"
 
-start-e2e-env: build ## Start E2E test environment (docker-compose)
+start-e2e-env: ## Start E2E test environment (docker-compose)
 	@echo "$(GREEN)Starting E2E test environment...$(NC)"
 	@bash $(E2E_DIR)/local/scripts/e2e-start-env.sh
 
@@ -239,35 +239,11 @@ stop-e2e-env: ## Stop E2E test environment
 	@echo "$(YELLOW)Stopping E2E test environment...$(NC)"
 	@bash $(E2E_DIR)/local/scripts/e2e-stop-env.sh
 
-restart-e2e-env: stop-e2e-env start-e2e-env ## Restart E2E test environment
-	@echo "$(GREEN)E2E environment restarted$(NC)"
-
-e2e-logs: ## Show E2E environment logs
-	@echo "$(BLUE)E2E Environment Logs:$(NC)"
-	@cd $(E2E_DIR) && (docker compose logs -f 2>/dev/null || docker-compose logs -f)
-
-e2e-status: ## Show E2E environment status
-	@echo "$(BLUE)E2E Environment Status:$(NC)"
-	@cd $(E2E_DIR) && (docker compose ps 2>/dev/null || docker-compose ps)
-
-e2e-clean: stop-e2e-env ## Clean E2E environment (including volumes)
-	@echo "$(YELLOW)Cleaning E2E environment...$(NC)"
-	@cd $(E2E_DIR) && (docker compose down -v 2>/dev/null || docker-compose down -v)
-	@echo "$(GREEN)E2E environment cleaned$(NC)"
-
-e2e-bootstrap: ## Re-run bootstrap script (with environment running)
-	@echo "$(GREEN)Re-bootstrapping E2E environment...$(NC)"
-	@bash $(E2E_DIR)/local/scripts/e2e-bootstrap.sh
-
-e2e-cleanup: ## Clean up E2E test data (users, permissions)
-	@echo "$(YELLOW)Cleaning up E2E test data...$(NC)"
-	@bash $(E2E_DIR)/local/scripts/e2e-cleanup.sh
-	@echo "$(GREEN)E2E test data cleaned$(NC)"
-
-e2e-full: clean build stop-e2e-env ## Full E2E test cycle (stop, clean volumes, build, start, test, stop)
+e2e-full: clean build stop-e2e-env ## Full E2E test cycle (clean, build, start env, test, stop)
 	@echo "$(GREEN)Starting full E2E test cycle...$(NC)"
 	@cd $(E2E_DIR) && (docker compose down -v 2>/dev/null || docker-compose down -v)
 	@$(MAKE) start-e2e-env
+	@echo "$(YELLOW)Waiting 5 seconds for services to stabilize...$(NC)"
 	@sleep 5
 	@$(MAKE) test-e2e
 	@$(MAKE) stop-e2e-env

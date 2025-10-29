@@ -49,9 +49,15 @@ elif [[ -f "${E2E_DIR}/versions.env" ]]; then
     set +a
 fi
 
+# Check if environment is already running
+log_info "Checking environment status..."
+cd "${E2E_DIR}"
+if ${DOCKER_COMPOSE} ps | grep -q "Up"; then
+    log_warning "Environment is already running. Containers will be updated if needed."
+fi
+
 # Start Docker Compose services
 log_info "Starting Docker Compose services..."
-cd "${E2E_DIR}"
 ${DOCKER_COMPOSE} up -d
 
 # Wait for services to be healthy
@@ -67,9 +73,16 @@ wait_for_evidence
 log_info "Waiting 30 seconds for services to fully initialize..."
 sleep 30
 
-# Bootstrap Artifactory with test data
-log_info "Bootstrapping Artifactory with test data..."
-"${SCRIPT_DIR}/e2e-bootstrap.sh"
+# Check if already bootstrapped (token exists)
+TOKEN_FILE="${E2E_DIR}/.access_token"
+if [[ -f "${TOKEN_FILE}" && -s "${TOKEN_FILE}" ]]; then
+    log_info "Bootstrap token already exists at: ${TOKEN_FILE}"
+    log_info "Skipping bootstrap. To regenerate, delete ${TOKEN_FILE} and restart."
+else
+    # Bootstrap Artifactory with test data
+    log_info "Bootstrapping Artifactory with test data..."
+    "${SCRIPT_DIR}/e2e-bootstrap.sh"
+fi
 
 log_success "=========================================="
 log_success "E2E Environment Started Successfully!"
