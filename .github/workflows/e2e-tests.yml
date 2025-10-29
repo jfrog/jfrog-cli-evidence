@@ -2,9 +2,9 @@ name: E2E Tests
 
 on:
   push:
-    branches: [ main, master, develop ]
+    branches: [ '**' ]  # Run on all branches
   pull_request:
-    branches: [ main, master, develop ]
+    branches: [ '**' ]  # Run on all PRs
   workflow_dispatch:  # Allow manual trigger
 
 jobs:
