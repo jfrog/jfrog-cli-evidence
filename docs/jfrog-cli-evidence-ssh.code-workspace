@@ -1,0 +1,20 @@
+{
+	"folders": [
+		{
+			"path": "../.."
+		},
+		{
+			"path": "../../../github-main"
+		},
+		{
+			"path": "../../../evidence"
+		},
+		{
+			"path": "../../../jfrog-testing-infra-main"
+		},
+		{
+			"path": "../../../jfrog-cli"
+		}
+	],
+	"settings": {}
+}

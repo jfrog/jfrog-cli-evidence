@@ -1,0 +1,24 @@
+# E2E Test Generated Files
+
+# Environment configuration (use .env.example as template)
+.env
+
+# License file (use artifactory.lic as template)
+*.lic
+
+# Generated access token
+.access_token
+
+# Test data
+testdata/
+*.key
+*.pub
+test-logs/
+
+# Docker volumes data
+.docker/
+
+# Temporary test files
+*.tmp
+*.temp
+

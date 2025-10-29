@@ -1,0 +1,68 @@
+name: E2E Tests
+
+on:
+  push:
+    branches: [ main, master, develop ]
+  pull_request:
+    branches: [ main, master, develop ]
+  workflow_dispatch:  # Allow manual trigger
+
+jobs:
+  e2e-tests:
+    name: Run E2E Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.22'
+          cache: true
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Install JFrog CLI
+        run: |
+          curl -fL https://getcli.jfrog.io | sh
+          sudo mv jfrog /usr/local/bin/
+          jfrog --version
+
+      - name: Start E2E environment and bootstrap
+        env:
+          RTLIC: ${{ secrets.RTLIC }}
+        run: |
+          echo "Starting E2E environment..."
+          make start-e2e-env
+          echo "E2E environment started successfully!"
+
+      - name: Run E2E tests
+        run: |
+          echo "Running E2E tests..."
+          make test-e2e
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-test-results
+          path: |
+            tests/e2e/.access_token
+            build/
+
+      - name: Show docker logs on failure
+        if: failure()
+        run: |
+          echo "=== Docker Compose Logs ==="
+          cd tests/e2e && docker-compose logs --tail=100
+
+      - name: Cleanup
+        if: always()
+        run: |
+          echo "Stopping E2E environment..."
+          make stop-e2e-env
+
