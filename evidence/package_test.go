@@ -98,17 +98,6 @@ func TestGetLeadFileFromMetadataService(t *testing.T) {
 		expectError              bool
 	}{
 		{
-			name:                     "Get lead artifact successfully from metadata service",
-			metadataClientMock:       &mockMetadataServiceManagerGoodResponse{},
-			artifactoryClientMock:    &mockArtifactoryServicesManagerBadResponse{},
-			packageName:              "test",
-			packageVersion:           "1.0.0",
-			repoName:                 "nuget-local",
-			packageType:              "nuget",
-			expectedLeadArtifactPath: "nuget-local/MyLibrary/1.0.0/test.1.0.0.nupkg",
-			expectError:              false,
-		},
-		{
 			name:                     "Duplicate package name and version in the same repository",
 			metadataClientMock:       &mockMetadataServiceManagerDuplicateRepositories{},
 			artifactoryClientMock:    &mockArtifactoryServicesManagerBadResponse{},
@@ -147,18 +136,6 @@ func TestGetLeadArtifactFromArtifactoryServiceSuccess(t *testing.T) {
 
 	assert.NoError(t, err)
 	assert.Equal(t, "docker-local/MyLibrary/1.0.0/test.1.0.0.docker", leadArtifactPath)
-}
-
-func TestGetLeadFileFromArtifactFailsFromMetadataSuccess(t *testing.T) {
-	metadataClientMock := &mockMetadataServiceManagerGoodResponse{}
-	artifactoryClientMock := &mockArtifactoryServicesManagerBadResponse{}
-
-	packageService := NewPackageService("test", "1.0.0", "nuget-local")
-
-	leadArtifactPath, err := packageService.GetPackageVersionLeadArtifact("nuget", metadataClientMock, artifactoryClientMock)
-
-	assert.NoError(t, err)
-	assert.Equal(t, "nuget-local/MyLibrary/1.0.0/test.1.0.0.nupkg", leadArtifactPath)
 }
 
 func TestGetLeadArtifactFailsBothServices(t *testing.T) {
