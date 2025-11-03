@@ -1,21 +1,15 @@
 package evidence
 
 import (
-	"encoding/json"
 	"fmt"
 	"strings"
 
-	"github.com/jfrog/jfrog-cli-evidence/evidence/model"
 	"github.com/jfrog/jfrog-client-go/artifactory"
 	"github.com/jfrog/jfrog-client-go/artifactory/services"
 	"github.com/jfrog/jfrog-client-go/metadata"
 	"github.com/jfrog/jfrog-client-go/utils/errorutils"
 	"github.com/jfrog/jfrog-client-go/utils/log"
 )
-
-const leadArtifactQueryTemplate = `{
-	"query": "{versions(filter: {packageId: \"%s\", name: \"%s\", repositoriesIn: [{name: \"%s\"}]}) { edges { node { repos { name leadFilePath } } } } }"
-}`
 
 // PackageService defines the interface for package-related operations
 type PackageService interface {
@@ -62,12 +56,12 @@ func (b *basePackage) GetPackageType(artifactoryClient artifactory.ArtifactorySe
 		return "", errorutils.CheckErrorf("Artifactory client is required")
 	}
 
-	var request services.RepositoryDetails
-	err := artifactoryClient.GetRepository(b.PackageRepoName, &request)
+	var response services.RepositoryDetails
+	err := artifactoryClient.GetRepository(b.PackageRepoName, &response)
 	if err != nil {
 		return "", errorutils.CheckErrorf("failed to get repository '%s': %w", b.PackageRepoName, err)
 	}
-	return request.PackageType, nil
+	return response.PackageType, nil
 }
 
 func (b *basePackage) GetPackageVersionLeadArtifact(packageType string, metadataClient metadata.Manager, artifactoryClient artifactory.ArtifactoryServicesManager) (string, error) {
@@ -87,51 +81,12 @@ func (b *basePackage) GetPackageVersionLeadArtifact(packageType string, metadata
 
 	leadArtifact, err := artifactoryClient.GetPackageLeadFile(leadFileRequest)
 	if err != nil {
-		// Fallback to metadata service
-		leadArtifactPath, err := b.getPackageVersionLeadArtifactFromMetaData(packageType, metadataClient)
-		if err != nil {
-			return "", fmt.Errorf("failed to get lead artifact from both Artifactory and Metadata services: %w", err)
-		}
-		return b.buildLeadArtifactPath(leadArtifactPath), nil
+		log.Debug(fmt.Sprintf("failed to get lead artifact for package repository '%s', package name '%s', package version '%s', package type '%s'", b.PackageRepoName, b.PackageName, b.PackageVersion, packageType))
+		return "", fmt.Errorf("failed to get lead artifact: %w", err)
 	}
 
 	leadArtifactPath := strings.Replace(string(leadArtifact), ":", "/", 1)
 	return leadArtifactPath, nil
-}
-
-func (b *basePackage) getPackageVersionLeadArtifactFromMetaData(packageType string, metadataClient metadata.Manager) (string, error) {
-	body, err := metadataClient.GraphqlQuery(b.createQuery(packageType))
-	if err != nil {
-		return "", fmt.Errorf("failed to query metadata service: %w", err)
-	}
-
-	res := &model.MetadataResponse{}
-	err = json.Unmarshal(body, res)
-	if err != nil {
-		return "", fmt.Errorf("failed to unmarshal metadata response: %w", err)
-	}
-	if len(res.Data.Versions.Edges) == 0 {
-		return "", errorutils.CheckErrorf("no package found: %s/%s", b.PackageRepoName, b.PackageVersion)
-	}
-
-	// Fetch the leadFilePath based on repoName
-	for _, repo := range res.Data.Versions.Edges[0].Node.Repos {
-		if repo.Name == b.PackageRepoName {
-			return repo.LeadFilePath, nil
-		}
-	}
-	return "", errorutils.CheckErrorf("lead artifact not found for package: %s/%s", b.PackageRepoName, b.PackageVersion)
-}
-
-func (c *basePackage) createQuery(packageType string) []byte {
-	packageId := packageType + "://" + c.PackageName
-	query := fmt.Sprintf(leadArtifactQueryTemplate, packageId, c.PackageVersion, c.PackageRepoName)
-	log.Debug("Fetch lead artifact using graphql query:", query)
-	return []byte(query)
-}
-
-func (c *basePackage) buildLeadArtifactPath(leadArtifact string) string {
-	return fmt.Sprintf("%s/%s", c.PackageRepoName, leadArtifact)
 }
 
 // GetPackageName returns the package name
