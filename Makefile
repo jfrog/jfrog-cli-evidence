@@ -32,6 +32,12 @@ TEST_TIMEOUT=10m
 # Directories
 EVIDENCE_DIR=evidence
 MOCK_DIR=mocks
+E2E_DIR=tests/e2e
+
+# E2E Test Configuration
+E2E_TEST_TIMEOUT?=30m
+E2E_TEST_FLAGS?=-v -timeout $(E2E_TEST_TIMEOUT)
+E2E_PARALLEL?=1
 
 # Colors for output
 RED=\033[0;31m
@@ -176,6 +182,11 @@ clean: ## Clean build artifacts
 	rm -f $(BINARY_NAME)
 	@echo "$(GREEN)Clean complete$(NC)"
 
+clean-mocks: ## Clean generated mock files
+	@echo "$(YELLOW)Cleaning generated mocks...$(NC)"
+	rm -rf $(MOCK_DIR)
+	@echo "$(GREEN)Mocks cleaned$(NC)"
+
 clean-all: clean clean-mocks ## Clean everything including mocks and vendor
 	@echo "$(YELLOW)Cleaning all generated files...$(NC)"
 	rm -rf vendor/
@@ -217,3 +228,38 @@ fixme: ## Show FIXME items in code
 
 # Default target
 .DEFAULT_GOAL := help
+
+
+##@ E2E Testing
+test-e2e: ## Run E2E tests (requires running environment)
+	@echo "$(GREEN)Running E2E tests...$(NC)"
+	@echo "$(YELLOW)Note: Make sure E2E environment is running (make start-e2e-env)$(NC)"
+	$(GOTEST) $(E2E_TEST_FLAGS) -p $(E2E_PARALLEL) ./tests/e2e/...
+	@echo "$(GREEN)E2E tests complete$(NC)"
+
+start-e2e-env: ## Start E2E test environment (docker-compose)
+	@echo "$(GREEN)Starting E2E test environment...$(NC)"
+	@bash $(E2E_DIR)/local/scripts/e2e-start-env.sh
+
+stop-e2e-env: ## Stop E2E test environment
+	@echo "$(YELLOW)Stopping E2E test environment...$(NC)"
+	@bash $(E2E_DIR)/local/scripts/e2e-stop-env.sh
+
+bootstrap-e2e: ## Bootstrap E2E environment (create users, permissions, tokens, projects)
+	@echo "$(GREEN)Bootstrapping E2E environment...$(NC)"
+	@bash $(E2E_DIR)/local/scripts/e2e-bootstrap.sh
+
+cleanup-e2e: ## Cleanup E2E environment (delete users, permissions, tokens)
+	@echo "$(YELLOW)Cleaning up E2E environment...$(NC)"
+	@bash $(E2E_DIR)/local/scripts/e2e-bootstrap-cleanup.sh
+
+e2e-full: clean build ## Full E2E test cycle (clean, build, start env, test, stop)
+	@echo "$(GREEN)Starting full E2E test cycle...$(NC)"
+	@echo "$(YELLOW)Stopping any existing E2E environment...$(NC)"
+	@$(MAKE) stop-e2e-env 2>/dev/null || true
+	@$(MAKE) start-e2e-env
+	@echo "$(YELLOW)Waiting 5 seconds for services to stabilize...$(NC)"
+	@sleep 5
+	@$(MAKE) test-e2e
+	@echo "$(GREEN)Full E2E test cycle complete!$(NC)"
+

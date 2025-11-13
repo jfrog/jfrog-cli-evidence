@@ -9,7 +9,7 @@ import (
 	"github.com/jfrog/jfrog-cli-core/v2/utils/config"
 )
 
-const aqlReleaseBundleQueryTemplate = "items.find({\"repo\": \"%s\",\"path\": \"%s\",\"name\": \"%s\"}).include(\"sha256\")"
+const aqlReleaseBundleQueryTemplate = "items.find({\"repo\": \"%s\",\"path\": \"%s\",\"name\": \"%s\"}).include(\"repo\",\"path\",\"name\",\"sha256\")"
 
 // verifyEvidenceReleaseBundle verifies evidence for a release bundle.
 type verifyEvidenceReleaseBundle struct {

@@ -1,0 +1,11 @@
+shared:
+  jfrogUrl: http://artifactory:8082
+  node:
+    id: onemodel
+onemodel:
+  composition:
+    scheduledTaskDelaySecs: 10
+  logging:
+    application:
+      level: info
+

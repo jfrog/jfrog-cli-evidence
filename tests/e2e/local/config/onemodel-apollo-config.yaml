@@ -1,0 +1,67 @@
+supergraph:
+  # We allow to serve only local requests.
+  listen: 127.0.0.1:8073
+  path: /
+  introspection: false
+  query_planning:
+    cache:
+      in_memory:
+        limit: 512
+sandbox:
+  enabled: false
+homepage:
+  enabled: false
+health_check:
+  # The health checks can be done from outside that is why we can't listen 127.0.0.1 or localhost here.
+  listen: 0.0.0.0:8074
+  enabled: true
+limits:
+  http_max_request_bytes: 500000
+  parser_max_tokens: 5000
+  parser_max_recursion: 50
+headers:
+  all: # Header rules for all subgraphs
+    request:
+      - propagate:
+          named: "user-agent"
+          rename: "x-jfrog-graphql-user-agent"
+      - propagate:
+          named: "uber-trace-id"
+      - propagate:
+          named: "authorization"
+      - propagate:
+          matching: "x-jfrog-.*"
+      - insert:
+          name: "user-agent"
+          value: "JFrog OneModel/${env.ONEMODEL_VERSION:-UNKNOWN}"
+rhai:
+  scripts: "/opt/jfrog/onemodel/app/apollo/plugins"
+telemetry:
+  exporters:
+    logging:
+      stdout:
+        enabled: true
+        format:
+          json:
+            display_filename: false
+            display_level: true
+            display_line_number: false
+            display_target: false
+            display_thread_id: false
+            display_thread_name: false
+            display_timestamp: true
+            display_current_span: false
+            display_span_list: false
+            display_resource: true
+# For metrics, see Apollo Router's documentation
+traffic_shaping:
+  router:
+    timeout: 200s
+  all:
+    timeout: 20s
+  subgraphs:
+    jfmd:
+      timeout: 180s
+include_subgraph_errors:
+  all: true # Propagate errors from all subgraphs, this is disabled in production
+

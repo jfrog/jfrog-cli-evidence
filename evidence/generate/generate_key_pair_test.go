@@ -80,11 +80,6 @@ func TestGenerateKeyPairCommand(t *testing.T) {
 	assert.Equal(t, cryptox.ECDSAKeyScheme, publicKey.Scheme)
 }
 
-func TestGenerateKeyPairCommandDuplicateValidation(t *testing.T) {
-	// This test requires a live Artifactory instance
-	t.Skip("Integration test - requires live Artifactory instance")
-}
-
 func TestEncryptedKeyRejection(t *testing.T) {
 	// Test that encrypted keys are properly rejected
 	encryptedKeyPEM := `-----BEGIN ENCRYPTED PRIVATE KEY-----
