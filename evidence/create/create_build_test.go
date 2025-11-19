@@ -333,3 +333,196 @@ func TestCreateEvidenceBuild_ProviderId(t *testing.T) {
 		})
 	}
 }
+
+// buildTestCaptureUploader captures the evidence upload request for URL encoding verification
+type buildTestCaptureUploader struct {
+	capturedSubjectUri string
+	capturedBody       []byte
+}
+
+func (c *buildTestCaptureUploader) UploadEvidence(details evdservices.EvidenceDetails) ([]byte, error) {
+	c.capturedSubjectUri = details.SubjectUri
+	c.capturedBody = details.DSSEFileRaw
+	
+	// Return a mock successful response
+	resp := model.CreateResponse{
+		PredicateSlug: "test-slug",
+		Verified:      true,
+		PredicateType: "test-type",
+	}
+	return json.Marshal(resp)
+}
+
+func TestCreateEvidenceBuild_URLEncodingWithSpaces(t *testing.T) {
+	// Test cases for build names with spaces and special characters
+	// This is a regression test for the double URL encoding bug
+	testCases := []struct {
+		name        string
+		buildName   string
+		buildNumber string
+		project     string
+		description string
+	}{
+		{
+			name:        "Build name with spaces (original bug case)",
+			buildName:   "SSF Demo Electron",
+			buildNumber: "1",
+			project:     "ssfpoc",
+			description: "Should handle spaces in build names without double encoding",
+		},
+		{
+			name:        "Build name with multiple spaces",
+			buildName:   "My Build Name With Spaces",
+			buildNumber: "123",
+			project:     "test-project",
+			description: "Should handle multiple spaces correctly",
+		},
+		{
+			name:        "Build name with special characters",
+			buildName:   "Build & Test + Deploy",
+			buildNumber: "456",
+			project:     "special-chars",
+			description: "Should handle ampersands and plus signs",
+		},
+		{
+			name:        "Build name with percent signs (pre-encoded)",
+			buildName:   "Build%20Name",
+			buildNumber: "789",
+			project:     "encoded",
+			description: "Should handle pre-encoded names (this will double-encode, which is expected)",
+		},
+		{
+			name:        "Simple build name without special chars",
+			buildName:   "SimpleBuildName",
+			buildNumber: "999",
+			project:     "simple",
+			description: "Should handle simple names without issues",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			// Setup test environment
+			keyContent, err := os.ReadFile(filepath.Join("../..", "tests/testdata/ecdsa_key.pem"))
+			assert.NoError(t, err)
+
+			// Create temp predicate file
+			dir := t.TempDir()
+			predPath := filepath.Join(dir, "predicate.json")
+			assert.NoError(t, os.WriteFile(predPath, []byte(`{"test": "predicate"}`), 0600))
+
+			// Create mock artifactory manager
+			art := createMockArtifactoryManagerForBuildTests()
+			
+			// Create capture uploader to verify the subject URI
+			uploader := &buildTestCaptureUploader{}
+
+			// Create the evidence build command
+			c := &createEvidenceBuild{
+				createEvidenceBase: createEvidenceBase{
+					serverDetails:     &config.ServerDetails{User: "testuser"},
+					predicateFilePath: predPath,
+					predicateType:     "https://in-toto.io/Statement/v1",
+					key:               string(keyContent),
+					artifactoryClient: art,
+					uploader:          uploader,
+				},
+				project:     tc.project,
+				buildName:   tc.buildName,
+				buildNumber: tc.buildNumber,
+			}
+
+			// Execute the command
+			err = c.Run()
+			assert.NoError(t, err, "Evidence creation should succeed for: %s", tc.description)
+
+			// Verify that the subject URI was captured
+			assert.NotEmpty(t, uploader.capturedSubjectUri, "Subject URI should be captured")
+			assert.NotEmpty(t, uploader.capturedBody, "Evidence body should be captured")
+
+			// Verify the subject URI format
+			expectedRepoKey := tc.project + "-build-info"
+			if tc.project == "default" {
+				expectedRepoKey = "artifactory-build-info"
+			}
+			
+			// The subject URI should contain the build name and be properly formatted
+			assert.Contains(t, uploader.capturedSubjectUri, expectedRepoKey, 
+				"Subject URI should contain the correct repo key")
+			assert.Contains(t, uploader.capturedSubjectUri, tc.buildName, 
+				"Subject URI should contain the build name")
+			assert.Contains(t, uploader.capturedSubjectUri, tc.buildNumber, 
+				"Subject URI should contain the build number")
+			assert.Contains(t, uploader.capturedSubjectUri, ".json", 
+				"Subject URI should end with .json")
+
+			// Log the captured URI for debugging
+			t.Logf("Test case: %s", tc.description)
+			t.Logf("Build name: %s", tc.buildName)
+			t.Logf("Captured Subject URI: %s", uploader.capturedSubjectUri)
+
+			// Specific checks for the original bug case
+			if tc.buildName == "SSF Demo Electron" {
+				// The subject URI should NOT contain double-encoded spaces (%2520)
+				// Note: We can't easily test the actual HTTP request URL here since that's
+				// handled by the jfrog-client-go library, but we can verify that the
+				// subject URI passed to the uploader is correct
+				assert.NotContains(t, uploader.capturedSubjectUri, "%2520", 
+					"Subject URI should not contain double-encoded spaces")
+				
+				// The subject URI may contain the raw build name with spaces
+				// The actual URL encoding happens in the jfrog-client-go library
+				t.Logf("✓ Subject URI correctly contains build name without double encoding")
+			}
+		})
+	}
+}
+
+func TestBuildBuildInfoPath_SpecialCharacters(t *testing.T) {
+	// Test the buildBuildInfoPath function directly with various build names
+	testCases := []struct {
+		name        string
+		repoKey     string
+		buildName   string
+		buildNumber string
+		timestamp   string
+		expectedPath string
+	}{
+		{
+			name:         "Build name with spaces",
+			repoKey:      "test-build-info",
+			buildName:    "My Build Name",
+			buildNumber:  "1",
+			timestamp:    "1705529045000",
+			expectedPath: "test-build-info/My Build Name/1-1705529045000.json",
+		},
+		{
+			name:         "Build name with special characters",
+			repoKey:      "proj-build-info",
+			buildName:    "Build & Test + Deploy",
+			buildNumber:  "2",
+			timestamp:    "1705529045000",
+			expectedPath: "proj-build-info/Build & Test + Deploy/2-1705529045000.json",
+		},
+		{
+			name:         "Simple build name",
+			repoKey:      "simple-build-info",
+			buildName:    "SimpleBuild",
+			buildNumber:  "3",
+			timestamp:    "1705529045000",
+			expectedPath: "simple-build-info/SimpleBuild/3-1705529045000.json",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			result := buildBuildInfoPath(tc.repoKey, tc.buildName, tc.buildNumber, tc.timestamp)
+			assert.Equal(t, tc.expectedPath, result)
+			
+			// Verify the path components
+			assert.Contains(t, result, tc.repoKey)
+			assert.Contains(t, result, tc.buildName)
+			assert.Contains(t, result, tc.buildNumber+"-"+tc.timestamp+".json")
+		})
+	}
+}
