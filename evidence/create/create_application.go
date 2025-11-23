@@ -125,7 +125,7 @@ func (c *createEvidenceApplication) recordSummary(response *model.CreateResponse
 }
 
 func buildApplicationManifestPath(repoKey, applicationKey, applicationVersion string) string {
-	return fmt.Sprintf("%s/%s/%s/application-version.json.evd", repoKey, applicationKey, applicationVersion)
+	return fmt.Sprintf("%s/%s/%s/release-bundle.json.evd", repoKey, applicationKey, applicationVersion)
 }
 
 func getApplicationVersionStage(serverDetails *config.ServerDetails, applicationKey, applicationVersion string) string {
