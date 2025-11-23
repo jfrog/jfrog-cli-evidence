@@ -112,35 +112,35 @@ func TestBuildApplicationManifestPath(t *testing.T) {
 			repoKey:            "test-repo-application-versions",
 			applicationKey:     "my-app",
 			applicationVersion: "1.0.0",
-			expected:           "test-repo-application-versions/my-app/1.0.0/application-version.json.evd",
+			expected:           "test-repo-application-versions/my-app/1.0.0/release-bundle.json.evd",
 		},
 		{
 			name:               "With_Special_Characters",
 			repoKey:            "test-project-application-versions",
 			applicationKey:     "my-app-v2",
 			applicationVersion: "1.0.0-beta",
-			expected:           "test-project-application-versions/my-app-v2/1.0.0-beta/application-version.json.evd",
+			expected:           "test-project-application-versions/my-app-v2/1.0.0-beta/release-bundle.json.evd",
 		},
 		{
 			name:               "With_Numbers",
 			repoKey:            "project123-application-versions",
 			applicationKey:     "app123",
 			applicationVersion: "2.1.0",
-			expected:           "project123-application-versions/app123/2.1.0/application-version.json.evd",
+			expected:           "project123-application-versions/app123/2.1.0/release-bundle.json.evd",
 		},
 		{
 			name:               "Default_Project",
 			repoKey:            "application-versions",
 			applicationKey:     "default-app",
 			applicationVersion: "1.0.0",
-			expected:           "application-versions/default-app/1.0.0/application-version.json.evd",
+			expected:           "application-versions/default-app/1.0.0/release-bundle.json.evd",
 		},
 		{
 			name:               "Empty_Values",
 			repoKey:            "",
 			applicationKey:     "",
 			applicationVersion: "",
-			expected:           "///application-version.json.evd",
+			expected:           "///release-bundle.json.evd",
 		},
 	}
 
@@ -289,7 +289,7 @@ func TestCreateEvidenceApplication_RecordSummary(t *testing.T) {
 		PredicateSlug: "test-app-slug",
 		Verified:      true,
 	}
-	expectedSubject := "myProject-application-versions/testApp/2.0.0/application-version.json.evd"
+	expectedSubject := "myProject-application-versions/testApp/2.0.0/release-bundle.json.evd"
 	expectedSha256 := "app-sha256"
 
 	appCmd.recordSummary(expectedResponse, expectedSubject, expectedSha256)
@@ -393,7 +393,7 @@ func TestApplication(t *testing.T) {
 
 			// Test manifest path construction
 			manifestPath := buildApplicationManifestPath(repoKey, tt.applicationKey, tt.applicationVersion)
-			expectedPath := repoKey + "/" + tt.applicationKey + "/" + tt.applicationVersion + "/application-version.json.evd"
+			expectedPath := repoKey + "/" + tt.applicationKey + "/" + tt.applicationVersion + "/release-bundle.json.evd"
 			assert.Equal(t, expectedPath, manifestPath)
 		})
 	}
