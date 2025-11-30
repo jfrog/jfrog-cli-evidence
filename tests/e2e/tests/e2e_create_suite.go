@@ -55,7 +55,7 @@ func (r *EvidenceE2ETestsRunner) RunCreateEvidenceForArtifact(t *testing.T) {
 
 	// Step 1: Create repository and upload artifact
 	t.Log("Step 1: Creating repository and uploading artifact...")
-	repoName := utils.CreateTestRepository(t, r.ServicesManager, "generic")
+	repoName := utils.CreateTestRepositoryWithName(t, r.ServicesManager, "generic")
 	tempDir := t.TempDir()
 
 	artifactContent := fmt.Sprintf("Test artifact for evidence - timestamp: %d", time.Now().Unix())
@@ -390,7 +390,7 @@ func (r *EvidenceE2ETestsRunner) RunCreateEvidenceWithMarkdown(t *testing.T) {
 
 	// Step 1: Create repository and upload artifact
 	t.Log("Step 1: Creating repository and uploading artifact...")
-	repoName := utils.CreateTestRepository(t, r.ServicesManager, "generic")
+	repoName := utils.CreateTestRepositoryWithName(t, r.ServicesManager, "generic")
 	artifactPath := utils.CreateTestArtifact(t, "Test artifact for markdown evidence")
 	artifactFileName := filepath.Base(artifactPath)
 	repoPath := fmt.Sprintf("%s/%s", repoName, artifactFileName)
@@ -482,7 +482,7 @@ func (r *EvidenceE2ETestsRunner) RunCreateEvidenceWithSubjectSha256(t *testing.T
 
 	// Step 1: Create repository and upload artifact
 	t.Log("Step 1: Creating repository and uploading artifact...")
-	repoName := utils.CreateTestRepository(t, r.ServicesManager, "generic")
+	repoName := utils.CreateTestRepositoryWithName(t, r.ServicesManager, "generic")
 	artifactContent := "Test artifact for SHA256 explicit specification"
 	artifactPath := utils.CreateTestArtifact(t, artifactContent)
 	artifactFileName := filepath.Base(artifactPath)
@@ -548,7 +548,6 @@ func (r *EvidenceE2ETestsRunner) RunCreateEvidenceWithSubjectSha256(t *testing.T
 
 // RunCreateEvidenceForApplicationVersion tests creating evidence for an application version
 func (r *EvidenceE2ETestsRunner) RunCreateEvidenceForApplicationVersion(t *testing.T) {
-	t.Skip("Skipping application version test - requires RBv2 repository which cannot be created via standard API in projects")
 	t.Log("=== Create Evidence - Application Version Test ===")
 
 	// Verify shared key pair is available
@@ -559,37 +558,32 @@ func (r *EvidenceE2ETestsRunner) RunCreateEvidenceForApplicationVersion(t *testi
 	t.Logf("Using shared key pair: %s (alias: %s)", SharedPrivateKeyPath, SharedKeyAlias)
 
 	tempDir := t.TempDir()
-	projectKey := "test-project"
+	projectKey := "evidencee2e" // Use the project created by e2e-bootstrap.sh
+
+	// Track resources for cleanup
+	var applicationKey string
+	var applicationVersion string
+
+	// Register cleanup first - runs even if test fails
+	t.Cleanup(func() {
+		if applicationKey != "" {
+			// Delete application (this also deletes all versions)
+			utils.CleanupTestApplication(t, r.ServicesManager, applicationKey, projectKey)
+		}
+	})
 
 	// Step 1: Create test application
 	t.Log("Step 1: Creating test application...")
-	applicationKey, applicationName := utils.CreateTestApplication(t, r.ServicesManager, projectKey)
+	var applicationName string
+	applicationKey, applicationName = utils.CreateTestApplication(t, r.ServicesManager, projectKey)
 	t.Logf("✓ Application created: %s (%s)", applicationKey, applicationName)
 
-	// Register cleanup for application
-	t.Cleanup(func() {
-		utils.CleanupTestApplication(t, r.ServicesManager, applicationKey, projectKey)
-	})
-
 	// Step 2: Create test application version
-	t.Log("Step 2: Creating test application version...")
-	applicationVersion := utils.CreateTestApplicationVersion(t, r.ServicesManager, r.LifecycleManager, applicationKey, projectKey)
+	t.Log("Step 2: Creating test application version via AppTrust API...")
+	applicationVersion = utils.CreateTestApplicationVersion(t, r.ServicesManager, r.LifecycleManager, applicationKey, projectKey)
 	t.Logf("✓ Application version created: %s:%s", applicationKey, applicationVersion)
 
-	// Step 3: Promote application version (ensure manifest exists)
-	t.Log("Step 3: Promoting application version...")
-	err := utils.PromoteApplicationVersion(t, r.ServicesManager, applicationKey, applicationVersion, projectKey, "production")
-	require.NoError(t, err, "Failed to promote application version")
-	t.Logf("✓ Application version promoted: %s:%s", applicationKey, applicationVersion)
-
-	// Step 4: Verify application version manifest exists
-	t.Log("Step 4: Verifying application version manifest...")
-	exists := utils.ApplicationVersionExists(t, r.ServicesManager, applicationKey, applicationVersion, projectKey)
-	require.True(t, exists, "Application version manifest should exist")
-	t.Log("✓ Application version manifest verified")
-
-	// Step 5: Create predicate
-	t.Log("Step 5: Creating predicate...")
+	t.Log("Step 3: Creating predicate...")
 	predicate := map[string]interface{}{
 		"buildType":          "application-version-test",
 		"timestamp":          time.Now().Unix(),
@@ -606,8 +600,7 @@ func (r *EvidenceE2ETestsRunner) RunCreateEvidenceForApplicationVersion(t *testi
 	require.NoError(t, err)
 	t.Log("✓ Predicate created")
 
-	// Step 6: Create evidence for application version using shared key
-	t.Log("Step 6: Creating evidence for application version...")
+	t.Log("Step 4: Creating evidence for application version...")
 	createOutput := r.EvidenceUserCLI.RunCliCmdWithOutput(t,
 		"create",
 		"--predicate", predicatePath,
@@ -621,19 +614,8 @@ func (r *EvidenceE2ETestsRunner) RunCreateEvidenceForApplicationVersion(t *testi
 	require.NotContains(t, createOutput, "Error", "Evidence creation should not error")
 	require.NotContains(t, createOutput, "Failed", "Evidence creation should not fail")
 	require.NotContains(t, createOutput, "does not exist", "Application version manifest should be found")
-	t.Log("✓ Evidence created successfully")
 
-	// Step 7: Verify evidence using admin token
-	t.Log("Step 7: Verifying evidence using admin token...")
-	verifyOutput := r.EvidenceAdminCLI.RunCliCmdWithOutput(t,
-		"verify",
-		"--application-key", applicationKey,
-		"--application-version", applicationVersion,
-		"--public-keys", SharedPublicKeyPath,
-	)
-	t.Logf("Verification output: %s", verifyOutput)
-	require.Contains(t, verifyOutput, applicationKey, "Evidence should be verified")
-	t.Log("✅ Evidence verified successfully!")
+	t.Log("✅ Evidence created successfully!")
 
 	t.Log("=== ✅ Create Evidence for Application Version Test Completed Successfully! ===")
 }

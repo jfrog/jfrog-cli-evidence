@@ -73,6 +73,12 @@ func CreateTestRepositoryWithProject(t *testing.T, servicesManager artifactory.A
 	return repoName
 }
 
+// CreateTestRepositoryWithName is a convenience function that returns the repository name
+func CreateTestRepositoryWithName(t *testing.T, servicesManager artifactory.ArtifactoryServicesManager, packageType string, opts ...RepositoryOption) string {
+	t.Helper()
+	return CreateTestRepositoryWithProject(t, servicesManager, packageType, "", opts...)
+}
+
 func CreateTestRepository(t *testing.T, servicesManager artifactory.ArtifactoryServicesManager, packageType string) string {
 	return CreateTestRepositoryWithProject(t, servicesManager, packageType, "")
 }

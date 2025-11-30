@@ -59,7 +59,7 @@ func (r *EvidenceE2ETestsRunner) RunVerifyEvidenceForArtifact(t *testing.T) {
 
 	// Step 1: Create repository and upload artifact (Admin)
 	t.Log("Step 1: Creating repository and uploading artifact...")
-	repoName := utils.CreateTestRepository(t, r.ServicesManager, "generic")
+	repoName := utils.CreateTestRepositoryWithName(t, r.ServicesManager, "generic")
 	artifactContent := fmt.Sprintf("Test artifact for verify evidence - timestamp: %d", time.Now().Unix())
 	artifactPath := utils.CreateTestArtifact(t, artifactContent)
 	artifactFileName := filepath.Base(artifactPath)
@@ -126,7 +126,7 @@ func (r *EvidenceE2ETestsRunner) RunVerifyEvidenceForArtifactWithPublicKey(t *te
 
 	// Step 1: Create repository and upload artifact (Admin)
 	t.Log("Step 1: Creating repository and uploading artifact...")
-	repoName := utils.CreateTestRepository(t, r.ServicesManager, "generic")
+	repoName := utils.CreateTestRepositoryWithName(t, r.ServicesManager, "generic")
 	artifactPath := utils.CreateTestArtifact(t, "Test for public key verification")
 	artifactFileName := filepath.Base(artifactPath)
 	repoPath := fmt.Sprintf("%s/%s", repoName, artifactFileName)
@@ -189,7 +189,6 @@ func (r *EvidenceE2ETestsRunner) RunVerifyEvidenceForArtifactWithPublicKey(t *te
 
 // RunVerifyEvidenceForArtifactWithProject tests verifying evidence for an artifact with project
 func (r *EvidenceE2ETestsRunner) RunVerifyEvidenceForArtifactWithProject(t *testing.T) {
-	t.Skip("Skipping project-based test - GraphQL authentication context issue pending fix")
 	t.Log("=== Verify Evidence - Artifact With Project Test ===")
 
 	// Verify shared key pair is available
@@ -408,7 +407,7 @@ func (r *EvidenceE2ETestsRunner) RunVerifyEvidenceWithUseArtifactoryKeys(t *test
 
 	// Step 1: Create repository and upload artifact (Admin)
 	t.Log("Step 1: Creating repository and uploading artifact...")
-	repoName := utils.CreateTestRepository(t, r.ServicesManager, "generic")
+	repoName := utils.CreateTestRepositoryWithName(t, r.ServicesManager, "generic")
 	artifactPath := utils.CreateTestArtifact(t, "Test for use Artifactory keys")
 	artifactFileName := filepath.Base(artifactPath)
 	repoPath := fmt.Sprintf("%s/%s", repoName, artifactFileName)
@@ -530,7 +529,6 @@ func (r *EvidenceE2ETestsRunner) RunVerifyEvidenceForReleaseBundle(t *testing.T)
 
 // RunVerifyEvidenceForBuildWithProject tests verifying evidence for a build with project
 func (r *EvidenceE2ETestsRunner) RunVerifyEvidenceForBuildWithProject(t *testing.T) {
-	t.Skip("Skipping project-based test - GraphQL authentication context issue pending fix")
 	t.Log("=== Verify Evidence - Build With Project Test ===")
 
 	// Verify shared key pair is available
@@ -613,7 +611,7 @@ func (r *EvidenceE2ETestsRunner) RunVerifyEvidenceWithJsonFormat(t *testing.T) {
 
 	// Step 1: Create repository and upload artifact (Admin)
 	t.Log("Step 1: Creating repository and uploading artifact...")
-	repoName := utils.CreateTestRepository(t, r.ServicesManager, "generic")
+	repoName := utils.CreateTestRepositoryWithName(t, r.ServicesManager, "generic")
 	artifactPath := utils.CreateTestArtifact(t, "Test for JSON format verification")
 	artifactFileName := filepath.Base(artifactPath)
 	repoPath := fmt.Sprintf("%s/%s", repoName, artifactFileName)

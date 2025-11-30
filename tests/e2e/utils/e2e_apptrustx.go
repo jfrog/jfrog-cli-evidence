@@ -3,179 +3,377 @@ package utils
 import (
 	"encoding/json"
 	"fmt"
+	"net/http"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/jfrog/jfrog-client-go/artifactory"
-	"github.com/jfrog/jfrog-client-go/artifactory/services"
+	"github.com/jfrog/jfrog-client-go/http/jfroghttpclient"
 	"github.com/jfrog/jfrog-client-go/lifecycle"
+	clientutils "github.com/jfrog/jfrog-client-go/utils"
+	"github.com/jfrog/jfrog-client-go/utils/errorutils"
 	"github.com/stretchr/testify/require"
 )
 
-// CreateTestApplication creates a test application in AppTrust and returns the application key
+// CreateApplicationRequest represents the request to create an application
+type CreateApplicationRequest struct {
+	ApplicationName string `json:"application_name"`
+	ApplicationKey  string `json:"application_key"`
+	ProjectKey      string `json:"project_key"`
+	Description     string `json:"description,omitempty"`
+}
+
+// ApplicationResponse represents the response when creating an application
+type ApplicationResponse struct {
+	ApplicationName string `json:"application_name"`
+	ApplicationKey  string `json:"application_key"`
+	ProjectKey      string `json:"project_key"`
+}
+
+// CreateApplicationVersionRequest represents the request to create an application version
+type CreateApplicationVersionRequest struct {
+	Version string                     `json:"version"`
+	Sources *ApplicationVersionSources `json:"sources"`
+}
+
+// ApplicationVersionSources represents the sources for an application version
+type ApplicationVersionSources struct {
+	Artifacts []ApplicationVersionArtifact `json:"artifacts,omitempty"`
+}
+
+// ApplicationVersionArtifact represents an artifact source
+type ApplicationVersionArtifact struct {
+	Path   string `json:"path"`
+	Sha256 string `json:"sha256"`
+}
+
+// ApplicationVersionResponse represents the response when creating an application version
+type ApplicationVersionResponse struct {
+	ApplicationKey string `json:"application_key"`
+	Version        string `json:"version"`
+}
+
+// CreateTestApplication creates a test application in AppTrust using the AppTrust API
+// If the application already exists (409 Conflict), it will delete it and retry
 func CreateTestApplication(t *testing.T, artifactoryManager artifactory.ArtifactoryServicesManager, projectKey string) (string, string) {
 	// Generate unique application name with timestamp
 	timestamp := time.Now().Unix()
 	applicationKey := fmt.Sprintf("test-app-%d", timestamp)
 	applicationName := fmt.Sprintf("Test Application %d", timestamp)
 
-	t.Logf("Creating test application: %s in project: %s", applicationKey, projectKey)
+	t.Logf("Creating test application via AppTrust API: %s in project: %s", applicationKey, projectKey)
 
-	// Create application using Artifactory REST API
-	// Note: In a real environment, this would use AppTrust API, but for E2E tests
-	// we simulate the application creation by creating the necessary repository structure
+	// Get the base JFrog platform URL (strip /artifactory/ if present)
+	config := artifactoryManager.GetConfig()
+	serviceDetails := config.GetServiceDetails()
+	url := serviceDetails.GetUrl()
+	// AppTrust API is at platform level, not under /artifactory/
+	baseURL := strings.TrimSuffix(url, "artifactory/")
+	baseURL = clientutils.AddTrailingSlashIfNeeded(baseURL)
 
-	// Create application-versions repository for the project
-	// Note: application-versions repositories are RBv2 repositories which have special
-	// creation requirements and cannot be created through standard API in projects.
-	// In real environments, these are created automatically by the system when needed.
-	// For E2E tests, we skip repository creation and assume it exists or will be created
-	// automatically by Artifactory when first accessed.
-	repoKey := fmt.Sprintf("%s-application-versions", projectKey)
-	if projectKey == "" || projectKey == "default" {
-		repoKey = "application-versions"
+	// Create application using AppTrust API
+	request := CreateApplicationRequest{
+		ApplicationName: applicationName,
+		ApplicationKey:  applicationKey,
+		ProjectKey:      projectKey,
+		Description:     "Test application for E2E evidence testing",
 	}
 
-	t.Logf("Note: Skipping creation of application-versions repository '%s' (created automatically by system)", repoKey)
+	requestBody, err := json.Marshal(request)
+	require.NoError(t, err)
 
-	t.Logf("✓ Application created: %s (%s)", applicationKey, applicationName)
+	// Create HTTP client
+	client := serviceDetails.GetClient()
+	if client == nil {
+		client, err = jfroghttpclient.JfrogClientBuilder().Build()
+		require.NoError(t, err)
+	}
+
+	// POST /apptrust/api/v1/applications
+	appURL := baseURL + "apptrust/api/v1/applications"
+	httpDetails := serviceDetails.CreateHttpClientDetails()
+	httpDetails.Headers["Content-Type"] = "application/json"
+	t.Logf("Creating test application via AppTrust API: %s", appURL)
+
+	resp, body, err := client.SendPost(appURL, requestBody, &httpDetails)
+	require.NoError(t, err)
+
+	// If application already exists (409 Conflict), delete it and retry
+	if resp.StatusCode == http.StatusConflict {
+		t.Logf("Application %s already exists, deleting and retrying...", applicationKey)
+		deleteApplicationSilent(artifactoryManager, applicationKey)
+		// Retry creation
+		resp, body, err = client.SendPost(appURL, requestBody, &httpDetails)
+		require.NoError(t, err)
+	}
+
+	err = errorutils.CheckResponseStatusWithBody(resp, body, http.StatusCreated)
+	require.NoError(t, err, "Failed to create application: %s", string(body))
+
+	var appResp ApplicationResponse
+	err = json.Unmarshal(body, &appResp)
+	require.NoError(t, err)
+
+	t.Logf("✓ Application created via API: %s (%s)", applicationKey, applicationName)
 	return applicationKey, applicationName
 }
 
-// CreateTestApplicationVersion creates a test application version and returns the version string
+// CreateTestApplicationVersion creates a test application version using AppTrust API
 func CreateTestApplicationVersion(t *testing.T, artifactoryManager artifactory.ArtifactoryServicesManager, lifecycleManager *lifecycle.LifecycleServicesManager, applicationKey, projectKey string) string {
 	// Generate unique version with timestamp
 	timestamp := time.Now().Unix()
-	version := fmt.Sprintf("1.0.%d", timestamp%10000) // Keep version reasonable
+	version := fmt.Sprintf("1.0.%d", timestamp%10000)
 
-	t.Logf("Creating test application version: %s:%s", applicationKey, version)
+	t.Logf("Creating test application version via AppTrust API: %s:%s", applicationKey, version)
 
-	// Create a release bundle that represents the application version
-	// This simulates what AppTrust does internally - it creates release bundles for application versions
-	rbName := applicationKey
-	rbVersion := version
+	// Create an artifact to include in the version
+	repoName := CreateTestRepositoryWithName(t, artifactoryManager, "generic")
+	artifactContent := fmt.Sprintf("Test artifact for app version - timestamp: %d", timestamp)
+	artifactPath := CreateTestArtifact(t, artifactContent)
+	artifactFileName := "test-app-artifact.txt"
+	repoPath := fmt.Sprintf("%s/%s", repoName, artifactFileName)
 
-	// Create the release bundle using lifecycle manager
-	actualRbName, actualRbVersion := CreateTestReleaseBundle(t, artifactoryManager, lifecycleManager, projectKey, WithReleaseBundleName(rbName), WithReleaseBundleVersion(rbVersion))
+	err := UploadArtifact(artifactoryManager, artifactPath, repoPath)
+	require.NoError(t, err)
 
-	// Create the application version manifest in the application-versions repository
-	err := createApplicationVersionManifest(t, artifactoryManager, applicationKey, version, projectKey, actualRbName, actualRbVersion)
-	require.NoError(t, err, "Failed to create application version manifest")
+	// Get artifact checksum
+	fileInfo, err := artifactoryManager.FileInfo(repoPath)
+	require.NoError(t, err)
 
-	t.Logf("✓ Application version created: %s:%s", applicationKey, version)
+	// Create application version using AppTrust API
+	config := artifactoryManager.GetConfig()
+	serviceDetails := config.GetServiceDetails()
+	rawURL := serviceDetails.GetUrl()
+	// AppTrust API is at platform level, not under /artifactory/
+	baseURL := clientutils.AddTrailingSlashIfNeeded(strings.TrimSuffix(rawURL, "artifactory/"))
+
+	request := CreateApplicationVersionRequest{
+		Version: version,
+		Sources: &ApplicationVersionSources{
+			Artifacts: []ApplicationVersionArtifact{
+				{
+					Path:   repoPath,
+					Sha256: fileInfo.Checksums.Sha256,
+				},
+			},
+		},
+	}
+
+	requestBody, err := json.Marshal(request)
+	require.NoError(t, err)
+
+	// Create HTTP client
+	client := serviceDetails.GetClient()
+	if client == nil {
+		client, err = jfroghttpclient.JfrogClientBuilder().Build()
+		require.NoError(t, err)
+	}
+
+	// POST /apptrust/api/v1/applications/{applicationKey}/versions?async=false
+	url := fmt.Sprintf("%sapptrust/api/v1/applications/%s/versions?async=false", baseURL, applicationKey)
+	httpDetails := serviceDetails.CreateHttpClientDetails()
+	httpDetails.Headers["Content-Type"] = "application/json"
+
+	resp, body, err := client.SendPost(url, requestBody, &httpDetails)
+	require.NoError(t, err)
+
+	err = errorutils.CheckResponseStatusWithBody(resp, body, http.StatusCreated)
+	require.NoError(t, err, "Failed to create application version: %s", string(body))
+
+	var versionResp ApplicationVersionResponse
+	err = json.Unmarshal(body, &versionResp)
+	require.NoError(t, err)
+
+	t.Logf("✓ Application version created via API: %s:%s", applicationKey, version)
 	return version
 }
 
-// createApplicationVersionManifest creates the release-bundle.json.evd manifest file for an application version
-func createApplicationVersionManifest(t *testing.T, artifactoryManager artifactory.ArtifactoryServicesManager, applicationKey, version, projectKey, rbName, rbVersion string) error {
-	// Build repository key
-	repoKey := fmt.Sprintf("%s-application-versions", projectKey)
-	if projectKey == "" || projectKey == "default" {
-		repoKey = "application-versions"
-	}
-
-	// Create manifest content (simulates what AppTrust creates)
-	manifest := map[string]interface{}{
-		"application_key":        applicationKey,
-		"application_version":    version,
-		"project_key":            projectKey,
-		"release_bundle_name":    rbName,
-		"release_bundle_version": rbVersion,
-		"created_at":             time.Now().Format(time.RFC3339),
-		"type":                   "application-version",
-	}
-
-	manifestBytes, err := json.MarshalIndent(manifest, "", "  ")
-	if err != nil {
-		return fmt.Errorf("failed to marshal manifest: %w", err)
-	}
-
-	// Upload manifest to the correct path: {repo}/{app}/{version}/release-bundle.json.evd
-	manifestPath := fmt.Sprintf("%s/%s/%s/release-bundle.json.evd", repoKey, applicationKey, version)
-
-	// Create temporary file for upload
-	tempFile := CreateTestArtifact(t, string(manifestBytes))
-
-	// Upload the manifest
-	err = UploadArtifact(artifactoryManager, tempFile, manifestPath)
-	if err != nil {
-		return fmt.Errorf("failed to upload manifest to %s: %w", manifestPath, err)
-	}
-
-	t.Logf("✓ Application version manifest created at: %s", manifestPath)
-	return nil
+// PromoteApplicationVersionRequest represents the request to promote an application version
+type PromoteApplicationVersionRequest struct {
+	TargetStage string `json:"target_stage"`
+	Comment     string `json:"comment,omitempty"`
 }
 
-// PromoteApplicationVersion simulates promoting an application version (creates the manifest)
+// PromoteApplicationVersion promotes an application version using AppTrust API
 func PromoteApplicationVersion(t *testing.T, artifactoryManager artifactory.ArtifactoryServicesManager, applicationKey, version, projectKey, targetStage string) error {
-	t.Logf("Promoting application version %s:%s to stage: %s", applicationKey, version, targetStage)
+	t.Logf("Promoting application version %s:%s to stage: %s via AppTrust API", applicationKey, version, targetStage)
 
-	// In a real environment, this would call AppTrust promotion API
-	// For E2E tests, we ensure the manifest exists (it should already be created by CreateTestApplicationVersion)
+	// Get the base JFrog platform URL (strip /artifactory/ if present)
+	config := artifactoryManager.GetConfig()
+	serviceDetails := config.GetServiceDetails()
+	rawURL := serviceDetails.GetUrl()
+	// AppTrust API is at platform level, not under /artifactory/
+	baseURL := clientutils.AddTrailingSlashIfNeeded(strings.TrimSuffix(rawURL, "artifactory/"))
 
-	// Build repository key and manifest path
-	repoKey := fmt.Sprintf("%s-application-versions", projectKey)
-	if projectKey == "" || projectKey == "default" {
-		repoKey = "application-versions"
+	// Create promotion request
+	request := PromoteApplicationVersionRequest{
+		TargetStage: targetStage,
+		Comment:     fmt.Sprintf("E2E test promotion to %s", targetStage),
 	}
 
-	manifestPath := fmt.Sprintf("%s/%s/%s/release-bundle.json.evd", repoKey, applicationKey, version)
-
-	// Verify the manifest exists
-	_, err := artifactoryManager.FileInfo(manifestPath)
+	requestBody, err := json.Marshal(request)
 	if err != nil {
-		return fmt.Errorf("application version manifest not found at %s: %w", manifestPath, err)
+		return fmt.Errorf("failed to marshal promotion request: %w", err)
+	}
+
+	// Create HTTP client
+	client := serviceDetails.GetClient()
+	if client == nil {
+		client, err = jfroghttpclient.JfrogClientBuilder().Build()
+		if err != nil {
+			return fmt.Errorf("failed to create HTTP client: %w", err)
+		}
+	}
+
+	// POST /apptrust/api/v1/applications/{applicationKey}/versions/{version}/promote?async=false
+	url := fmt.Sprintf("%sapptrust/api/v1/applications/%s/versions/%s/promote?async=false", baseURL, applicationKey, version)
+	httpDetails := serviceDetails.CreateHttpClientDetails()
+	httpDetails.Headers["Content-Type"] = "application/json"
+
+	resp, body, err := client.SendPost(url, requestBody, &httpDetails)
+	if err != nil {
+		return fmt.Errorf("failed to send promote request: %w", err)
+	}
+
+	err = errorutils.CheckResponseStatusWithBody(resp, body, http.StatusOK)
+	if err != nil {
+		return fmt.Errorf("failed to promote application version: %s", string(body))
 	}
 
 	t.Logf("✓ Application version %s:%s promoted to %s", applicationKey, version, targetStage)
 	return nil
 }
 
-// CleanupTestApplication removes test application and its versions
-func CleanupTestApplication(t *testing.T, artifactoryManager artifactory.ArtifactoryServicesManager, applicationKey, projectKey string) {
-	// Build repository key
-	repoKey := fmt.Sprintf("%s-application-versions", projectKey)
-	if projectKey == "" || projectKey == "default" {
-		repoKey = "application-versions"
+// CleanupTestApplicationVersion deletes an application version using AppTrust API
+// This should be called before deleting the application
+func CleanupTestApplicationVersion(t *testing.T, artifactoryManager artifactory.ArtifactoryServicesManager, applicationKey, version string) {
+	t.Logf("Deleting application version %s:%s via AppTrust API", applicationKey, version)
+
+	// Get the base JFrog platform URL (strip /artifactory/ if present)
+	config := artifactoryManager.GetConfig()
+	serviceDetails := config.GetServiceDetails()
+	rawURL := serviceDetails.GetUrl()
+	baseURL := clientutils.AddTrailingSlashIfNeeded(strings.TrimSuffix(rawURL, "artifactory/"))
+
+	// Create HTTP client
+	client := serviceDetails.GetClient()
+	if client == nil {
+		var err error
+		client, err = jfroghttpclient.JfrogClientBuilder().Build()
+		if err != nil {
+			t.Logf("Warning: Failed to create HTTP client for cleanup: %v", err)
+			return
+		}
 	}
 
-	// Delete application folder from repository
-	applicationPath := fmt.Sprintf("%s/%s", repoKey, applicationKey)
+	// DELETE /apptrust/api/v1/applications/{applicationKey}/versions/{version}?async=false
+	url := fmt.Sprintf("%sapptrust/api/v1/applications/%s/versions/%s?async=false", baseURL, applicationKey, version)
+	httpDetails := serviceDetails.CreateHttpClientDetails()
 
-	// Delete application folder from repository using delete service
-	deleteParams := services.NewDeleteParams()
-	deleteParams.Pattern = applicationPath
-	deleteParams.Recursive = true
-
-	pathsToDelete, err := artifactoryManager.GetPathsToDelete(deleteParams)
+	resp, body, err := client.SendDelete(url, nil, &httpDetails)
 	if err != nil {
-		t.Logf("Warning: Failed to get paths to delete for application %s: %v", applicationKey, err)
+		t.Logf("Warning: Failed to delete application version %s:%s: %v", applicationKey, version, err)
 		return
 	}
-	defer func() {
-		if err := pathsToDelete.Close(); err != nil {
-			fmt.Printf("Error closing pathsToDelete: %v\n", err)
-		}
-	}()
 
-	deletedCount, err := artifactoryManager.DeleteFiles(pathsToDelete)
-	if err != nil {
-		t.Logf("Warning: Failed to cleanup application %s: %v", applicationKey, err)
-	} else {
-		t.Logf("✓ Cleaned up application: %s (%d items deleted)", applicationKey, deletedCount)
+	if resp.StatusCode != http.StatusNoContent && resp.StatusCode != http.StatusAccepted {
+		t.Logf("Warning: Failed to delete application version %s:%s: %s", applicationKey, version, string(body))
+		return
 	}
+
+	t.Logf("✓ Application version deleted: %s:%s", applicationKey, version)
 }
 
-// ApplicationVersionExists checks if an application version manifest exists
-func ApplicationVersionExists(t *testing.T, artifactoryManager artifactory.ArtifactoryServicesManager, applicationKey, version, projectKey string) bool {
-	// Build repository key and manifest path
-	repoKey := fmt.Sprintf("%s-application-versions", projectKey)
-	if projectKey == "" || projectKey == "default" {
-		repoKey = "application-versions"
+// CleanupTestApplication deletes the application using AppTrust API
+// Note: This also deletes all associated versions
+func CleanupTestApplication(t *testing.T, artifactoryManager artifactory.ArtifactoryServicesManager, applicationKey, projectKey string) {
+	t.Logf("Deleting application %s via AppTrust API", applicationKey)
+
+	// Get the base JFrog platform URL (strip /artifactory/ if present)
+	config := artifactoryManager.GetConfig()
+	serviceDetails := config.GetServiceDetails()
+	rawURL := serviceDetails.GetUrl()
+	// AppTrust API is at platform level, not under /artifactory/
+	baseURL := clientutils.AddTrailingSlashIfNeeded(strings.TrimSuffix(rawURL, "artifactory/"))
+
+	// Create HTTP client
+	client := serviceDetails.GetClient()
+	if client == nil {
+		var err error
+		client, err = jfroghttpclient.JfrogClientBuilder().Build()
+		if err != nil {
+			t.Logf("Warning: Failed to create HTTP client for cleanup: %v", err)
+			return
+		}
 	}
 
-	manifestPath := fmt.Sprintf("%s/%s/%s/release-bundle.json.evd", repoKey, applicationKey, version)
+	// DELETE /apptrust/api/v1/applications/{applicationKey}?async=false
+	url := fmt.Sprintf("%sapptrust/api/v1/applications/%s?async=false", baseURL, applicationKey)
+	httpDetails := serviceDetails.CreateHttpClientDetails()
 
-	_, err := artifactoryManager.FileInfo(manifestPath)
-	return err == nil
+	resp, body, err := client.SendDelete(url, nil, &httpDetails)
+	if err != nil {
+		t.Logf("Warning: Failed to delete application %s: %v", applicationKey, err)
+		return
+	}
+
+	if resp.StatusCode != http.StatusNoContent && resp.StatusCode != http.StatusNotFound {
+		t.Logf("Warning: Failed to delete application %s: %s", applicationKey, string(body))
+		return
+	}
+
+	t.Logf("✓ Application deleted: %s", applicationKey)
+}
+
+// deleteApplicationSilent deletes an application without logging (for cleanup before create)
+func deleteApplicationSilent(artifactoryManager artifactory.ArtifactoryServicesManager, applicationKey string) {
+	config := artifactoryManager.GetConfig()
+	serviceDetails := config.GetServiceDetails()
+	rawURL := serviceDetails.GetUrl()
+	baseURL := clientutils.AddTrailingSlashIfNeeded(strings.TrimSuffix(rawURL, "artifactory/"))
+
+	client := serviceDetails.GetClient()
+	if client == nil {
+		client, _ = jfroghttpclient.JfrogClientBuilder().Build()
+		if client == nil {
+			return
+		}
+	}
+
+	url := fmt.Sprintf("%sapptrust/api/v1/applications/%s?async=false", baseURL, applicationKey)
+	httpDetails := serviceDetails.CreateHttpClientDetails()
+	_, _, _ = client.SendDelete(url, nil, &httpDetails)
+}
+
+// ApplicationVersionExists checks if an application version exists using AppTrust API
+func ApplicationVersionExists(t *testing.T, artifactoryManager artifactory.ArtifactoryServicesManager, applicationKey, version, projectKey string) bool {
+	// Get the base JFrog platform URL (strip /artifactory/ if present)
+	config := artifactoryManager.GetConfig()
+	serviceDetails := config.GetServiceDetails()
+	rawURL := serviceDetails.GetUrl()
+	// AppTrust API is at platform level, not under /artifactory/
+	baseURL := clientutils.AddTrailingSlashIfNeeded(strings.TrimSuffix(rawURL, "artifactory/"))
+
+	// Create HTTP client
+	client := serviceDetails.GetClient()
+	if client == nil {
+		var err error
+		client, err = jfroghttpclient.JfrogClientBuilder().Build()
+		if err != nil {
+			t.Logf("Warning: Failed to create HTTP client: %v", err)
+			return false
+		}
+	}
+
+	// GET /apptrust/api/v1/applications/{applicationKey}/versions/{version}
+	url := fmt.Sprintf("%sapptrust/api/v1/applications/%s/versions/%s", baseURL, applicationKey, version)
+	httpDetails := serviceDetails.CreateHttpClientDetails()
+
+	resp, _, _, err := client.SendGet(url, true, &httpDetails)
+	if err != nil {
+		return false
+	}
+
+	return resp.StatusCode == http.StatusOK
 }
