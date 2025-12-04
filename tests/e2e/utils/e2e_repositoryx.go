@@ -10,11 +10,30 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func CreateTestRepositoryWithProject(t *testing.T, servicesManager artifactory.ArtifactoryServicesManager, packageType, project string) string {
+type RepositoryOption func(*repositoryConfig)
+
+type repositoryConfig struct {
+	key string
+}
+
+func WithRepoKey(key string) RepositoryOption {
+	return func(config *repositoryConfig) {
+		config.key = key
+	}
+}
+
+func CreateTestRepositoryWithProject(t *testing.T, servicesManager artifactory.ArtifactoryServicesManager, packageType, project string, opts ...RepositoryOption) string {
 	t.Helper()
 
-	// Generate unique repository name using timestamp
-	repoName := fmt.Sprintf("test-%s-%d", packageType, time.Now().UnixNano())
+	config := &repositoryConfig{}
+	for _, opt := range opts {
+		opt(config)
+	}
+
+	repoName := config.key
+	if repoName == "" {
+		repoName = fmt.Sprintf("test-%s-%d", packageType, time.Now().UnixNano())
+	}
 
 	if project != "" {
 		repoName = fmt.Sprintf("%s-%s", project, repoName)
@@ -52,6 +71,12 @@ func CreateTestRepositoryWithProject(t *testing.T, servicesManager artifactory.A
 	})
 
 	return repoName
+}
+
+// CreateTestRepositoryWithName is a convenience function that returns the repository name
+func CreateTestRepositoryWithName(t *testing.T, servicesManager artifactory.ArtifactoryServicesManager, packageType string, opts ...RepositoryOption) string {
+	t.Helper()
+	return CreateTestRepositoryWithProject(t, servicesManager, packageType, "", opts...)
 }
 
 func CreateTestRepository(t *testing.T, servicesManager artifactory.ArtifactoryServicesManager, packageType string) string {

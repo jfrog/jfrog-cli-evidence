@@ -53,7 +53,7 @@ func (r *EvidenceE2ETestsRunner) RunGetEvidenceForArtifact(t *testing.T) {
 
 	// Step 1: Create repository and upload artifact (Admin)
 	t.Log("Step 1: Creating repository and uploading artifact...")
-	repoName := utils.CreateTestRepository(t, r.ServicesManager, "generic")
+	repoName := utils.CreateTestRepositoryWithName(t, r.ServicesManager, "generic")
 	artifactContent := fmt.Sprintf("Test artifact for get evidence - timestamp: %d", time.Now().Unix())
 	artifactPath := utils.CreateTestArtifact(t, artifactContent)
 	artifactFileName := filepath.Base(artifactPath)
@@ -119,7 +119,7 @@ func (r *EvidenceE2ETestsRunner) RunGetEvidenceForArtifactWithFormat(t *testing.
 
 	// Step 1: Create repository and upload artifact (Admin)
 	t.Log("Step 1: Creating repository and uploading artifact...")
-	repoName := utils.CreateTestRepository(t, r.ServicesManager, "generic")
+	repoName := utils.CreateTestRepositoryWithName(t, r.ServicesManager, "generic")
 	artifactContent := fmt.Sprintf("Test artifact for format - timestamp: %d", time.Now().Unix())
 	artifactPath := utils.CreateTestArtifact(t, artifactContent)
 	artifactFileName := filepath.Base(artifactPath)
@@ -190,7 +190,7 @@ func (r *EvidenceE2ETestsRunner) RunGetEvidenceForArtifactWithIncludePredicate(t
 
 	// Step 1: Create repository and upload artifact (Admin)
 	t.Log("Step 1: Creating repository and uploading artifact...")
-	repoName := utils.CreateTestRepository(t, r.ServicesManager, "generic")
+	repoName := utils.CreateTestRepositoryWithName(t, r.ServicesManager, "generic")
 	artifactContent := fmt.Sprintf("Test artifact for include predicate - timestamp: %d", time.Now().Unix())
 	artifactPath := utils.CreateTestArtifact(t, artifactContent)
 	artifactFileName := filepath.Base(artifactPath)
@@ -260,7 +260,7 @@ func (r *EvidenceE2ETestsRunner) RunGetEvidenceWithOutputFile(t *testing.T) {
 
 	// Step 1: Create repository and upload artifact (Admin)
 	t.Log("Step 1: Creating repository and uploading artifact...")
-	repoName := utils.CreateTestRepository(t, r.ServicesManager, "generic")
+	repoName := utils.CreateTestRepositoryWithName(t, r.ServicesManager, "generic")
 	artifactContent := fmt.Sprintf("Test artifact for output file - timestamp: %d", time.Now().Unix())
 	artifactPath := utils.CreateTestArtifact(t, artifactContent)
 	artifactFileName := filepath.Base(artifactPath)
@@ -335,7 +335,7 @@ func (r *EvidenceE2ETestsRunner) RunGetEvidenceWithArtifactsLimit(t *testing.T) 
 
 	// Step 1: Create repository and upload artifact (Admin)
 	t.Log("Step 1: Creating repository and uploading artifact...")
-	repoName := utils.CreateTestRepository(t, r.ServicesManager, "generic")
+	repoName := utils.CreateTestRepositoryWithName(t, r.ServicesManager, "generic")
 	artifactContent := fmt.Sprintf("Test artifact for artifacts limit - timestamp: %d", time.Now().Unix())
 	artifactPath := utils.CreateTestArtifact(t, artifactContent)
 	artifactFileName := filepath.Base(artifactPath)

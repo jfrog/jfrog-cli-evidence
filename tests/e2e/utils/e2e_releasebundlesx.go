@@ -10,14 +10,49 @@ import (
 	"github.com/jfrog/jfrog-client-go/lifecycle/services"
 )
 
+// ReleaseBundleOption defines options for release bundle creation
+type ReleaseBundleOption func(*releaseBundleConfig)
+
+type releaseBundleConfig struct {
+	name    string
+	version string
+}
+
+// WithReleaseBundleName sets a custom release bundle name
+func WithReleaseBundleName(name string) ReleaseBundleOption {
+	return func(config *releaseBundleConfig) {
+		config.name = name
+	}
+}
+
+// WithReleaseBundleVersion sets a custom release bundle version
+func WithReleaseBundleVersion(version string) ReleaseBundleOption {
+	return func(config *releaseBundleConfig) {
+		config.version = version
+	}
+}
+
 // CreateTestReleaseBundle creates a test release bundle from a build
 // Returns release bundle name and version
-func CreateTestReleaseBundle(t *testing.T, servicesManager artifactory.ArtifactoryServicesManager, lifecycleManager *lifecycle.LifecycleServicesManager, project string) (string, string) {
+func CreateTestReleaseBundle(t *testing.T, servicesManager artifactory.ArtifactoryServicesManager, lifecycleManager *lifecycle.LifecycleServicesManager, project string, opts ...ReleaseBundleOption) (string, string) {
 	t.Helper()
 
-	// Generate unique names
-	releaseBundleName := fmt.Sprintf("test-rb-%d", time.Now().UnixNano())
-	releaseBundleVersion := fmt.Sprintf("1.0.%d", time.Now().Unix())
+	// Apply options
+	config := &releaseBundleConfig{}
+	for _, opt := range opts {
+		opt(config)
+	}
+
+	// Generate unique names if not provided
+	releaseBundleName := config.name
+	if releaseBundleName == "" {
+		releaseBundleName = fmt.Sprintf("test-rb-%d", time.Now().UnixNano())
+	}
+	
+	releaseBundleVersion := config.version
+	if releaseBundleVersion == "" {
+		releaseBundleVersion = fmt.Sprintf("1.0.%d", time.Now().Unix())
+	}
 
 	t.Logf("Creating test release bundle: %s/%s", releaseBundleName, releaseBundleVersion)
 

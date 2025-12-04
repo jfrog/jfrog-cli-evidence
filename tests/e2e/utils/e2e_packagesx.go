@@ -16,7 +16,7 @@ func CreateTestPackage(t *testing.T, servicesManager artifactory.ArtifactoryServ
 
 	packageName := fmt.Sprintf("test-package-%d", time.Now().UnixNano())
 	packageVersion := fmt.Sprintf("1.0.%d", time.Now().Unix())
-	repoName := CreateTestRepository(t, servicesManager, packageType)
+	repoName := CreateTestRepositoryWithName(t, servicesManager, packageType)
 
 	t.Logf("Creating test package: %s/%s in repo %s", packageName, packageVersion, repoName)
 
