@@ -10,11 +10,15 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func CreateTestRepository(t *testing.T, servicesManager artifactory.ArtifactoryServicesManager, packageType string) string {
+func CreateTestRepositoryWithProject(t *testing.T, servicesManager artifactory.ArtifactoryServicesManager, packageType, project string) string {
 	t.Helper()
 
 	// Generate unique repository name using timestamp
 	repoName := fmt.Sprintf("test-%s-%d", packageType, time.Now().UnixNano())
+
+	if project != "" {
+		repoName = fmt.Sprintf("%s-%s", project, repoName)
+	}
 
 	t.Logf("Creating test repository: %s", repoName)
 
@@ -23,6 +27,7 @@ func CreateTestRepository(t *testing.T, servicesManager artifactory.ArtifactoryS
 			RepositoryBaseParams: services.RepositoryBaseParams{
 				Key:         repoName,
 				PackageType: packageType,
+				ProjectKey:  project,
 				Description: "Temporary test repository - auto-cleanup",
 				Rclass:      "local",
 			},
@@ -47,4 +52,8 @@ func CreateTestRepository(t *testing.T, servicesManager artifactory.ArtifactoryS
 	})
 
 	return repoName
+}
+
+func CreateTestRepository(t *testing.T, servicesManager artifactory.ArtifactoryServicesManager, packageType string) string {
+	return CreateTestRepositoryWithProject(t, servicesManager, packageType, "")
 }

@@ -23,7 +23,7 @@ func CreateTestBuildInfo(t *testing.T, servicesManager artifactory.ArtifactorySe
 	t.Logf("Creating test build info: %s/%s", buildName, buildNumber)
 
 	// Create a repository for build artifacts
-	repoName := CreateTestRepository(t, servicesManager, "generic")
+	repoName := CreateTestRepositoryWithProject(t, servicesManager, "generic", project)
 
 	// Upload artifacts to the repository using JFrog CLI with build info association
 	// This ensures proper build-artifact linkage required for release bundles

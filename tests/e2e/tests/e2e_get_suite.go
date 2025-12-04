@@ -31,7 +31,6 @@ func (r *EvidenceE2ETestsRunner) RunGetEvidenceSuite(t *testing.T) {
 		r.RunGetEvidenceWithArtifactsLimit(t)
 	})
 	t.Run("ForArtifactWithProject", func(t *testing.T) {
-		t.Skip("Skipping project-scoped test - known issue with project flag handling")
 		r.RunGetEvidenceForArtifactWithProject(t)
 	})
 	t.Run("ForReleaseBundle", func(t *testing.T) {
@@ -404,7 +403,7 @@ func (r *EvidenceE2ETestsRunner) RunGetEvidenceForArtifactWithProject(t *testing
 
 	// Step 1: Create repository and upload artifact (Admin)
 	t.Log("Step 1: Creating repository and uploading artifact...")
-	repoName := utils.CreateTestRepository(t, r.ServicesManager, "generic")
+	repoName := utils.CreateTestRepositoryWithProject(t, r.ServicesManager, "generic", e2e.ProjectKey)
 	artifactContent := fmt.Sprintf("Test artifact for project get - timestamp: %d", time.Now().Unix())
 	artifactPath := utils.CreateTestArtifact(t, artifactContent)
 	artifactFileName := filepath.Base(artifactPath)
