@@ -48,6 +48,16 @@ services:
       JF_EVIDENCE_NAVIGATION_ENABLED: "true"
       JF_EVIDENCE_ENABLED: "false"  # Evidence runs as separate service
       
+      # AppTrust integration
+      JF_ARTIFACTORY_APPTRUST_ENABLED: "true"
+      JF_APPTRUST_NAVIGATION_ENABLED: "true"
+      JF_APPTRUST_ENABLED: "false"  # AppTrust runs as separate service
+      
+      # Unified Policy integration
+      JF_ARTIFACTORY_UNIFIED_POLICY_ENABLED: "true"
+      JF_UNIFIED_POLICY_NAVIGATION_ENABLED: "true"
+      JF_UNIFIED_POLICY_ENABLED: "false"  # Unified Policy runs as separate service
+      
       # OneModel integration (Single-Tenant mode)
       JF_ONEMODEL_ENABLED: "true"
       JF_ROUTER_MULTITENANT_SERVICES_ONEMODEL_SERVICEURL: http://onemodel:8082
@@ -98,6 +108,80 @@ services:
     depends_on:
       - postgres
       - artifactory
+
+  # AppTrust Service
+  apptrust-service:
+    image: ${APPTRUST_IMAGE}
+    container_name: evidence-e2e-apptrust
+    environment:
+      # Node configuration
+      JF_SHARED_NODE_ID: evidence-e2e-node
+      
+      # Database configuration
+      JF_SHARED_DATABASE_TYPE: postgresql
+      JF_SHARED_DATABASE_DRIVER: org.postgresql.Driver
+      JF_SHARED_DATABASE_URL: jdbc:postgresql://postgres:5432/evidence
+      JF_SHARED_DATABASE_USERNAME: evidence
+      JF_SHARED_DATABASE_PASSWORD: password
+      
+      # Security keys (must match Artifactory)
+      JF_SHARED_SECURITY_JOINKEY: cc949ef041b726994a225dc20e018f23
+      JF_SHARED_SECURITY_MASTERKEY: b055e9d06d17a293f1934109d4c4b560
+      
+      # AppTrust service configuration
+      JF_APPTRUST_HTTP_PORT: 8052
+      JF_APPTRUST_LOGGING_APPLICATION_LEVEL: ${APPTRUST_LOG_LEVEL:-INFO}
+      JF_ROUTER_ENTRYPOINTS_INTERNALPORT: 8046
+      
+      # License caching for tests
+      JF_APPTRUST_CACHING_LICENSE_EXPIRATIONSECS: 1
+      
+      # AppTrust specific configuration
+      JF_APPTRUST_ENABLED: "true"
+      JF_APPTRUST_NAVIGATION_ENABLED: "true"
+    network_mode: service:artifactory
+    restart: on-failure
+    depends_on:
+      - postgres
+      - artifactory
+      - evidence-service
+
+  # Unified Policy Service
+  unified-policy-service:
+    image: ${UNIFIED_POLICY_IMAGE}
+    container_name: evidence-e2e-unified-policy
+    environment:
+      # Node configuration
+      JF_SHARED_NODE_ID: evidence-e2e-node
+      
+      # Database configuration
+      JF_SHARED_DATABASE_TYPE: postgresql
+      JF_SHARED_DATABASE_DRIVER: org.postgresql.Driver
+      JF_SHARED_DATABASE_URL: jdbc:postgresql://postgres:5432/evidence
+      JF_SHARED_DATABASE_USERNAME: evidence
+      JF_SHARED_DATABASE_PASSWORD: password
+      
+      # Security keys (must match Artifactory)
+      JF_SHARED_SECURITY_JOINKEY: cc949ef041b726994a225dc20e018f23
+      JF_SHARED_SECURITY_MASTERKEY: b055e9d06d17a293f1934109d4c4b560
+      
+      # Unified Policy service configuration
+      JF_UNIFIED_POLICY_HTTP_PORT: 8053
+      JF_UNIFIED_POLICY_LOGGING_APPLICATION_LEVEL: ${UNIFIED_POLICY_LOG_LEVEL:-INFO}
+      JF_ROUTER_ENTRYPOINTS_INTERNALPORT: 8046
+      
+      # License caching for tests
+      JF_UNIFIED_POLICY_CACHING_LICENSE_EXPIRATIONSECS: 1
+      
+      # Unified Policy specific configuration
+      JF_UNIFIED_POLICY_ENABLED: "true"
+      JF_UNIFIED_POLICY_NAVIGATION_ENABLED: "true"
+    network_mode: service:artifactory
+    restart: on-failure
+    depends_on:
+      - postgres
+      - artifactory
+      - apptrust-service
 
   # OneModel Router (Single-Tenant mode - no etcd needed!)
   onemodel-router:

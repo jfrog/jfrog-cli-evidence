@@ -59,7 +59,7 @@ func (r *EvidenceE2ETestsRunner) RunVerifyEvidenceForArtifact(t *testing.T) {
 
 	// Step 1: Create repository and upload artifact (Admin)
 	t.Log("Step 1: Creating repository and uploading artifact...")
-	repoName := utils.CreateTestRepository(t, r.ServicesManager, "generic")
+	repoName := utils.CreateTestRepositoryWithName(t, r.ServicesManager, "generic")
 	artifactContent := fmt.Sprintf("Test artifact for verify evidence - timestamp: %d", time.Now().Unix())
 	artifactPath := utils.CreateTestArtifact(t, artifactContent)
 	artifactFileName := filepath.Base(artifactPath)
@@ -126,7 +126,7 @@ func (r *EvidenceE2ETestsRunner) RunVerifyEvidenceForArtifactWithPublicKey(t *te
 
 	// Step 1: Create repository and upload artifact (Admin)
 	t.Log("Step 1: Creating repository and uploading artifact...")
-	repoName := utils.CreateTestRepository(t, r.ServicesManager, "generic")
+	repoName := utils.CreateTestRepositoryWithName(t, r.ServicesManager, "generic")
 	artifactPath := utils.CreateTestArtifact(t, "Test for public key verification")
 	artifactFileName := filepath.Base(artifactPath)
 	repoPath := fmt.Sprintf("%s/%s", repoName, artifactFileName)
@@ -407,7 +407,7 @@ func (r *EvidenceE2ETestsRunner) RunVerifyEvidenceWithUseArtifactoryKeys(t *test
 
 	// Step 1: Create repository and upload artifact (Admin)
 	t.Log("Step 1: Creating repository and uploading artifact...")
-	repoName := utils.CreateTestRepository(t, r.ServicesManager, "generic")
+	repoName := utils.CreateTestRepositoryWithName(t, r.ServicesManager, "generic")
 	artifactPath := utils.CreateTestArtifact(t, "Test for use Artifactory keys")
 	artifactFileName := filepath.Base(artifactPath)
 	repoPath := fmt.Sprintf("%s/%s", repoName, artifactFileName)
@@ -611,7 +611,7 @@ func (r *EvidenceE2ETestsRunner) RunVerifyEvidenceWithJsonFormat(t *testing.T) {
 
 	// Step 1: Create repository and upload artifact (Admin)
 	t.Log("Step 1: Creating repository and uploading artifact...")
-	repoName := utils.CreateTestRepository(t, r.ServicesManager, "generic")
+	repoName := utils.CreateTestRepositoryWithName(t, r.ServicesManager, "generic")
 	artifactPath := utils.CreateTestArtifact(t, "Test for JSON format verification")
 	artifactFileName := filepath.Base(artifactPath)
 	repoPath := fmt.Sprintf("%s/%s", repoName, artifactFileName)

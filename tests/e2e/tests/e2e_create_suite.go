@@ -33,6 +33,9 @@ func (r *EvidenceE2ETestsRunner) RunCreateEvidenceSuite(t *testing.T) {
 	t.Run("ForReleaseBundle", func(t *testing.T) {
 		r.RunCreateEvidenceForReleaseBundle(t)
 	})
+	t.Run("ForApplicationVersion", func(t *testing.T) {
+		r.RunCreateEvidenceForApplicationVersion(t)
+	})
 	t.Run("WithMarkdown", func(t *testing.T) {
 		r.RunCreateEvidenceWithMarkdown(t)
 	})
@@ -52,7 +55,7 @@ func (r *EvidenceE2ETestsRunner) RunCreateEvidenceForArtifact(t *testing.T) {
 
 	// Step 1: Create repository and upload artifact
 	t.Log("Step 1: Creating repository and uploading artifact...")
-	repoName := utils.CreateTestRepository(t, r.ServicesManager, "generic")
+	repoName := utils.CreateTestRepositoryWithName(t, r.ServicesManager, "generic")
 	tempDir := t.TempDir()
 
 	artifactContent := fmt.Sprintf("Test artifact for evidence - timestamp: %d", time.Now().Unix())
@@ -387,7 +390,7 @@ func (r *EvidenceE2ETestsRunner) RunCreateEvidenceWithMarkdown(t *testing.T) {
 
 	// Step 1: Create repository and upload artifact
 	t.Log("Step 1: Creating repository and uploading artifact...")
-	repoName := utils.CreateTestRepository(t, r.ServicesManager, "generic")
+	repoName := utils.CreateTestRepositoryWithName(t, r.ServicesManager, "generic")
 	artifactPath := utils.CreateTestArtifact(t, "Test artifact for markdown evidence")
 	artifactFileName := filepath.Base(artifactPath)
 	repoPath := fmt.Sprintf("%s/%s", repoName, artifactFileName)
@@ -479,7 +482,7 @@ func (r *EvidenceE2ETestsRunner) RunCreateEvidenceWithSubjectSha256(t *testing.T
 
 	// Step 1: Create repository and upload artifact
 	t.Log("Step 1: Creating repository and uploading artifact...")
-	repoName := utils.CreateTestRepository(t, r.ServicesManager, "generic")
+	repoName := utils.CreateTestRepositoryWithName(t, r.ServicesManager, "generic")
 	artifactContent := "Test artifact for SHA256 explicit specification"
 	artifactPath := utils.CreateTestArtifact(t, artifactContent)
 	artifactFileName := filepath.Base(artifactPath)
@@ -541,4 +544,78 @@ func (r *EvidenceE2ETestsRunner) RunCreateEvidenceWithSubjectSha256(t *testing.T
 	t.Log("✅ Evidence verified successfully with SHA256!")
 
 	t.Log("=== ✅ Create Evidence with Subject SHA256 Test Completed Successfully! ===")
+}
+
+// RunCreateEvidenceForApplicationVersion tests creating evidence for an application version
+func (r *EvidenceE2ETestsRunner) RunCreateEvidenceForApplicationVersion(t *testing.T) {
+	t.Log("=== Create Evidence - Application Version Test ===")
+
+	// Verify shared key pair is available
+	if SharedPrivateKeyPath == "" || SharedPublicKeyPath == "" {
+		t.Errorf("Shared key pair not initialized. Ensure PrepareTestsData() was called.")
+		return
+	}
+	t.Logf("Using shared key pair: %s (alias: %s)", SharedPrivateKeyPath, SharedKeyAlias)
+
+	tempDir := t.TempDir()
+	projectKey := "evidencee2e" // Use the project created by e2e-bootstrap.sh
+
+	// Track resources for cleanup
+	var applicationKey string
+	var applicationVersion string
+
+	// Register cleanup first - runs even if test fails
+	t.Cleanup(func() {
+		if applicationKey != "" {
+			// Delete application (this also deletes all versions)
+			utils.CleanupTestApplication(t, r.ServicesManager, applicationKey, projectKey)
+		}
+	})
+
+	// Step 1: Create test application
+	t.Log("Step 1: Creating test application...")
+	var applicationName string
+	applicationKey, applicationName = utils.CreateTestApplication(t, r.ServicesManager, projectKey)
+	t.Logf("✓ Application created: %s (%s)", applicationKey, applicationName)
+
+	// Step 2: Create test application version
+	t.Log("Step 2: Creating test application version via AppTrust API...")
+	applicationVersion = utils.CreateTestApplicationVersion(t, r.ServicesManager, r.LifecycleManager, applicationKey, projectKey)
+	t.Logf("✓ Application version created: %s:%s", applicationKey, applicationVersion)
+
+	t.Log("Step 3: Creating predicate...")
+	predicate := map[string]interface{}{
+		"buildType":          "application-version-test",
+		"timestamp":          time.Now().Unix(),
+		"environment":        "e2e-test",
+		"applicationKey":     applicationKey,
+		"applicationVersion": applicationVersion,
+		"projectKey":         projectKey,
+		"description":        "Testing evidence creation for application version",
+	}
+	predicateBytes, err := json.MarshalIndent(predicate, "", "  ")
+	require.NoError(t, err)
+	predicatePath := filepath.Join(tempDir, "predicate.json")
+	err = os.WriteFile(predicatePath, predicateBytes, 0644)
+	require.NoError(t, err)
+	t.Log("✓ Predicate created")
+
+	t.Log("Step 4: Creating evidence for application version...")
+	createOutput := r.EvidenceUserCLI.RunCliCmdWithOutput(t,
+		"create",
+		"--predicate", predicatePath,
+		"--predicate-type", "https://slsa.dev/provenance/v1",
+		"--application-key", applicationKey,
+		"--application-version", applicationVersion,
+		"--key", SharedPrivateKeyPath,
+		"--key-alias", SharedKeyAlias,
+	)
+	t.Logf("Evidence creation output: %s", createOutput)
+	require.NotContains(t, createOutput, "Error", "Evidence creation should not error")
+	require.NotContains(t, createOutput, "Failed", "Evidence creation should not fail")
+	require.NotContains(t, createOutput, "does not exist", "Application version manifest should be found")
+
+	t.Log("✅ Evidence created successfully!")
+
+	t.Log("=== ✅ Create Evidence for Application Version Test Completed Successfully! ===")
 }
