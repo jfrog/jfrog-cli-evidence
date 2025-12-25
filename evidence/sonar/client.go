@@ -3,7 +3,6 @@ package sonar
 import (
 	"encoding/json"
 	"fmt"
-	"net"
 	"net/url"
 	"strings"
 
@@ -81,19 +80,11 @@ func (c *httpClient) GetSonarIntotoStatement(ceTaskID string) ([]byte, error) {
 	u, _ := url.Parse(c.baseURL)
 	hostname := u.Hostname()
 
-	var body []byte
-	var statusCode int
-	var err error
+	cloudUrl := c.prepareCloudFormatUrl(ceTaskID, hostname)
+	log.Debug(fmt.Sprintf("Getting intoto statement using cloud format sonar endpoint %s", cloudUrl))
+	body, statusCode, err := c.doGET(cloudUrl)
 
-	shouldTryCloud := hostname != "localhost" && net.ParseIP(hostname) == nil
-
-	if shouldTryCloud {
-		cloudUrl := c.prepareCloudFormatUrl(ceTaskID, hostname)
-		log.Debug(fmt.Sprintf("Getting intoto statement using cloud format sonar endpoint %s", cloudUrl))
-		body, statusCode, err = c.doGET(cloudUrl)
-	}
-
-	if !shouldTryCloud || statusCode == 404 {
+	if statusCode != 200 {
 		serverURL := c.prepareServerFormatUrl(ceTaskID)
 		log.Debug(fmt.Sprintf("Getting intoto statement using server format sonar endpoint %s", serverURL))
 		body, statusCode, err = c.doGET(serverURL)
