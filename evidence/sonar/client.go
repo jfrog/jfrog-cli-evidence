@@ -85,7 +85,7 @@ func (c *httpClient) GetSonarIntotoStatement(ceTaskID string) ([]byte, error) {
 	log.Debug(fmt.Sprintf("Getting intoto statement using cloud format sonar endpoint %s", cloudUrl))
 	body, statusCode, err := c.doGET(cloudUrl)
 
-	if utils.IsHttpStatusSuccessful(statusCode) {
+	if !utils.IsHttpStatusSuccessful(statusCode) {
 		serverURL := c.prepareServerFormatUrl(ceTaskID)
 		log.Debug(fmt.Sprintf("Getting intoto statement using server format sonar endpoint %s", serverURL))
 		body, statusCode, err = c.doGET(serverURL)
@@ -109,7 +109,7 @@ func (c *httpClient) GetTaskDetails(ceTaskID string) (*TaskDetails, error) {
 	if err != nil {
 		return nil, err
 	}
-	if utils.IsHttpStatusSuccessful(statusCode) {
+	if !utils.IsHttpStatusSuccessful(statusCode) {
 		return nil, errorutils.CheckErrorf("task endpoint returned status %d: %s", statusCode, string(body))
 	}
 	var response TaskDetails
