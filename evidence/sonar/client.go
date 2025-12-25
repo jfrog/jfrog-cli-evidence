@@ -78,16 +78,27 @@ func (c *httpClient) GetSonarIntotoStatement(ceTaskID string) ([]byte, error) {
 	if ceTaskID == "" {
 		return nil, errorutils.CheckError(fmt.Errorf("missing ce task id for enterprise endpoint"))
 	}
-	baseURL := c.baseURL
-	u, _ := url.Parse(baseURL)
+	u, _ := url.Parse(c.baseURL)
 	hostname := u.Hostname()
-	// Get sonar intoto statement has api prefix before the hostname
-	// if hostname is localhost or an ip address or has api prefix, then don't add the api.
-	if hostname != "localhost" && net.ParseIP(hostname) == nil && !strings.HasPrefix(hostname, "api.") {
-		baseURL = strings.Replace(baseURL, "://", "://api.", 1)
+
+	var body []byte
+	var statusCode int
+	var err error
+
+	shouldTryCloud := hostname != "localhost" && net.ParseIP(hostname) == nil
+
+	if shouldTryCloud {
+		cloudUrl := c.prepareCloudFormatUrl(ceTaskID, hostname)
+		log.Debug(fmt.Sprintf("Getting intoto statement using cloud format sonar endpoint %s", cloudUrl))
+		body, statusCode, err = c.doGET(cloudUrl)
 	}
-	enterpriseURL := fmt.Sprintf("%s/dop-translation/jfrog-evidence/%s", baseURL, url.QueryEscape(ceTaskID))
-	body, statusCode, err := c.doGET(enterpriseURL)
+
+	if !shouldTryCloud || statusCode == 404 {
+		serverURL := c.prepareServerFormatUrl(ceTaskID)
+		log.Debug(fmt.Sprintf("Getting intoto statement using server format sonar endpoint %s", serverURL))
+		body, statusCode, err = c.doGET(serverURL)
+	}
+
 	if err != nil {
 		return nil, errorutils.CheckErrorf("enterprise endpoint failed with status %d and response %s %v", statusCode, string(body), err)
 	}
@@ -114,4 +125,17 @@ func (c *httpClient) GetTaskDetails(ceTaskID string) (*TaskDetails, error) {
 		return nil, errorutils.CheckErrorf("failed to parse task response: %v", err)
 	}
 	return &response, nil
+}
+
+func (c *httpClient) prepareCloudFormatUrl(ceTaskID string, hostname string) string {
+	cloudBaseURL := c.baseURL
+	if !strings.HasPrefix(hostname, "api.") {
+		cloudBaseURL = strings.Replace(c.baseURL, "://", "://api.", 1)
+	}
+	cloudURL := fmt.Sprintf("%s/dop-translation/jfrog-evidence/%s", cloudBaseURL, url.QueryEscape(ceTaskID))
+	return cloudURL
+}
+
+func (c *httpClient) prepareServerFormatUrl(ceTaskID string) string {
+	return fmt.Sprintf("%s/api/v2/dop-translation/jfrog-evidence/%s", c.baseURL, url.QueryEscape(ceTaskID))
 }
