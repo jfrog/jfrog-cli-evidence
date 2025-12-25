@@ -6,7 +6,7 @@ import (
 	"net/url"
 	"strings"
 
-	"github.com/docker/distribution/registry/client"
+	"github.com/jfrog/jfrog-cli-evidence/evidence/utils"
 	"github.com/jfrog/jfrog-client-go/http/jfroghttpclient"
 	"github.com/jfrog/jfrog-client-go/utils/errorutils"
 	"github.com/jfrog/jfrog-client-go/utils/io/httputils"
@@ -85,7 +85,7 @@ func (c *httpClient) GetSonarIntotoStatement(ceTaskID string) ([]byte, error) {
 	log.Debug(fmt.Sprintf("Getting intoto statement using cloud format sonar endpoint %s", cloudUrl))
 	body, statusCode, err := c.doGET(cloudUrl)
 
-	if !client.SuccessStatus(statusCode) {
+	if utils.IsHttpStatusSuccessful(statusCode) {
 		serverURL := c.prepareServerFormatUrl(ceTaskID)
 		log.Debug(fmt.Sprintf("Getting intoto statement using server format sonar endpoint %s", serverURL))
 		body, statusCode, err = c.doGET(serverURL)
@@ -94,7 +94,7 @@ func (c *httpClient) GetSonarIntotoStatement(ceTaskID string) ([]byte, error) {
 	if err != nil {
 		return nil, errorutils.CheckErrorf("enterprise endpoint failed with status %d and response %s %v", statusCode, string(body), err)
 	}
-	if !client.SuccessStatus(statusCode) {
+	if !utils.IsHttpStatusSuccessful(statusCode) {
 		return nil, errorutils.CheckErrorf("enterprise endpoint returned status %d: %s", statusCode, string(body))
 	}
 	return body, nil
@@ -109,7 +109,7 @@ func (c *httpClient) GetTaskDetails(ceTaskID string) (*TaskDetails, error) {
 	if err != nil {
 		return nil, err
 	}
-	if !client.SuccessStatus(statusCode) {
+	if utils.IsHttpStatusSuccessful(statusCode) {
 		return nil, errorutils.CheckErrorf("task endpoint returned status %d: %s", statusCode, string(body))
 	}
 	var response TaskDetails
