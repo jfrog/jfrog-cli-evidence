@@ -3,10 +3,10 @@ package sonar
 import (
 	"encoding/json"
 	"fmt"
-	"net"
 	"net/url"
 	"strings"
 
+	"github.com/jfrog/jfrog-cli-evidence/evidence/utils"
 	"github.com/jfrog/jfrog-client-go/http/jfroghttpclient"
 	"github.com/jfrog/jfrog-client-go/utils/errorutils"
 	"github.com/jfrog/jfrog-client-go/utils/io/httputils"
@@ -78,20 +78,23 @@ func (c *httpClient) GetSonarIntotoStatement(ceTaskID string) ([]byte, error) {
 	if ceTaskID == "" {
 		return nil, errorutils.CheckError(fmt.Errorf("missing ce task id for enterprise endpoint"))
 	}
-	baseURL := c.baseURL
-	u, _ := url.Parse(baseURL)
+	u, _ := url.Parse(c.baseURL)
 	hostname := u.Hostname()
-	// Get sonar intoto statement has api prefix before the hostname
-	// if hostname is localhost or an ip address or has api prefix, then don't add the api.
-	if hostname != "localhost" && net.ParseIP(hostname) == nil && !strings.HasPrefix(hostname, "api.") {
-		baseURL = strings.Replace(baseURL, "://", "://api.", 1)
+
+	cloudUrl := c.prepareCloudFormatUrl(ceTaskID, hostname)
+	log.Debug(fmt.Sprintf("Getting intoto statement using cloud format sonar endpoint %s", cloudUrl))
+	body, statusCode, err := c.doGET(cloudUrl)
+
+	if !utils.IsHttpStatusSuccessful(statusCode) {
+		serverURL := c.prepareServerFormatUrl(ceTaskID)
+		log.Debug(fmt.Sprintf("Getting intoto statement using server format sonar endpoint %s", serverURL))
+		body, statusCode, err = c.doGET(serverURL)
 	}
-	enterpriseURL := fmt.Sprintf("%s/dop-translation/jfrog-evidence/%s", baseURL, url.QueryEscape(ceTaskID))
-	body, statusCode, err := c.doGET(enterpriseURL)
+
 	if err != nil {
 		return nil, errorutils.CheckErrorf("enterprise endpoint failed with status %d and response %s %v", statusCode, string(body), err)
 	}
-	if statusCode != 200 {
+	if !utils.IsHttpStatusSuccessful(statusCode) {
 		return nil, errorutils.CheckErrorf("enterprise endpoint returned status %d: %s", statusCode, string(body))
 	}
 	return body, nil
@@ -106,7 +109,7 @@ func (c *httpClient) GetTaskDetails(ceTaskID string) (*TaskDetails, error) {
 	if err != nil {
 		return nil, err
 	}
-	if statusCode != 200 {
+	if !utils.IsHttpStatusSuccessful(statusCode) {
 		return nil, errorutils.CheckErrorf("task endpoint returned status %d: %s", statusCode, string(body))
 	}
 	var response TaskDetails
@@ -114,4 +117,17 @@ func (c *httpClient) GetTaskDetails(ceTaskID string) (*TaskDetails, error) {
 		return nil, errorutils.CheckErrorf("failed to parse task response: %v", err)
 	}
 	return &response, nil
+}
+
+func (c *httpClient) prepareCloudFormatUrl(ceTaskID string, hostname string) string {
+	cloudBaseURL := c.baseURL
+	if !strings.HasPrefix(hostname, "api.") {
+		cloudBaseURL = strings.Replace(c.baseURL, "://", "://api.", 1)
+	}
+	cloudURL := fmt.Sprintf("%s/dop-translation/jfrog-evidence/%s", cloudBaseURL, url.QueryEscape(ceTaskID))
+	return cloudURL
+}
+
+func (c *httpClient) prepareServerFormatUrl(ceTaskID string) string {
+	return fmt.Sprintf("%s/api/v2/dop-translation/jfrog-evidence/%s", c.baseURL, url.QueryEscape(ceTaskID))
 }
