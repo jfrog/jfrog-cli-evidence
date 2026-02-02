@@ -183,3 +183,7 @@ replace github.com/jfrog/jfrog-cli-core/v2 => github.com/jfrog/jfrog-cli-core/v2
 
 // Pin go-bitbucket-v1 to version compatible with froggit-go@v1.20.6
 replace github.com/gfleury/go-bitbucket-v1 => github.com/gfleury/go-bitbucket-v1 v0.0.0-20230825095122-9bc1711434ab
+
+// Pin go-bitbucket to v0.9.87 which is compatible with froggit-go@v1.21.0
+// v0.9.88 changed NewBasicAuth to return (*Client, error) instead of *Client
+replace github.com/ktrysmt/go-bitbucket => github.com/ktrysmt/go-bitbucket v0.9.87
