@@ -30,6 +30,7 @@ type SimpleMockServicesManager struct {
 	FileInfoFunc     func(string) (*utils.FileInfo, error)
 	GetBuildInfoFunc func(services.BuildInfoParams) (*entities.PublishedBuildInfo, bool, error)
 	AqlFunc          func(string) (io.ReadCloser, error)
+	GetVersionFunc   func() (string, error)
 }
 
 func (m *SimpleMockServicesManager) FileInfo(path string) (*utils.FileInfo, error) {
@@ -65,6 +66,13 @@ func (m *SimpleMockServicesManager) Aql(query string) (io.ReadCloser, error) {
 	}
 	// Default empty result
 	return io.NopCloser(strings.NewReader(`{"results":[]}`)), nil
+}
+
+func (m *SimpleMockServicesManager) GetVersion() (string, error) {
+	if m.GetVersionFunc != nil {
+		return m.GetVersionFunc()
+	}
+	return "7.999.0", nil
 }
 
 // SimpleServiceDetails provides a minimal implementation of auth.ServiceDetails

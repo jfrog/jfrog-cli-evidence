@@ -43,7 +43,11 @@ func (ebc *evidenceGitHubCommand) CreateEvidence(ctx *components.Context, server
 		ebc.ctx.GetStringFlagValue(flags.Project),
 		ebc.ctx.GetStringFlagValue(flags.BuildName),
 		ebc.ctx.GetStringFlagValue(flags.BuildNumber),
-		ebc.ctx.GetStringFlagValue(flags.TypeFlag))
+		ebc.ctx.GetStringFlagValue(flags.TypeFlag),
+		ebc.ctx.GetStringFlagValue(flags.AttachLocal),
+		ebc.ctx.GetStringFlagValue(flags.AttachTempTarget),
+		ebc.ctx.GetStringFlagValue(flags.AttachArtifactory),
+	)
 	return ebc.execute(createCmd)
 }
 

@@ -20,6 +20,7 @@ require (
 	github.com/urfave/cli v1.22.17
 	go.uber.org/mock v0.6.0
 	golang.org/x/crypto v0.47.0
+	gopkg.in/yaml.v3 v3.0.1
 )
 
 require (
@@ -170,7 +171,6 @@ require (
 	google.golang.org/grpc v1.78.0 // indirect
 	google.golang.org/protobuf v1.36.11 // indirect
 	gopkg.in/warnings.v0 v0.1.2 // indirect
-	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
 
 // replace github.com/jfrog/build-info-go => github.com/jfrog/build-info-go v1.8.9-0.20250529104758-6d769a684388
@@ -179,7 +179,7 @@ require (
 
 replace github.com/jfrog/jfrog-cli-core/v2 => github.com/jfrog/jfrog-cli-core/v2 v2.60.1-0.20251008065356-96379eb1add0
 
-// replace github.com/jfrog/jfrog-client-go => github.com/jfrog/jfrog-client-go v1.28.1-0.20250508130334-f159cff9b11a
+replace github.com/jfrog/jfrog-client-go => github.com/mnsboev/jfrog-client-go v0.0.0-20260316150345-61147bb524d7
 
 // Pin go-bitbucket-v1 to version compatible with froggit-go@v1.20.6
 replace github.com/gfleury/go-bitbucket-v1 => github.com/gfleury/go-bitbucket-v1 v0.0.0-20230825095122-9bc1711434ab

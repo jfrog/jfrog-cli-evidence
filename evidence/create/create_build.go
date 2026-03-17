@@ -25,17 +25,20 @@ type createEvidenceBuild struct {
 }
 
 func NewCreateEvidenceBuild(serverDetails *config.ServerDetails,
-	predicateFilePath, predicateType, markdownFilePath, key, keyId, project, buildName, buildNumber, providerId, integration string) evidence.Command {
+	predicateFilePath, predicateType, markdownFilePath, key, keyId, project, buildName, buildNumber, providerId, integration, attachLocalPath, attachTempTarget, attachArtifactoryPath string) evidence.Command {
 	return &createEvidenceBuild{
 		createEvidenceBase: createEvidenceBase{
-			serverDetails:     serverDetails,
-			predicateFilePath: predicateFilePath,
-			predicateType:     predicateType,
-			markdownFilePath:  markdownFilePath,
-			key:               key,
-			keyId:             keyId,
-			providerId:        providerId,
-			integration:       integration,
+			serverDetails:         serverDetails,
+			predicateFilePath:     predicateFilePath,
+			predicateType:         predicateType,
+			markdownFilePath:      markdownFilePath,
+			key:                   key,
+			keyId:                 keyId,
+			providerId:            providerId,
+			integration:           integration,
+			attachLocalPath:       attachLocalPath,
+			attachTempTarget:      attachTempTarget,
+			attachArtifactoryPath: attachArtifactoryPath,
 		},
 		project:     project,
 		buildName:   buildName,
@@ -58,6 +61,14 @@ func (c *createEvidenceBuild) Run() error {
 		return err
 	}
 
+	attachment, cleanup, err := c.resolveAttachment(artifactoryClient)
+	if err != nil {
+		return err
+	}
+	if cleanup != nil {
+		defer cleanup()
+	}
+
 	timestamp, err := getBuildLatestTimestamp(c.buildName, c.buildNumber, c.project, artifactoryClient)
 	if err != nil {
 		return err
@@ -67,12 +78,12 @@ func (c *createEvidenceBuild) Run() error {
 	if err != nil {
 		return err
 	}
-	envelope, err := c.createEnvelope(subject, sha256)
+	envelope, err := c.createEnvelope(subject, sha256, attachment)
 	if err != nil {
 		return err
 	}
 
-	response, err := c.uploadEvidence(envelope, subject)
+	response, err := c.uploadEvidence(envelope, subject, attachment)
 	if err != nil {
 		return err
 	}

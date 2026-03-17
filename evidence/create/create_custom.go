@@ -33,7 +33,7 @@ type createEvidenceCustom struct {
 }
 
 func NewCreateEvidenceCustom(serverDetails *config.ServerDetails, predicateFilePath, predicateType, markdownFilePath, key, keyId, subjectRepoPath,
-	subjectSha256, sigstoreBundlePath, providerId, integration string) evidence.Command {
+	subjectSha256, sigstoreBundlePath, providerId, integration, attachLocalPath, attachTempTarget, attachArtifactoryPath string) evidence.Command {
 	var subjectRepoPathSlice []string
 	if subjectRepoPath != "" {
 		subjectRepoPathSlice = []string{subjectRepoPath}
@@ -42,14 +42,18 @@ func NewCreateEvidenceCustom(serverDetails *config.ServerDetails, predicateFileP
 	}
 	return &createEvidenceCustom{
 		createEvidenceBase: createEvidenceBase{
-			serverDetails:     serverDetails,
-			predicateFilePath: predicateFilePath,
-			predicateType:     predicateType,
-			providerId:        providerId,
-			markdownFilePath:  markdownFilePath,
-			key:               key,
-			keyId:             keyId,
-			integration:       integration,
+			serverDetails:         serverDetails,
+			predicateFilePath:     predicateFilePath,
+			predicateType:         predicateType,
+			providerId:            providerId,
+			markdownFilePath:      markdownFilePath,
+			key:                   key,
+			keyId:                 keyId,
+			integration:           integration,
+			sigstoreBundlePath:    sigstoreBundlePath,
+			attachLocalPath:       attachLocalPath,
+			attachTempTarget:      attachTempTarget,
+			attachArtifactoryPath: attachArtifactoryPath,
 		},
 		subjectRepoPaths:   subjectRepoPathSlice,
 		subjectSha256:      subjectSha256,
@@ -69,13 +73,28 @@ func (c *createEvidenceCustom) ServerDetails() (*config.ServerDetails, error) {
 func (c *createEvidenceCustom) Run() error {
 	var evidencePayload []byte
 	var err error
+	var attachment *statementAttachment
+	var cleanup func()
+	client, err := c.createArtifactoryClient()
+	if err != nil {
+		log.Error("failed to create Artifactory client", err)
+		return err
+	}
+	c.artifactoryClient = client
 
 	if c.sigstoreBundlePath != "" {
 		log.Info("Reading sigstore bundle from path:", c.sigstoreBundlePath)
 		evidencePayload, err = c.processSigstoreBundle()
 	} else {
+		attachment, cleanup, err = c.resolveAttachment(client)
+		if err != nil {
+			return err
+		}
+		if cleanup != nil {
+			defer cleanup()
+		}
 		log.Info("Creating DSSE envelope for subject:", c.subjectRepoPaths)
-		evidencePayload, err = c.createDSSEEnvelope()
+		evidencePayload, err = c.createDSSEEnvelope(attachment)
 	}
 
 	if err != nil {
@@ -91,14 +110,14 @@ func (c *createEvidenceCustom) Run() error {
 	}
 
 	for _, subjectRepoPath := range c.subjectRepoPaths {
-		if err := c.validateSubject(subjectRepoPath); err != nil {
+		if err = c.validateSubject(subjectRepoPath); err != nil {
 			log.Error("Subject validation failed for", subjectRepoPath, ":", err.Error())
 			errors = append(errors, fmt.Errorf("validation failed for subject '%s': %w", subjectRepoPath, err))
 			failedSubjects = append(failedSubjects, subjectRepoPath)
 			continue
 		}
 
-		response, err := c.uploadEvidence(evidencePayload, subjectRepoPath)
+		response, err := c.uploadEvidence(evidencePayload, subjectRepoPath, attachment)
 		if err != nil {
 			handledErr := c.handleSubjectNotFound(subjectRepoPath, err)
 			log.Error("Evidence upload failed for", subjectRepoPath, ":", handledErr.Error())
@@ -172,9 +191,9 @@ func (c *createEvidenceCustom) extractSubjectFromBundle(bundle *bundle.Bundle) (
 	return subjects, nil
 }
 
-func (c *createEvidenceCustom) createDSSEEnvelope() ([]byte, error) {
+func (c *createEvidenceCustom) createDSSEEnvelope(attachment *statementAttachment) ([]byte, error) {
 	// There's always only one subject in this case.
-	envelope, err := c.createEnvelope(c.subjectRepoPaths[0], c.subjectSha256)
+	envelope, err := c.createEnvelope(c.subjectRepoPaths[0], c.subjectSha256, attachment)
 	if err != nil {
 		return nil, err
 	}

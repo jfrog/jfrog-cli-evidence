@@ -62,7 +62,7 @@ func TestNewCreateEvidenceApplication(t *testing.T) {
 	providerId := "test-provider-id"
 	integration := "sonar"
 
-	cmd := NewCreateEvidenceApplication(serverDetails, predicateFilePath, predicateType, markdownFilePath, key, keyId, applicationKey, applicationVersion, providerId, integration)
+	cmd := NewCreateEvidenceApplication(serverDetails, predicateFilePath, predicateType, markdownFilePath, key, keyId, applicationKey, applicationVersion, providerId, integration, "", "", "")
 	createCmd, ok := cmd.(*createEvidenceApplication)
 	assert.True(t, ok)
 
@@ -236,6 +236,9 @@ func TestStageIntegrationInApplicationConstructor(t *testing.T) {
 				tt.applicationVersion,
 				"test-provider-id",
 				"",
+				"",
+				"",
+				"",
 			)
 
 			appCmd, ok := cmd.(*createEvidenceApplication)
@@ -278,6 +281,9 @@ func TestCreateEvidenceApplication_RecordSummary(t *testing.T) {
 		"testApp",
 		"2.0.0",
 		"test-provider-id",
+		"",
+		"",
+		"",
 		"",
 	)
 
@@ -344,6 +350,9 @@ func TestCreateEvidenceApplication_ProviderId(t *testing.T) {
 				"1.0.0",
 				tt.providerId,
 				tt.integration,
+				"",
+				"",
+				"",
 			)
 
 			appCmd, ok := cmd.(*createEvidenceApplication)

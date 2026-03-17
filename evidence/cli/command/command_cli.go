@@ -3,6 +3,10 @@ package command
 import (
 	"errors"
 	"fmt"
+	"os"
+	"slices"
+	"strings"
+
 	"github.com/jfrog/jfrog-cli-evidence/evidence/cli/command/application"
 	"github.com/jfrog/jfrog-cli-evidence/evidence/cli/command/artifacts"
 	"github.com/jfrog/jfrog-cli-evidence/evidence/cli/command/build"
@@ -12,9 +16,7 @@ import (
 	"github.com/jfrog/jfrog-cli-evidence/evidence/cli/command/package"
 	"github.com/jfrog/jfrog-cli-evidence/evidence/cli/command/releasebundle"
 	commandUtils "github.com/jfrog/jfrog-cli-evidence/evidence/cli/command/utils"
-	"os"
-	"slices"
-	"strings"
+	evdConfig "github.com/jfrog/jfrog-cli-evidence/evidence/config"
 
 	commonCliUtils "github.com/jfrog/jfrog-cli-core/v2/common/cliutils"
 	"github.com/jfrog/jfrog-cli-core/v2/common/commands"
@@ -192,6 +194,9 @@ func validateCreateEvidenceCommonContext(ctx *components.Context) error {
 		if err := validateSigstoreBundleArgsConflicts(ctx); err != nil {
 			return err
 		}
+		if ctx.GetStringFlagValue(flags.AttachLocal) != "" || ctx.GetStringFlagValue(flags.AttachArtifactory) != "" {
+			return errorutils.CheckErrorf("attachments are supported only for in-toto flow and cannot be used with --%s", flags.SigstoreBundle)
+		}
 		return nil
 	}
 
@@ -234,6 +239,39 @@ func validateCreateEvidenceCommonContext(ctx *components.Context) error {
 	if !ctx.IsFlagSet(flags.KeyAlias) {
 		setKeyAliasIfProvided(ctx, flags.KeyAlias)
 	}
+	if err := validateAttachmentFlags(ctx); err != nil {
+		return err
+	}
+	return nil
+}
+
+func validateAttachmentFlags(ctx *components.Context) error {
+	attachLocal := ctx.GetStringFlagValue(flags.AttachLocal)
+	attachArtifactory := ctx.GetStringFlagValue(flags.AttachArtifactory)
+	attachTempTarget := ctx.GetStringFlagValue(flags.AttachTempTarget)
+
+	if attachLocal != "" && attachArtifactory != "" {
+		return errorutils.CheckErrorf("exactly one of --%s or --%s can be used", flags.AttachLocal, flags.AttachArtifactory)
+	}
+
+	if attachTempTarget != "" && attachLocal == "" {
+		return errorutils.CheckErrorf("--%s can be used only with --%s", flags.AttachTempTarget, flags.AttachLocal)
+	}
+
+	if attachLocal != "" && attachTempTarget == "" {
+		defaultTarget := evdConfig.ResolveAttachmentTempTarget()
+		if defaultTarget == "" {
+			return errorutils.CheckErrorf("--%s is required with --%s (or set %s / %s)", flags.AttachTempTarget, flags.AttachLocal, "EVIDENCE_ATTACHMENT_TEMP_TARGET", "attachment.tempTarget")
+		}
+		ctx.AddStringFlag(flags.AttachTempTarget, defaultTarget)
+	}
+
+	if attachLocal != "" && ctx.IsFlagSet(flags.AttachTempTarget) {
+		if err := evdConfig.PersistAttachmentTempTarget(ctx.GetStringFlagValue(flags.AttachTempTarget)); err != nil {
+			log.Warn("error persisting attachment temp target: %w", err)
+			return nil
+		}
+	}
 	return nil
 }
 
@@ -251,6 +289,15 @@ func validateSigstoreBundleArgsConflicts(ctx *components.Context) error {
 	}
 	if ctx.IsFlagSet(flags.PredicateType) && ctx.GetStringFlagValue(flags.PredicateType) != "" {
 		conflictingParams = append(conflictingParams, "--"+flags.PredicateType)
+	}
+	if ctx.IsFlagSet(flags.AttachLocal) && ctx.GetStringFlagValue(flags.AttachLocal) != "" {
+		conflictingParams = append(conflictingParams, "--"+flags.AttachLocal)
+	}
+	if ctx.IsFlagSet(flags.AttachTempTarget) && ctx.GetStringFlagValue(flags.AttachTempTarget) != "" {
+		conflictingParams = append(conflictingParams, "--"+flags.AttachTempTarget)
+	}
+	if ctx.IsFlagSet(flags.AttachArtifactory) && ctx.GetStringFlagValue(flags.AttachArtifactory) != "" {
+		conflictingParams = append(conflictingParams, "--"+flags.AttachArtifactory)
 	}
 
 	if len(conflictingParams) > 0 {

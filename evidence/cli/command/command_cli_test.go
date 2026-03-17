@@ -32,10 +32,10 @@ func TestCreateEvidence_Context(t *testing.T) {
 	// Set up test environment variables for this test suite only
 	originalServerID := os.Getenv("JFROG_CLI_SERVER_ID")
 	originalURL := os.Getenv("JFROG_CLI_URL")
-	
+
 	_ = os.Setenv("JFROG_CLI_SERVER_ID", "test-server")
 	_ = os.Setenv("JFROG_CLI_URL", "https://test.jfrog.io")
-	
+
 	defer func() {
 		if originalServerID != "" {
 			_ = os.Setenv("JFROG_CLI_SERVER_ID", originalServerID)
@@ -259,10 +259,10 @@ func TestVerifyEvidence_Context(t *testing.T) {
 	// Set up test environment variables for this test suite only
 	originalServerID := os.Getenv("JFROG_CLI_SERVER_ID")
 	originalURL := os.Getenv("JFROG_CLI_URL")
-	
+
 	_ = os.Setenv("JFROG_CLI_SERVER_ID", "test-server")
 	_ = os.Setenv("JFROG_CLI_URL", "https://test.jfrog.io")
-	
+
 	defer func() {
 		if originalServerID != "" {
 			_ = os.Setenv("JFROG_CLI_SERVER_ID", originalServerID)
@@ -830,4 +830,50 @@ func TestValidateSonarQubeRequirements(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestValidateCreateEvidenceCommonContext_Attachments(t *testing.T) {
+	app := cli.NewApp()
+	app.Commands = []cli.Command{{Name: "create"}}
+	ctx := cli.NewContext(app, &flag.FlagSet{}, nil)
+
+	t.Run("local and artifactory conflict", func(t *testing.T) {
+		c, err := components.ConvertContext(ctx,
+			test.SetDefaultValue(flags.SubjectRepoPath, "repo/path/file"),
+			test.SetDefaultValue(flags.Predicate, "/tmp/p.json"),
+			test.SetDefaultValue(flags.PredicateType, "ptype"),
+			test.SetDefaultValue(flags.Key, "k"),
+			test.SetDefaultValue(flags.AttachLocal, "/tmp/a.txt"),
+			test.SetDefaultValue(flags.AttachArtifactory, "repo/other/a.txt"),
+		)
+		assert.NoError(t, err)
+		assert.Error(t, validateCreateEvidenceCommonContext(c))
+	})
+
+	t.Run("temp target from env", func(t *testing.T) {
+		assert.NoError(t, os.Setenv("EVIDENCE_ATTACHMENT_TEMP_TARGET", "repo/tmp/"))
+		defer func() { _ = os.Unsetenv("EVIDENCE_ATTACHMENT_TEMP_TARGET") }()
+		c, err := components.ConvertContext(ctx,
+			test.SetDefaultValue(flags.SubjectRepoPath, "repo/path/file"),
+			test.SetDefaultValue(flags.Predicate, "/tmp/p.json"),
+			test.SetDefaultValue(flags.PredicateType, "ptype"),
+			test.SetDefaultValue(flags.Key, "k"),
+			test.SetDefaultValue(flags.AttachLocal, "/tmp/a.txt"),
+		)
+		assert.NoError(t, err)
+		assert.NoError(t, validateCreateEvidenceCommonContext(c))
+		assert.Equal(t, "repo/tmp/", c.GetStringFlagValue(flags.AttachTempTarget))
+	})
+
+	t.Run("temp target without local", func(t *testing.T) {
+		c, err := components.ConvertContext(ctx,
+			test.SetDefaultValue(flags.SubjectRepoPath, "repo/path/file"),
+			test.SetDefaultValue(flags.Predicate, "/tmp/p.json"),
+			test.SetDefaultValue(flags.PredicateType, "ptype"),
+			test.SetDefaultValue(flags.Key, "k"),
+			test.SetDefaultValue(flags.AttachTempTarget, "repo/tmp/"),
+		)
+		assert.NoError(t, err)
+		assert.Error(t, validateCreateEvidenceCommonContext(c))
+	})
 }

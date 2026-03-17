@@ -339,8 +339,6 @@ github.com/jfrog/jfrog-cli-artifactory v0.8.0 h1:shGFChMU1iOZtur/3mIxksaznRdLyij
 github.com/jfrog/jfrog-cli-artifactory v0.8.0/go.mod h1:3hLZrM2xT+PkIevIGret4x1xDFTaVoNu3h374QnrKyc=
 github.com/jfrog/jfrog-cli-core/v2 v2.60.1-0.20251008065356-96379eb1add0 h1:V8hcxxp3wvZFptASQjw64r5R7E5ZjwALaxXErY+Iw7o=
 github.com/jfrog/jfrog-cli-core/v2 v2.60.1-0.20251008065356-96379eb1add0/go.mod h1:XnTbhDuUKPOe215lJ6mxRu/xKL2zdy6a9CU+e85bjME=
-github.com/jfrog/jfrog-client-go v1.55.1-0.20251202154341-6ef0c0e3e9ce h1:2y4Nhptm15CLYNlkZRdk6z0J8uLPcCxZFliK2E2lcLQ=
-github.com/jfrog/jfrog-client-go v1.55.1-0.20251202154341-6ef0c0e3e9ce/go.mod h1:ureS+L3wNs0qYUBSwH8C9PjwnraTX9ibZu7JkaqjO/E=
 github.com/jmespath/go-jmespath v0.4.1-0.20220621161143-b0104c826a24 h1:liMMTbpW34dhU4az1GN0pTPADwNmvoRSeoZ6PItiqnY=
 github.com/jmespath/go-jmespath v0.4.1-0.20220621161143-b0104c826a24/go.mod h1:T8mJZnbsbmF+m6zOOFylbeCJqk5+pHWvzYPziyZiYoo=
 github.com/kevinburke/ssh_config v1.4.0 h1:6xxtP5bZ2E4NF5tuQulISpTO2z8XbtH8cg1PWkxoFkQ=
@@ -395,6 +393,8 @@ github.com/mitchellh/go-homedir v1.1.0/go.mod h1:SfyaCUpYCn1Vlf4IUYiD9fPX4A5wJrk
 github.com/mitchellh/mapstructure v1.1.2/go.mod h1:FVVH3fgwuzCH5S8UJGiWEs2h04kUh9fWfEaFds41c1Y=
 github.com/mitchellh/mapstructure v1.5.0 h1:jeMsZIYE/09sWLaz43PL7Gy6RuMjD2eJVyuac5Z2hdY=
 github.com/mitchellh/mapstructure v1.5.0/go.mod h1:bFUtVrKA4DC2yAKiSyO/QUcy7e+RRV2QTWOzhPopBRo=
+github.com/mnsboev/jfrog-client-go v0.0.0-20260316150345-61147bb524d7 h1:zadhcEgtFdAywA/eXluJFiYoUwqhb+xAEtZO9J24VI8=
+github.com/mnsboev/jfrog-client-go v0.0.0-20260316150345-61147bb524d7/go.mod h1:sCE06+GngPoyrGO0c+vmhgMoVSP83UMNiZnIuNPzU8U=
 github.com/natefinch/atomic v1.0.1 h1:ZPYKxkqQOx3KZ+RsbnP/YsgvxWQPGxjC0oBt2AhwV0A=
 github.com/natefinch/atomic v1.0.1/go.mod h1:N/D/ELrljoqDyT3rZrsUmtsuzvHkeB/wWjHV22AZRbM=
 github.com/nwaples/rardecode/v2 v2.2.2 h1:/5oL8dzYivRM/tqX9VcTSWfbpwcbwKG1QtSJr3b3KcU=

@@ -64,7 +64,7 @@ func TestNewCreateEvidenceReleaseBundle(t *testing.T) {
 	releaseBundle := "test-bundle"
 	releaseBundleVersion := "1.0.0"
 
-	cmd := NewCreateEvidenceReleaseBundle(serverDetails, predicateFilePath, predicateType, markdownFilePath, key, keyId, project, releaseBundle, releaseBundleVersion, "", "")
+	cmd := NewCreateEvidenceReleaseBundle(serverDetails, predicateFilePath, predicateType, markdownFilePath, key, keyId, project, releaseBundle, releaseBundleVersion, "", "", "", "", "")
 	createCmd, ok := cmd.(*createEvidenceReleaseBundle)
 	assert.True(t, ok)
 
@@ -215,7 +215,7 @@ func TestStageIntegrationInConstructor(t *testing.T) {
 		releaseBundle := "test-bundle"
 		releaseBundleVersion := "1.0.0"
 
-		cmd := NewCreateEvidenceReleaseBundle(serverDetails, predicateFilePath, predicateType, markdownFilePath, key, keyId, project, releaseBundle, releaseBundleVersion, "", "")
+		cmd := NewCreateEvidenceReleaseBundle(serverDetails, predicateFilePath, predicateType, markdownFilePath, key, keyId, project, releaseBundle, releaseBundleVersion, "", "", "", "", "")
 		createCmd, ok := cmd.(*createEvidenceReleaseBundle)
 		assert.True(t, ok)
 
@@ -323,6 +323,9 @@ func TestCreateEvidenceReleaseBundle_RecordSummary(t *testing.T) {
 		"2.0.0",
 		"",
 		"",
+		"",
+		"",
+		"",
 	)
 	c, ok := evidence.(*createEvidenceReleaseBundle)
 	assert.True(t, ok, "should create createEvidenceReleaseBundle instance")
@@ -402,6 +405,9 @@ func TestCreateEvidenceReleaseBundle_ProviderId(t *testing.T) {
 				"test-bundle",
 				"1.0.0",
 				tt.providerId,
+				"",
+				"",
+				"",
 				"",
 			)
 

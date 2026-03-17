@@ -22,6 +22,7 @@ type Statement struct {
 	CreatedBy     string               `json:"createdBy"`
 	Markdown      string               `json:"markdown,omitempty"`
 	Stage         string               `json:"stage,omitempty"`
+	Attachments   []Attachment         `json:"attachments,omitempty"`
 }
 
 type ResourceDescriptor struct {
@@ -30,6 +31,12 @@ type ResourceDescriptor struct {
 
 type Digest struct {
 	Sha256 string `json:"sha256"`
+}
+
+type Attachment struct {
+	Name   string `json:"name"`
+	Sha256 string `json:"sha256"`
+	Type   string `json:"type,omitempty"`
 }
 
 func NewStatement(predicate []byte, predicateType, user string) *Statement {
@@ -54,6 +61,10 @@ func (s *Statement) SetMarkdown(markdown []byte) {
 
 func (s *Statement) SetStage(stage string) {
 	s.Stage = stage
+}
+
+func (s *Statement) SetAttachments(attachments []Attachment) {
+	s.Attachments = attachments
 }
 
 func (s *Statement) Marshal() ([]byte, error) {

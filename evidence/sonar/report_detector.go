@@ -13,10 +13,7 @@ var reportTaskCandidates = []string{
 }
 
 func GetReportTaskPath() string {
-	var cfg *conf.EvidenceConfig
-	if c, err := conf.LoadEvidenceConfig(); err == nil {
-		cfg = c
-	}
+	cfg := conf.LoadEvidenceConfig()
 
 	var reportPath string
 	if cfg != nil && cfg.Sonar != nil && cfg.Sonar.ReportTaskFile != "" {

@@ -20,17 +20,20 @@ type createEvidencePackage struct {
 }
 
 func NewCreateEvidencePackage(serverDetails *config.ServerDetails, predicateFilePath, predicateType, markdownFilePath, key, keyId, packageName,
-	packageVersion, packageRepoName, providerId, integration string) evidence.Command {
+	packageVersion, packageRepoName, providerId, integration, attachLocalPath, attachTempTarget, attachArtifactoryPath string) evidence.Command {
 	return &createEvidencePackage{
 		createEvidenceBase: createEvidenceBase{
-			serverDetails:     serverDetails,
-			predicateFilePath: predicateFilePath,
-			predicateType:     predicateType,
-			markdownFilePath:  markdownFilePath,
-			providerId:        providerId,
-			key:               key,
-			keyId:             keyId,
-			integration:       integration,
+			serverDetails:         serverDetails,
+			predicateFilePath:     predicateFilePath,
+			predicateType:         predicateType,
+			markdownFilePath:      markdownFilePath,
+			providerId:            providerId,
+			key:                   key,
+			keyId:                 keyId,
+			integration:           integration,
+			attachLocalPath:       attachLocalPath,
+			attachTempTarget:      attachTempTarget,
+			attachArtifactoryPath: attachArtifactoryPath,
 		},
 		packageService: evidence.NewPackageService(packageName, packageVersion, packageRepoName),
 	}
@@ -50,6 +53,15 @@ func (c *createEvidencePackage) Run() error {
 		log.Error("failed to create Artifactory client", err)
 		return err
 	}
+
+	attachment, cleanup, err := c.resolveAttachment(artifactoryClient)
+	if err != nil {
+		return err
+	}
+	if cleanup != nil {
+		defer cleanup()
+	}
+
 	if c.metadataClient == nil {
 		c.metadataClient, err = utils.CreateMetadataServiceManager(c.serverDetails, false)
 		if err != nil {
@@ -71,11 +83,11 @@ func (c *createEvidencePackage) Run() error {
 	if err != nil {
 		return err
 	}
-	envelope, err := c.createEnvelope(leadArtifactPath, leadArtifactChecksum)
+	envelope, err := c.createEnvelope(leadArtifactPath, leadArtifactChecksum, attachment)
 	if err != nil {
 		return err
 	}
-	response, err := c.uploadEvidence(envelope, leadArtifactPath)
+	response, err := c.uploadEvidence(envelope, leadArtifactPath, attachment)
 	if err != nil {
 		return err
 	}

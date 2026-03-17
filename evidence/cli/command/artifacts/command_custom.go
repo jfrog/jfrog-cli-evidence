@@ -42,7 +42,11 @@ func (ecc *evidenceCustomCommand) CreateEvidence(_ *components.Context, serverDe
 		ecc.ctx.GetStringFlagValue(flags.SubjectSha256),
 		ecc.ctx.GetStringFlagValue(flags.SigstoreBundle),
 		ecc.ctx.GetStringFlagValue(flags.ProviderId),
-		ecc.ctx.GetStringFlagValue(flags.Integration))
+		ecc.ctx.GetStringFlagValue(flags.Integration),
+		ecc.ctx.GetStringFlagValue(flags.AttachLocal),
+		ecc.ctx.GetStringFlagValue(flags.AttachTempTarget),
+		ecc.ctx.GetStringFlagValue(flags.AttachArtifactory),
+	)
 	return ecc.execute(createCmd)
 }
 

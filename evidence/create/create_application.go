@@ -23,18 +23,21 @@ type createEvidenceApplication struct {
 }
 
 func NewCreateEvidenceApplication(serverDetails *config.ServerDetails, predicateFilePath, predicateType, markdownFilePath, key, keyId, applicationKey,
-	applicationVersion, providerId, integration string) evidence.Command {
+	applicationVersion, providerId, integration, attachLocalPath, attachTempTarget, attachArtifactoryPath string) evidence.Command {
 	return &createEvidenceApplication{
 		createEvidenceBase: createEvidenceBase{
-			serverDetails:     serverDetails,
-			predicateFilePath: predicateFilePath,
-			predicateType:     predicateType,
-			markdownFilePath:  markdownFilePath,
-			key:               key,
-			keyId:             keyId,
-			providerId:        providerId,
-			stage:             getApplicationVersionStage(serverDetails, applicationKey, applicationVersion),
-			integration:       integration,
+			serverDetails:         serverDetails,
+			predicateFilePath:     predicateFilePath,
+			predicateType:         predicateType,
+			markdownFilePath:      markdownFilePath,
+			key:                   key,
+			keyId:                 keyId,
+			providerId:            providerId,
+			stage:                 getApplicationVersionStage(serverDetails, applicationKey, applicationVersion),
+			integration:           integration,
+			attachLocalPath:       attachLocalPath,
+			attachTempTarget:      attachTempTarget,
+			attachArtifactoryPath: attachArtifactoryPath,
 		},
 		applicationKey:     applicationKey,
 		applicationVersion: applicationVersion,
@@ -61,15 +64,23 @@ func (c *createEvidenceApplication) Run() error {
 		log.Error("failed to create Artifactory client", err)
 		return err
 	}
+	attachment, cleanup, err := c.resolveAttachment(artifactoryClient)
+	if err != nil {
+		return err
+	}
+	if cleanup != nil {
+		defer cleanup()
+	}
+
 	subject, sha256, err := c.buildApplicationSubjectPath(artifactoryClient)
 	if err != nil {
 		return err
 	}
-	envelope, err := c.createEnvelope(subject, sha256)
+	envelope, err := c.createEnvelope(subject, sha256, attachment)
 	if err != nil {
 		return err
 	}
-	response, err := c.uploadEvidence(envelope, subject)
+	response, err := c.uploadEvidence(envelope, subject, attachment)
 	if err != nil {
 		return err
 	}
