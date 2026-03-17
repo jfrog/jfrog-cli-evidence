@@ -24,6 +24,7 @@ import (
 func (r *EvidenceE2ETestsRunner) RunCreateEvidenceWithAttachmentPermissions(t *testing.T) {
 	t.Log("=== Create Evidence - Attachment Permissions Test ===")
 	require.NotEmpty(t, SharedPrivateKeyPath, "shared key pair not initialized")
+	ensureAttachmentSupportedArtifactoryVersion(t)
 	ensureAttachmentSupportedEvidenceVersion(t)
 
 	t.Run("LocalAttachment_UserHasSubjectAndTempWritePermissions", func(t *testing.T) {
@@ -231,6 +232,31 @@ func ensureAttachmentSupportedEvidenceVersion(t *testing.T) {
 	version := strings.TrimSpace(string(body))
 	if err = clientutils.ValidateMinimumVersion("JFrog Evidence", version, "7.646.1"); err != nil {
 		t.Skipf("skipping attachment e2e: evidence version %q does not support attachments", version)
+	}
+}
+
+func ensureAttachmentSupportedArtifactoryVersion(t *testing.T) {
+	t.Helper()
+	req, err := http.NewRequest(http.MethodGet, getJfrogBaseURL()+"/artifactory/api/system/version", nil)
+	require.NoError(t, err)
+	req.Header.Set("Authorization", "Bearer "+mustGetAdminToken(t))
+
+	resp, err := http.DefaultClient.Do(req)
+	require.NoError(t, err, "failed to query Artifactory version")
+	defer func() { _ = resp.Body.Close() }()
+	require.Equal(t, http.StatusOK, resp.StatusCode, "Artifactory version endpoint returned unexpected status: %s", resp.Status)
+
+	body, err := io.ReadAll(resp.Body)
+	require.NoError(t, err)
+	var versionResponse struct {
+		Version string `json:"version"`
+	}
+	require.NoError(t, json.Unmarshal(body, &versionResponse), "failed to parse Artifactory version response")
+	version := strings.TrimSpace(versionResponse.Version)
+	require.NotEmpty(t, version, "empty Artifactory version in response")
+
+	if err = clientutils.ValidateMinimumVersion("JFrog Artifactory", version, "7.143.0"); err != nil {
+		t.Skipf("skipping attachment e2e: Artifactory version %q is below required 7.143.0", version)
 	}
 }
 
