@@ -23,21 +23,21 @@ type createEvidenceReleaseBundle struct {
 }
 
 func NewCreateEvidenceReleaseBundle(serverDetails *config.ServerDetails, predicateFilePath, predicateType, markdownFilePath, key, keyId, project, releaseBundle,
-	releaseBundleVersion, providerId, integration, attachLocalPath, attachTempTarget, attachArtifactoryPath string) evidence.Command {
+	releaseBundleVersion, providerId, integration, attachLocalPath, attachArtifactoryTempPath, attachArtifactoryPath string) evidence.Command {
 	return &createEvidenceReleaseBundle{
 		createEvidenceBase: createEvidenceBase{
-			serverDetails:         serverDetails,
-			predicateFilePath:     predicateFilePath,
-			predicateType:         predicateType,
-			markdownFilePath:      markdownFilePath,
-			key:                   key,
-			keyId:                 keyId,
-			providerId:            providerId,
-			stage:                 getReleaseBundleStage(serverDetails, releaseBundle, releaseBundleVersion, project),
-			integration:           integration,
-			attachLocalPath:       attachLocalPath,
-			attachTempTarget:      attachTempTarget,
-			attachArtifactoryPath: attachArtifactoryPath,
+			serverDetails:             serverDetails,
+			predicateFilePath:         predicateFilePath,
+			predicateType:             predicateType,
+			markdownFilePath:          markdownFilePath,
+			key:                       key,
+			keyId:                     keyId,
+			providerId:                providerId,
+			stage:                     getReleaseBundleStage(serverDetails, releaseBundle, releaseBundleVersion, project),
+			integration:               integration,
+			attachLocalPath:           attachLocalPath,
+			attachArtifactoryTempPath: attachArtifactoryTempPath,
+			attachArtifactoryPath:     attachArtifactoryPath,
 		},
 		project:              project,
 		releaseBundle:        releaseBundle,

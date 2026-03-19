@@ -42,8 +42,8 @@ func (epc *evidencePackageCommand) CreateEvidence(ctx *components.Context, serve
 		epc.ctx.GetStringFlagValue(flags.ProviderId),
 		epc.ctx.GetStringFlagValue(flags.Integration),
 		epc.ctx.GetStringFlagValue(flags.AttachLocal),
-		epc.ctx.GetStringFlagValue(flags.AttachTempTarget),
-		epc.ctx.GetStringFlagValue(flags.AttachArtifactory),
+		epc.ctx.GetStringFlagValue(flags.AttachArtifactoryTempPath),
+		epc.ctx.GetStringFlagValue(flags.AttachArtifactoryPath),
 	)
 	return epc.execute(createCmd)
 }

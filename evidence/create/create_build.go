@@ -25,20 +25,20 @@ type createEvidenceBuild struct {
 }
 
 func NewCreateEvidenceBuild(serverDetails *config.ServerDetails,
-	predicateFilePath, predicateType, markdownFilePath, key, keyId, project, buildName, buildNumber, providerId, integration, attachLocalPath, attachTempTarget, attachArtifactoryPath string) evidence.Command {
+	predicateFilePath, predicateType, markdownFilePath, key, keyId, project, buildName, buildNumber, providerId, integration, attachLocalPath, attachArtifactoryTempPath, attachArtifactoryPath string) evidence.Command {
 	return &createEvidenceBuild{
 		createEvidenceBase: createEvidenceBase{
-			serverDetails:         serverDetails,
-			predicateFilePath:     predicateFilePath,
-			predicateType:         predicateType,
-			markdownFilePath:      markdownFilePath,
-			key:                   key,
-			keyId:                 keyId,
-			providerId:            providerId,
-			integration:           integration,
-			attachLocalPath:       attachLocalPath,
-			attachTempTarget:      attachTempTarget,
-			attachArtifactoryPath: attachArtifactoryPath,
+			serverDetails:             serverDetails,
+			predicateFilePath:         predicateFilePath,
+			predicateType:             predicateType,
+			markdownFilePath:          markdownFilePath,
+			key:                       key,
+			keyId:                     keyId,
+			providerId:                providerId,
+			integration:               integration,
+			attachLocalPath:           attachLocalPath,
+			attachArtifactoryTempPath: attachArtifactoryTempPath,
+			attachArtifactoryPath:     attachArtifactoryPath,
 		},
 		project:     project,
 		buildName:   buildName,

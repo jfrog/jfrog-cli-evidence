@@ -194,7 +194,7 @@ func validateCreateEvidenceCommonContext(ctx *components.Context) error {
 		if err := validateSigstoreBundleArgsConflicts(ctx); err != nil {
 			return err
 		}
-		if ctx.GetStringFlagValue(flags.AttachLocal) != "" || ctx.GetStringFlagValue(flags.AttachArtifactory) != "" {
+		if ctx.GetStringFlagValue(flags.AttachLocal) != "" || ctx.GetStringFlagValue(flags.AttachArtifactoryPath) != "" {
 			return errorutils.CheckErrorf("attachments are supported only for in-toto flow and cannot be used with --%s", flags.SigstoreBundle)
 		}
 		return nil
@@ -247,28 +247,28 @@ func validateCreateEvidenceCommonContext(ctx *components.Context) error {
 
 func validateAttachmentFlags(ctx *components.Context) error {
 	attachLocal := ctx.GetStringFlagValue(flags.AttachLocal)
-	attachArtifactory := ctx.GetStringFlagValue(flags.AttachArtifactory)
-	attachTempTarget := ctx.GetStringFlagValue(flags.AttachTempTarget)
+	attachArtifactoryPath := ctx.GetStringFlagValue(flags.AttachArtifactoryPath)
+	attachArtifactoryTempPath := ctx.GetStringFlagValue(flags.AttachArtifactoryTempPath)
 
-	if attachLocal != "" && attachArtifactory != "" {
-		return errorutils.CheckErrorf("exactly one of --%s or --%s can be used", flags.AttachLocal, flags.AttachArtifactory)
+	if attachLocal != "" && attachArtifactoryPath != "" {
+		return errorutils.CheckErrorf("exactly one of --%s or --%s can be used", flags.AttachLocal, flags.AttachArtifactoryPath)
 	}
 
-	if attachTempTarget != "" && attachLocal == "" {
-		return errorutils.CheckErrorf("--%s can be used only with --%s", flags.AttachTempTarget, flags.AttachLocal)
+	if attachArtifactoryTempPath != "" && attachLocal == "" {
+		return errorutils.CheckErrorf("--%s can be used only with --%s", flags.AttachArtifactoryTempPath, flags.AttachLocal)
 	}
 
-	if attachLocal != "" && attachTempTarget == "" {
-		defaultTarget := evdConfig.ResolveAttachmentTempTarget()
+	if attachLocal != "" && attachArtifactoryTempPath == "" {
+		defaultTarget := evdConfig.ResolveAttachmentArtifactoryTempPath()
 		if defaultTarget == "" {
-			return errorutils.CheckErrorf("--%s is required with --%s (or set %s / %s)", flags.AttachTempTarget, flags.AttachLocal, "EVIDENCE_ATTACHMENT_TEMP_TARGET", "attachment.tempTarget")
+			return errorutils.CheckErrorf("--%s is required with --%s (or set %s / %s)", flags.AttachArtifactoryTempPath, flags.AttachLocal, evdConfig.EnvAttachmentArtifactoryTempPath, evdConfig.KeyAttachmentArtifactoryTempPath)
 		}
-		ctx.AddStringFlag(flags.AttachTempTarget, defaultTarget)
+		ctx.AddStringFlag(flags.AttachArtifactoryTempPath, defaultTarget)
 	}
 
-	if attachLocal != "" && ctx.IsFlagSet(flags.AttachTempTarget) {
-		if err := evdConfig.PersistAttachmentTempTarget(ctx.GetStringFlagValue(flags.AttachTempTarget)); err != nil {
-			log.Warn("error persisting attachment temp target: %w", err)
+	if attachLocal != "" && ctx.IsFlagSet(flags.AttachArtifactoryTempPath) {
+		if err := evdConfig.PersistAttachmentArtifactoryTempPath(ctx.GetStringFlagValue(flags.AttachArtifactoryTempPath)); err != nil {
+			log.Warn("error persisting attachment artifactory temp path:", err)
 			return nil
 		}
 	}
@@ -293,11 +293,11 @@ func validateSigstoreBundleArgsConflicts(ctx *components.Context) error {
 	if ctx.IsFlagSet(flags.AttachLocal) && ctx.GetStringFlagValue(flags.AttachLocal) != "" {
 		conflictingParams = append(conflictingParams, "--"+flags.AttachLocal)
 	}
-	if ctx.IsFlagSet(flags.AttachTempTarget) && ctx.GetStringFlagValue(flags.AttachTempTarget) != "" {
-		conflictingParams = append(conflictingParams, "--"+flags.AttachTempTarget)
+	if ctx.IsFlagSet(flags.AttachArtifactoryTempPath) && ctx.GetStringFlagValue(flags.AttachArtifactoryTempPath) != "" {
+		conflictingParams = append(conflictingParams, "--"+flags.AttachArtifactoryTempPath)
 	}
-	if ctx.IsFlagSet(flags.AttachArtifactory) && ctx.GetStringFlagValue(flags.AttachArtifactory) != "" {
-		conflictingParams = append(conflictingParams, "--"+flags.AttachArtifactory)
+	if ctx.IsFlagSet(flags.AttachArtifactoryPath) && ctx.GetStringFlagValue(flags.AttachArtifactoryPath) != "" {
+		conflictingParams = append(conflictingParams, "--"+flags.AttachArtifactoryPath)
 	}
 
 	if len(conflictingParams) > 0 {

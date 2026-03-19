@@ -23,21 +23,21 @@ type createEvidenceApplication struct {
 }
 
 func NewCreateEvidenceApplication(serverDetails *config.ServerDetails, predicateFilePath, predicateType, markdownFilePath, key, keyId, applicationKey,
-	applicationVersion, providerId, integration, attachLocalPath, attachTempTarget, attachArtifactoryPath string) evidence.Command {
+	applicationVersion, providerId, integration, attachLocalPath, attachArtifactoryTempPath, attachArtifactoryPath string) evidence.Command {
 	return &createEvidenceApplication{
 		createEvidenceBase: createEvidenceBase{
-			serverDetails:         serverDetails,
-			predicateFilePath:     predicateFilePath,
-			predicateType:         predicateType,
-			markdownFilePath:      markdownFilePath,
-			key:                   key,
-			keyId:                 keyId,
-			providerId:            providerId,
-			stage:                 getApplicationVersionStage(serverDetails, applicationKey, applicationVersion),
-			integration:           integration,
-			attachLocalPath:       attachLocalPath,
-			attachTempTarget:      attachTempTarget,
-			attachArtifactoryPath: attachArtifactoryPath,
+			serverDetails:             serverDetails,
+			predicateFilePath:         predicateFilePath,
+			predicateType:             predicateType,
+			markdownFilePath:          markdownFilePath,
+			key:                       key,
+			keyId:                     keyId,
+			providerId:                providerId,
+			stage:                     getApplicationVersionStage(serverDetails, applicationKey, applicationVersion),
+			integration:               integration,
+			attachLocalPath:           attachLocalPath,
+			attachArtifactoryTempPath: attachArtifactoryTempPath,
+			attachArtifactoryPath:     attachArtifactoryPath,
 		},
 		applicationKey:     applicationKey,
 		applicationVersion: applicationVersion,

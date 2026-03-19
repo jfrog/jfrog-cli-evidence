@@ -33,7 +33,7 @@ type createEvidenceCustom struct {
 }
 
 func NewCreateEvidenceCustom(serverDetails *config.ServerDetails, predicateFilePath, predicateType, markdownFilePath, key, keyId, subjectRepoPath,
-	subjectSha256, sigstoreBundlePath, providerId, integration, attachLocalPath, attachTempTarget, attachArtifactoryPath string) evidence.Command {
+	subjectSha256, sigstoreBundlePath, providerId, integration, attachLocalPath, attachArtifactoryTempPath, attachArtifactoryPath string) evidence.Command {
 	var subjectRepoPathSlice []string
 	if subjectRepoPath != "" {
 		subjectRepoPathSlice = []string{subjectRepoPath}
@@ -42,18 +42,18 @@ func NewCreateEvidenceCustom(serverDetails *config.ServerDetails, predicateFileP
 	}
 	return &createEvidenceCustom{
 		createEvidenceBase: createEvidenceBase{
-			serverDetails:         serverDetails,
-			predicateFilePath:     predicateFilePath,
-			predicateType:         predicateType,
-			providerId:            providerId,
-			markdownFilePath:      markdownFilePath,
-			key:                   key,
-			keyId:                 keyId,
-			integration:           integration,
-			sigstoreBundlePath:    sigstoreBundlePath,
-			attachLocalPath:       attachLocalPath,
-			attachTempTarget:      attachTempTarget,
-			attachArtifactoryPath: attachArtifactoryPath,
+			serverDetails:             serverDetails,
+			predicateFilePath:         predicateFilePath,
+			predicateType:             predicateType,
+			providerId:                providerId,
+			markdownFilePath:          markdownFilePath,
+			key:                       key,
+			keyId:                     keyId,
+			integration:               integration,
+			sigstoreBundlePath:        sigstoreBundlePath,
+			attachLocalPath:           attachLocalPath,
+			attachArtifactoryTempPath: attachArtifactoryTempPath,
+			attachArtifactoryPath:     attachArtifactoryPath,
 		},
 		subjectRepoPaths:   subjectRepoPathSlice,
 		subjectSha256:      subjectSha256,

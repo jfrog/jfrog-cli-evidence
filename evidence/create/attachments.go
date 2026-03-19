@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/jfrog/jfrog-cli-evidence/evidence/cli/command/flags"
 	"github.com/jfrog/jfrog-cli-evidence/evidence/intoto"
 	"github.com/jfrog/jfrog-client-go/artifactory"
 	"github.com/jfrog/jfrog-client-go/artifactory/services"
@@ -46,14 +47,14 @@ func (c *createEvidenceBase) resolveExistingArtifactoryAttachment(client artifac
 		return nil, err
 	}
 	if strings.HasSuffix(path, "/") {
-		return nil, errorutils.CheckErrorf("invalid --attach-artifactory value '%s': expected a file path, got a directory", repoPath)
+		return nil, errorutils.CheckErrorf("invalid --%s value '%s': expected a file path, got a directory", flags.AttachArtifactoryPath, repoPath)
 	}
 	fileInfo, err := client.FileInfo(repoPath)
 	if err != nil {
-		return nil, errorutils.CheckErrorf("failed to resolve --attach-artifactory '%s': %v", repoPath, err)
+		return nil, errorutils.CheckErrorf("failed to resolve --%s '%s': %v", flags.AttachArtifactoryPath, repoPath, err)
 	}
 	if fileInfo == nil || fileInfo.Checksums.Sha256 == "" {
-		return nil, errorutils.CheckErrorf("invalid --attach-artifactory value '%s': path must point to a file with sha256", repoPath)
+		return nil, errorutils.CheckErrorf("invalid --%s value '%s': path must point to a file with sha256", flags.AttachArtifactoryPath, repoPath)
 	}
 	return &statementAttachment{
 		Repository: repository,
@@ -66,9 +67,9 @@ func (c *createEvidenceBase) resolveExistingArtifactoryAttachment(client artifac
 
 func (c *createEvidenceBase) uploadLocalAttachment(client artifactory.ArtifactoryServicesManager) (*statementAttachment, func(), error) {
 	if _, err := os.Stat(c.attachLocalPath); err != nil {
-		return nil, nil, errorutils.CheckErrorf("failed to read --attach-local file '%s': %v", c.attachLocalPath, err)
+		return nil, nil, errorutils.CheckErrorf("failed to read --%s file '%s': %v", flags.AttachLocal, c.attachLocalPath, err)
 	}
-	target, err := parseAttachmentTempTarget(c.attachTempTarget, c.attachLocalPath)
+	target, err := parseAttachmentArtifactoryTempPath(c.attachArtifactoryTempPath, c.attachLocalPath)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -81,10 +82,10 @@ func (c *createEvidenceBase) uploadLocalAttachment(client artifactory.Artifactor
 	}
 	uploaded, failed, err := client.UploadFiles(artifactory.UploadServiceOptions{}, uploadParams)
 	if err != nil {
-		return nil, nil, errorutils.CheckErrorf("failed to upload --attach-local file to '%s': %v", target.TargetPath, err)
+		return nil, nil, errorutils.CheckErrorf("failed to upload --%s file to '%s': %v", flags.AttachLocal, target.TargetPath, err)
 	}
 	if failed > 0 || uploaded == 0 {
-		return nil, nil, errorutils.CheckErrorf("failed to upload --attach-local file to '%s'", target.TargetPath)
+		return nil, nil, errorutils.CheckErrorf("failed to upload --%s file to '%s'", flags.AttachLocal, target.TargetPath)
 	}
 
 	repository, path, err := splitRepoPath(target.TargetPath)
@@ -154,16 +155,16 @@ func (c *createEvidenceBase) wrapCreatePayloadWithAttachments(envelopeBytes []by
 	return jsonMarshal(payload)
 }
 
-func parseAttachmentTempTarget(target, localFilePath string) (*parsedTarget, error) {
+func parseAttachmentArtifactoryTempPath(target, localFilePath string) (*parsedTarget, error) {
 	if target == "" {
-		return nil, errorutils.CheckErrorf("--attach-temp-target cannot be empty")
+		return nil, errorutils.CheckErrorf("--%s cannot be empty", flags.AttachArtifactoryTempPath)
 	}
 	if strings.HasPrefix(target, "/") {
-		return nil, errorutils.CheckErrorf("invalid --attach-temp-target '%s': leading '/' is not allowed", target)
+		return nil, errorutils.CheckErrorf("invalid --%s '%s': leading '/' is not allowed", flags.AttachArtifactoryTempPath, target)
 	}
 	segments := strings.Split(target, "/")
 	if len(segments) == 0 || segments[0] == "" {
-		return nil, errorutils.CheckErrorf("invalid --attach-temp-target '%s': repository segment is required", target)
+		return nil, errorutils.CheckErrorf("invalid --%s '%s': repository segment is required", flags.AttachArtifactoryTempPath, target)
 	}
 	repo := segments[0]
 

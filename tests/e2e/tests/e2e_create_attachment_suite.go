@@ -65,7 +65,7 @@ func (r *EvidenceE2ETestsRunner) RunCreateEvidenceWithAttachmentPermissions(t *t
 			grantArtifactoryAttachmentRead: false,
 			expectError:                    true,
 			errorContains: []string{
-				"failed to resolve --attach-artifactory",
+				"failed to resolve --attach-artifactory-path",
 				"403 Forbidden",
 			},
 		})
@@ -85,6 +85,35 @@ type attachmentCase struct {
 func (r *EvidenceE2ETestsRunner) runAttachmentCase(t *testing.T, tc attachmentCase) {
 	t.Helper()
 
+	adminToken := mustGetAdminToken(t)
+	baseURL := getJfrogBaseURL()
+
+	// Track access resources for cleanup. Populated after repo creation,
+	// but cleaned up AFTER repo deletion (LIFO: registered first, runs last).
+	var permissionNames []string
+	var username, groupName string
+
+	t.Cleanup(func() {
+		for _, perm := range permissionNames {
+			if err := deleteAccessPermission(baseURL, adminToken, perm); err != nil {
+				t.Logf("Warning: failed to delete permission %s: %v", perm, err)
+			}
+		}
+		if groupName != "" {
+			if err := deleteAccessGroup(baseURL, adminToken, groupName); err != nil {
+				t.Logf("Warning: failed to delete group %s: %v", groupName, err)
+			}
+		}
+		if username != "" {
+			if err := deleteAccessUser(baseURL, adminToken, username); err != nil {
+				t.Logf("Warning: failed to delete user %s: %v", username, err)
+			}
+		}
+	})
+
+	// Repos register their own t.Cleanup (LIFO: registered after access cleanup, so repos are deleted first).
+	// This prevents 500 errors: repo deletion cascade-updates permissions while they still exist,
+	// then the access cleanup above deletes the (now repo-free) permissions cleanly.
 	subjectRepo := utils.CreateTestRepositoryWithName(t, r.ServicesManager, "generic")
 	subjectArtifactPath := utils.CreateTestArtifact(t, "subject artifact for attachment permissions case")
 	subjectArtifactName := filepath.Base(subjectArtifactPath)
@@ -103,22 +132,14 @@ func (r *EvidenceE2ETestsRunner) runAttachmentCase(t *testing.T, tc attachmentCa
 	predicatePath := filepath.Join(tempDir, "predicate.json")
 	require.NoError(t, os.WriteFile(predicatePath, []byte(`{"type":"attachment-permissions-e2e"}`), 0644))
 
-	username := fmt.Sprintf("att-e2e-%d", time.Now().UnixNano())
+	username = fmt.Sprintf("att-e2e-%d", time.Now().UnixNano())
 	password := "EvidenceTest123!"
 	email := fmt.Sprintf("%s@jfrog.local", username)
-	adminToken := mustGetAdminToken(t)
-	baseURL := getJfrogBaseURL()
 
 	require.NoError(t, createAccessUser(baseURL, adminToken, username, password, email))
-	t.Cleanup(func() {
-		_ = deleteAccessUser(baseURL, adminToken, username)
-	})
 
-	groupName := fmt.Sprintf("att-e2e-group-%d", time.Now().UnixNano())
+	groupName = fmt.Sprintf("att-e2e-group-%d", time.Now().UnixNano())
 	require.NoError(t, createAccessGroup(baseURL, adminToken, groupName, username))
-	t.Cleanup(func() {
-		_ = deleteAccessGroup(baseURL, adminToken, groupName)
-	})
 
 	subjectPermissionName := fmt.Sprintf("perm-subject-%d", time.Now().UnixNano())
 	require.NoError(t, createAccessPermissionForGroup(
@@ -129,9 +150,7 @@ func (r *EvidenceE2ETestsRunner) runAttachmentCase(t *testing.T, tc attachmentCa
 		[]string{"READ", "ANNOTATE"},
 		[]string{subjectRepo},
 	))
-	t.Cleanup(func() {
-		_ = deleteAccessPermission(baseURL, adminToken, subjectPermissionName)
-	})
+	permissionNames = append(permissionNames, subjectPermissionName)
 
 	if tc.grantTempWrite {
 		tmpPermissionName := fmt.Sprintf("perm-tmp-%d", time.Now().UnixNano())
@@ -143,9 +162,7 @@ func (r *EvidenceE2ETestsRunner) runAttachmentCase(t *testing.T, tc attachmentCa
 			[]string{"READ", "WRITE", "DELETE"},
 			[]string{tmpRepo},
 		))
-		t.Cleanup(func() {
-			_ = deleteAccessPermission(baseURL, adminToken, tmpPermissionName)
-		})
+		permissionNames = append(permissionNames, tmpPermissionName)
 	}
 
 	if tc.grantArtifactoryAttachmentRead {
@@ -158,9 +175,7 @@ func (r *EvidenceE2ETestsRunner) runAttachmentCase(t *testing.T, tc attachmentCa
 			[]string{"READ"},
 			[]string{attachmentRepo},
 		))
-		t.Cleanup(func() {
-			_ = deleteAccessPermission(baseURL, adminToken, attachmentPermissionName)
-		})
+		permissionNames = append(permissionNames, attachmentPermissionName)
 	}
 
 	userToken, err := createGroupScopedUserToken(baseURL, adminToken, username, groupName)
@@ -176,10 +191,10 @@ func (r *EvidenceE2ETestsRunner) runAttachmentCase(t *testing.T, tc attachmentCa
 		"--key-alias", SharedKeyAlias,
 	}
 	if tc.useLocalAttachment {
-		createArgs = append(createArgs, "--attach-local", localAttachmentPath, "--attach-temp-target", tmpTarget)
+		createArgs = append(createArgs, "--attach-local", localAttachmentPath, "--attach-artifactory-temp-path", tmpTarget)
 	}
 	if tc.useArtifactoryAttachment {
-		createArgs = append(createArgs, "--attach-artifactory", attachmentRepoPath)
+		createArgs = append(createArgs, "--attach-artifactory-path", attachmentRepoPath)
 	}
 
 	output, runErr := runEvidenceCommandWithToken(userToken, createArgs...)

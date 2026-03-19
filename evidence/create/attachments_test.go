@@ -8,7 +8,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestParseAttachmentTempTarget(t *testing.T) {
+func TestParseAttachmentArtifactoryTempPath(t *testing.T) {
 	tests := []struct {
 		name         string
 		target       string
@@ -23,7 +23,7 @@ func TestParseAttachmentTempTarget(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			parsed, err := parseAttachmentTempTarget(tt.target, tt.localPath)
+			parsed, err := parseAttachmentArtifactoryTempPath(tt.target, tt.localPath)
 			if tt.expectErr {
 				require.Error(t, err)
 				return

@@ -20,20 +20,20 @@ type createEvidencePackage struct {
 }
 
 func NewCreateEvidencePackage(serverDetails *config.ServerDetails, predicateFilePath, predicateType, markdownFilePath, key, keyId, packageName,
-	packageVersion, packageRepoName, providerId, integration, attachLocalPath, attachTempTarget, attachArtifactoryPath string) evidence.Command {
+	packageVersion, packageRepoName, providerId, integration, attachLocalPath, attachArtifactoryTempPath, attachArtifactoryPath string) evidence.Command {
 	return &createEvidencePackage{
 		createEvidenceBase: createEvidenceBase{
-			serverDetails:         serverDetails,
-			predicateFilePath:     predicateFilePath,
-			predicateType:         predicateType,
-			markdownFilePath:      markdownFilePath,
-			providerId:            providerId,
-			key:                   key,
-			keyId:                 keyId,
-			integration:           integration,
-			attachLocalPath:       attachLocalPath,
-			attachTempTarget:      attachTempTarget,
-			attachArtifactoryPath: attachArtifactoryPath,
+			serverDetails:             serverDetails,
+			predicateFilePath:         predicateFilePath,
+			predicateType:             predicateType,
+			markdownFilePath:          markdownFilePath,
+			providerId:                providerId,
+			key:                       key,
+			keyId:                     keyId,
+			integration:               integration,
+			attachLocalPath:           attachLocalPath,
+			attachArtifactoryTempPath: attachArtifactoryTempPath,
+			attachArtifactoryPath:     attachArtifactoryPath,
 		},
 		packageService: evidence.NewPackageService(packageName, packageVersion, packageRepoName),
 	}

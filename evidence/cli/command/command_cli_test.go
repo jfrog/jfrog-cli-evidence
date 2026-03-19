@@ -5,6 +5,7 @@ import (
 	"github.com/jfrog/jfrog-cli-evidence/evidence/cli/command/flags"
 	"github.com/jfrog/jfrog-cli-evidence/evidence/cli/command/utils"
 	"github.com/jfrog/jfrog-cli-evidence/evidence/cli/test"
+	evdConfig "github.com/jfrog/jfrog-cli-evidence/evidence/config"
 	"os"
 	"testing"
 
@@ -844,15 +845,15 @@ func TestValidateCreateEvidenceCommonContext_Attachments(t *testing.T) {
 			test.SetDefaultValue(flags.PredicateType, "ptype"),
 			test.SetDefaultValue(flags.Key, "k"),
 			test.SetDefaultValue(flags.AttachLocal, "/tmp/a.txt"),
-			test.SetDefaultValue(flags.AttachArtifactory, "repo/other/a.txt"),
+			test.SetDefaultValue(flags.AttachArtifactoryPath, "repo/other/a.txt"),
 		)
 		assert.NoError(t, err)
 		assert.Error(t, validateCreateEvidenceCommonContext(c))
 	})
 
 	t.Run("temp target from env", func(t *testing.T) {
-		assert.NoError(t, os.Setenv("EVIDENCE_ATTACHMENT_TEMP_TARGET", "repo/tmp/"))
-		defer func() { _ = os.Unsetenv("EVIDENCE_ATTACHMENT_TEMP_TARGET") }()
+		assert.NoError(t, os.Setenv(evdConfig.EnvAttachmentArtifactoryTempPath, "repo/tmp/"))
+		defer func() { _ = os.Unsetenv(evdConfig.EnvAttachmentArtifactoryTempPath) }()
 		c, err := components.ConvertContext(ctx,
 			test.SetDefaultValue(flags.SubjectRepoPath, "repo/path/file"),
 			test.SetDefaultValue(flags.Predicate, "/tmp/p.json"),
@@ -862,7 +863,7 @@ func TestValidateCreateEvidenceCommonContext_Attachments(t *testing.T) {
 		)
 		assert.NoError(t, err)
 		assert.NoError(t, validateCreateEvidenceCommonContext(c))
-		assert.Equal(t, "repo/tmp/", c.GetStringFlagValue(flags.AttachTempTarget))
+		assert.Equal(t, "repo/tmp/", c.GetStringFlagValue(flags.AttachArtifactoryTempPath))
 	})
 
 	t.Run("temp target without local", func(t *testing.T) {
@@ -871,7 +872,7 @@ func TestValidateCreateEvidenceCommonContext_Attachments(t *testing.T) {
 			test.SetDefaultValue(flags.Predicate, "/tmp/p.json"),
 			test.SetDefaultValue(flags.PredicateType, "ptype"),
 			test.SetDefaultValue(flags.Key, "k"),
-			test.SetDefaultValue(flags.AttachTempTarget, "repo/tmp/"),
+			test.SetDefaultValue(flags.AttachArtifactoryTempPath, "repo/tmp/"),
 		)
 		assert.NoError(t, err)
 		assert.Error(t, validateCreateEvidenceCommonContext(c))

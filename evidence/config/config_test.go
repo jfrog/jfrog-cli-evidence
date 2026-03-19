@@ -69,30 +69,30 @@ func TestLoadEvidenceConfig_EnvOnly(t *testing.T) {
 	}
 }
 
-func TestResolveAttachmentTempTarget_EnvPrecedence(t *testing.T) {
+func TestResolveAttachmentArtifactoryTempPath_EnvPrecedence(t *testing.T) {
 	dir := t.TempDir()
 	jf := filepath.Join(dir, ".jfrog", "evidence")
 	if err := os.MkdirAll(jf, 0755); err != nil {
 		t.Fatal(err)
 	}
 	yml := filepath.Join(jf, "evidence.yml")
-	if err := os.WriteFile(yml, []byte("attachment:\n  tempTarget: cfg-repo/cfg-path/\n"), 0644); err != nil {
+	if err := os.WriteFile(yml, []byte("attachment:\n  artifactoryTempPath: cfg-repo/cfg-path/\n"), 0644); err != nil {
 		t.Fatal(err)
 	}
 	old, _ := os.Getwd()
 	_ = os.Chdir(dir)
 	defer func() { _ = os.Chdir(old) }()
 
-	_ = os.Setenv("EVIDENCE_ATTACHMENT_TEMP_TARGET", "env-repo/env-path/")
-	defer func() { _ = os.Unsetenv("EVIDENCE_ATTACHMENT_TEMP_TARGET") }()
+	_ = os.Setenv(EnvAttachmentArtifactoryTempPath, "env-repo/env-path/")
+	defer func() { _ = os.Unsetenv(EnvAttachmentArtifactoryTempPath) }()
 
-	target := ResolveAttachmentTempTarget()
+	target := ResolveAttachmentArtifactoryTempPath()
 	if target != "env-repo/env-path/" {
 		t.Fatalf("unexpected resolved target/source: %s", target)
 	}
 }
 
-func TestPersistAttachmentTempTarget(t *testing.T) {
+func TestPersistAttachmentArtifactoryTempPath(t *testing.T) {
 	dir := t.TempDir()
 	if err := os.MkdirAll(filepath.Join(dir, ".jfrog"), 0755); err != nil {
 		t.Fatal(err)
@@ -101,11 +101,11 @@ func TestPersistAttachmentTempTarget(t *testing.T) {
 	_ = os.Chdir(dir)
 	defer func() { _ = os.Chdir(old) }()
 
-	if err := PersistAttachmentTempTarget("repo/path/"); err != nil {
+	if err := PersistAttachmentArtifactoryTempPath("repo/path/"); err != nil {
 		t.Fatal(err)
 	}
 	cfg := LoadEvidenceConfig()
-	if cfg == nil || cfg.Attachment == nil || cfg.Attachment.TempTarget != "repo/path/" {
-		t.Fatalf("persisted temp target mismatch: %+v", cfg)
+	if cfg == nil || cfg.Attachment == nil || cfg.Attachment.ArtifactoryTempPath != "repo/path/" {
+		t.Fatalf("persisted artifactory temp path mismatch: %+v", cfg)
 	}
 }

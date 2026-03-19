@@ -17,17 +17,19 @@ const (
 	evidenceFileYml  = "evidence.yml"
 	evidenceFileYaml = "evidence.yaml"
 
-	keySonarReportTaskFile    = "sonar.reportTaskFile"
-	keySonarURL               = "sonar.url"
-	keyPollingMaxRetries      = "sonar.pollingMaxRetries"
-	keyPollingRetryIntervalMs = "sonar.pollingRetryIntervalMs"
-	keyAttachmentTempTarget   = "attachment.tempTarget"
+	keySonarReportTaskFile           = "sonar.reportTaskFile"
+	keySonarURL                      = "sonar.url"
+	keyPollingMaxRetries             = "sonar.pollingMaxRetries"
+	keyPollingRetryIntervalMs        = "sonar.pollingRetryIntervalMs"
+	keyAttachmentArtifactoryTempPath = "attachment.artifactoryTempPath"
 
 	envReportTaskFile         = "SONAR_REPORT_TASK_FILE"
 	envSonarURL               = "SONAR_URL"
 	envPollingMaxRetries      = "SONAR_POLLING_MAX_RETRIES"
 	envPollingRetryIntervalMs = "SONAR_POLLING_RETRY_INTERVAL_MS"
-	envAttachmentTempTarget   = "EVIDENCE_ATTACHMENT_TEMP_TARGET"
+
+	EnvAttachmentArtifactoryTempPath = "EVIDENCE_ATTACHMENT_ARTIFACTORY_TEMP_PATH"
+	KeyAttachmentArtifactoryTempPath = keyAttachmentArtifactoryTempPath
 )
 
 type SonarConfig struct {
@@ -43,7 +45,7 @@ type EvidenceConfig struct {
 }
 
 type AttachmentConfig struct {
-	TempTarget string `yaml:"tempTarget"`
+	ArtifactoryTempPath string `yaml:"artifactoryTempPath"`
 }
 
 func LoadEvidenceConfig() *EvidenceConfig {
@@ -82,7 +84,7 @@ func readConfigWithEnv(path string) *EvidenceConfig {
 	_ = v.BindEnv(keySonarURL, envSonarURL)
 	_ = v.BindEnv(keyPollingMaxRetries, envPollingMaxRetries)
 	_ = v.BindEnv(keyPollingRetryIntervalMs, envPollingRetryIntervalMs)
-	_ = v.BindEnv(keyAttachmentTempTarget, envAttachmentTempTarget)
+	_ = v.BindEnv(keyAttachmentArtifactoryTempPath, EnvAttachmentArtifactoryTempPath)
 	v.AutomaticEnv()
 
 	if path != "" {
@@ -102,18 +104,18 @@ func readConfigWithEnv(path string) *EvidenceConfig {
 	return cfg
 }
 
-func ResolveAttachmentTempTarget() string {
-	if envValue := os.Getenv(envAttachmentTempTarget); envValue != "" {
+func ResolveAttachmentArtifactoryTempPath() string {
+	if envValue := os.Getenv(EnvAttachmentArtifactoryTempPath); envValue != "" {
 		return envValue
 	}
 	cfg := LoadEvidenceConfig()
-	if cfg != nil && cfg.Attachment != nil && cfg.Attachment.TempTarget != "" {
-		return cfg.Attachment.TempTarget
+	if cfg != nil && cfg.Attachment != nil && cfg.Attachment.ArtifactoryTempPath != "" {
+		return cfg.Attachment.ArtifactoryTempPath
 	}
 	return ""
 }
 
-func PersistAttachmentTempTarget(tempTarget string) error {
+func PersistAttachmentArtifactoryTempPath(artifactoryTempPath string) error {
 	path, err := resolveWritableConfigPath()
 	if err != nil {
 		return err
@@ -125,7 +127,7 @@ func PersistAttachmentTempTarget(tempTarget string) error {
 	if cfg.Attachment == nil {
 		cfg.Attachment = &AttachmentConfig{}
 	}
-	cfg.Attachment.TempTarget = tempTarget
+	cfg.Attachment.ArtifactoryTempPath = artifactoryTempPath
 	content, err := yaml.Marshal(cfg)
 	if err != nil {
 		return errorutils.CheckError(err)

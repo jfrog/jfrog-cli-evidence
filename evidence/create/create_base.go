@@ -36,23 +36,23 @@ const sonarProviderId = "sonar"
 const maxImageSizePixels = 400
 
 type createEvidenceBase struct {
-	serverDetails         *config.ServerDetails
-	predicateFilePath     string
-	predicateType         string
-	markdownFilePath      string
-	key                   string
-	keyId                 string
-	providerId            string
-	stage                 string
-	flagType              FlagType
-	integration           string
-	sigstoreBundlePath    string
-	attachLocalPath       string
-	attachTempTarget      string
-	attachArtifactoryPath string
-	artifactoryClient     artifactory.ArtifactoryServicesManager
-	uploader              evidenceUploader
-	stmtResolver          sonar.StatementResolver
+	serverDetails             *config.ServerDetails
+	predicateFilePath         string
+	predicateType             string
+	markdownFilePath          string
+	key                       string
+	keyId                     string
+	providerId                string
+	stage                     string
+	flagType                  FlagType
+	integration               string
+	sigstoreBundlePath        string
+	attachLocalPath           string
+	attachArtifactoryTempPath string
+	attachArtifactoryPath     string
+	artifactoryClient         artifactory.ArtifactoryServicesManager
+	uploader                  evidenceUploader
+	stmtResolver              sonar.StatementResolver
 }
 
 const EvdDefaultUser = "JFrog CLI"

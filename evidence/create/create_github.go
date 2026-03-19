@@ -55,20 +55,20 @@ type createGitHubEvidence struct {
 	buildNumber string
 }
 
-func NewCreateGithub(serverDetails *config.ServerDetails, predicateFilePath, predicateType, markdownFilePath, key, keyId, project, buildName, buildNumber, typeFlag, attachLocalPath, attachTempTarget, attachArtifactoryPath string) evidence.Command {
+func NewCreateGithub(serverDetails *config.ServerDetails, predicateFilePath, predicateType, markdownFilePath, key, keyId, project, buildName, buildNumber, typeFlag, attachLocalPath, attachArtifactoryTempPath, attachArtifactoryPath string) evidence.Command {
 	flagType := getFlagType(typeFlag)
 	return &createGitHubEvidence{
 		createEvidenceBase: createEvidenceBase{
-			serverDetails:         serverDetails,
-			predicateFilePath:     predicateFilePath,
-			predicateType:         predicateType,
-			markdownFilePath:      markdownFilePath,
-			key:                   key,
-			keyId:                 keyId,
-			flagType:              flagType,
-			attachLocalPath:       attachLocalPath,
-			attachTempTarget:      attachTempTarget,
-			attachArtifactoryPath: attachArtifactoryPath,
+			serverDetails:             serverDetails,
+			predicateFilePath:         predicateFilePath,
+			predicateType:             predicateType,
+			markdownFilePath:          markdownFilePath,
+			key:                       key,
+			keyId:                     keyId,
+			flagType:                  flagType,
+			attachLocalPath:           attachLocalPath,
+			attachArtifactoryTempPath: attachArtifactoryTempPath,
+			attachArtifactoryPath:     attachArtifactoryPath,
 		},
 		project:     project,
 		buildName:   buildName,
@@ -277,7 +277,7 @@ func (c *createGitHubEvidence) getGitCommitEntries(serverDetails *config.ServerD
 		return nil, err
 	}
 
-	re := regexp.MustCompile(`'(\{.*?\})'`)
+	re := regexp.MustCompile(`'(\{.*?})'`)
 	matches := re.FindAllStringSubmatch(fullLog, -1)
 
 	var entries []model.GitLogEntry
