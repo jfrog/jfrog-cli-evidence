@@ -10,7 +10,7 @@ require (
 	github.com/jfrog/gofrog v1.7.6
 	github.com/jfrog/jfrog-cli-artifactory v0.8.0
 	github.com/jfrog/jfrog-cli-core/v2 v2.60.1-0.20251015045218-1a38c9e47097
-	github.com/jfrog/jfrog-client-go v1.55.1-0.20251202154341-6ef0c0e3e9ce
+	github.com/jfrog/jfrog-client-go v1.55.1-0.20260319105834-2953fed40f60
 	github.com/pkg/errors v0.9.1
 	github.com/secure-systems-lab/go-securesystemslib v0.10.0
 	github.com/sigstore/protobuf-specs v0.5.0
@@ -20,6 +20,7 @@ require (
 	github.com/urfave/cli v1.22.17
 	go.uber.org/mock v0.6.0
 	golang.org/x/crypto v0.47.0
+	gopkg.in/yaml.v3 v3.0.1
 )
 
 require (
@@ -56,7 +57,7 @@ require (
 	github.com/gfleury/go-bitbucket-v1 v0.0.0-20240917142304-df385efaac68 // indirect
 	github.com/go-git/gcfg v1.5.1-0.20230307220236-3a3c6141e376 // indirect
 	github.com/go-git/go-billy/v5 v5.7.0 // indirect
-	github.com/go-git/go-git/v5 v5.16.4 // indirect
+	github.com/go-git/go-git/v5 v5.16.5 // indirect
 	github.com/go-logr/logr v1.4.3 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect
 	github.com/go-openapi/analysis v0.24.2 // indirect
@@ -170,7 +171,6 @@ require (
 	google.golang.org/grpc v1.78.0 // indirect
 	google.golang.org/protobuf v1.36.11 // indirect
 	gopkg.in/warnings.v0 v0.1.2 // indirect
-	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
 
 // replace github.com/jfrog/build-info-go => github.com/jfrog/build-info-go v1.8.9-0.20250529104758-6d769a684388
@@ -178,8 +178,6 @@ require (
 // replace github.com/jfrog/jfrog-cli-artifactory => github.com/jfrog/jfrog-cli-artifactory v0.3.2-0.20250527103322-0361d8f5612d
 
 replace github.com/jfrog/jfrog-cli-core/v2 => github.com/jfrog/jfrog-cli-core/v2 v2.60.1-0.20251008065356-96379eb1add0
-
-// replace github.com/jfrog/jfrog-client-go => github.com/jfrog/jfrog-client-go v1.28.1-0.20250508130334-f159cff9b11a
 
 // Pin go-bitbucket-v1 to version compatible with froggit-go@v1.20.6
 replace github.com/gfleury/go-bitbucket-v1 => github.com/gfleury/go-bitbucket-v1 v0.0.0-20230825095122-9bc1711434ab

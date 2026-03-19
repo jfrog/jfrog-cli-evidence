@@ -69,7 +69,7 @@ func TestGetFlagType(t *testing.T) {
 
 func TestNewCreateGithub(t *testing.T) {
 	serverDetails := &config.ServerDetails{User: "test-user"}
-	cmd := NewCreateGithub(serverDetails, "predicate.json", "test-type", "markdown.md", "key", "keyId", "project", "build", "1", "gh-commiter")
+	cmd := NewCreateGithub(serverDetails, "predicate.json", "test-type", "markdown.md", "key", "keyId", "project", "build", "1", "gh-commiter", "", "", "")
 
 	ghEvidence, ok := cmd.(*createGitHubEvidence)
 	assert.True(t, ok)

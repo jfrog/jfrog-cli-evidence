@@ -53,7 +53,7 @@ func TestBuildInfo(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			c, ok := NewCreateEvidenceBuild(nil, "", "", "", "", "", tt.project, tt.buildName, tt.buildNumber, "", "").(*createEvidenceBuild)
+			c, ok := NewCreateEvidenceBuild(nil, "", "", "", "", "", tt.project, tt.buildName, tt.buildNumber, "", "", "", "", "").(*createEvidenceBuild)
 			assert.True(t, ok, "should create createEvidenceBuild instance")
 			aa := createMockArtifactoryManagerForBuildTests()
 			timestamp, err := getBuildLatestTimestamp(tt.buildName, tt.buildNumber, tt.project, aa)
@@ -241,6 +241,9 @@ func TestCreateEvidenceBuild_RecordSummary(t *testing.T) {
 		"123",
 		"",
 		"",
+		"",
+		"",
+		"",
 	)
 	c, ok := evidence.(*createEvidenceBuild)
 	assert.True(t, ok, "should create createEvidenceBuild instance")
@@ -323,6 +326,9 @@ func TestCreateEvidenceBuild_ProviderId(t *testing.T) {
 				"1",
 				tt.providerId,
 				"",
+				"",
+				"",
+				"",
 			)
 
 			createCmd, ok := cmd.(*createEvidenceBuild)
@@ -343,7 +349,7 @@ type buildTestCaptureUploader struct {
 func (c *buildTestCaptureUploader) UploadEvidence(details evdservices.EvidenceDetails) ([]byte, error) {
 	c.capturedSubjectUri = details.SubjectUri
 	c.capturedBody = details.DSSEFileRaw
-	
+
 	// Return a mock successful response
 	resp := model.CreateResponse{
 		PredicateSlug: "test-slug",
@@ -413,7 +419,7 @@ func TestCreateEvidenceBuild_URLEncodingWithSpaces(t *testing.T) {
 
 			// Create mock artifactory manager
 			art := createMockArtifactoryManagerForBuildTests()
-			
+
 			// Create capture uploader to verify the subject URI
 			uploader := &buildTestCaptureUploader{}
 
@@ -445,15 +451,15 @@ func TestCreateEvidenceBuild_URLEncodingWithSpaces(t *testing.T) {
 			if tc.project == "default" {
 				expectedRepoKey = "artifactory-build-info"
 			}
-			
+
 			// The subject URI should contain the build name and be properly formatted
-			assert.Contains(t, uploader.capturedSubjectUri, expectedRepoKey, 
+			assert.Contains(t, uploader.capturedSubjectUri, expectedRepoKey,
 				"Subject URI should contain the correct repo key")
-			assert.Contains(t, uploader.capturedSubjectUri, tc.buildName, 
+			assert.Contains(t, uploader.capturedSubjectUri, tc.buildName,
 				"Subject URI should contain the build name")
-			assert.Contains(t, uploader.capturedSubjectUri, tc.buildNumber, 
+			assert.Contains(t, uploader.capturedSubjectUri, tc.buildNumber,
 				"Subject URI should contain the build number")
-			assert.Contains(t, uploader.capturedSubjectUri, ".json", 
+			assert.Contains(t, uploader.capturedSubjectUri, ".json",
 				"Subject URI should end with .json")
 
 			// Log the captured URI for debugging
@@ -467,9 +473,9 @@ func TestCreateEvidenceBuild_URLEncodingWithSpaces(t *testing.T) {
 				// Note: We can't easily test the actual HTTP request URL here since that's
 				// handled by the jfrog-client-go library, but we can verify that the
 				// subject URI passed to the uploader is correct
-				assert.NotContains(t, uploader.capturedSubjectUri, "%2520", 
+				assert.NotContains(t, uploader.capturedSubjectUri, "%2520",
 					"Subject URI should not contain double-encoded spaces")
-				
+
 				// The subject URI may contain the raw build name with spaces
 				// The actual URL encoding happens in the jfrog-client-go library
 				t.Logf("✓ Subject URI correctly contains build name without double encoding")
@@ -481,11 +487,11 @@ func TestCreateEvidenceBuild_URLEncodingWithSpaces(t *testing.T) {
 func TestBuildBuildInfoPath_SpecialCharacters(t *testing.T) {
 	// Test the buildBuildInfoPath function directly with various build names
 	testCases := []struct {
-		name        string
-		repoKey     string
-		buildName   string
-		buildNumber string
-		timestamp   string
+		name         string
+		repoKey      string
+		buildName    string
+		buildNumber  string
+		timestamp    string
 		expectedPath string
 	}{
 		{
@@ -518,7 +524,7 @@ func TestBuildBuildInfoPath_SpecialCharacters(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			result := buildBuildInfoPath(tc.repoKey, tc.buildName, tc.buildNumber, tc.timestamp)
 			assert.Equal(t, tc.expectedPath, result)
-			
+
 			// Verify the path components
 			assert.Contains(t, result, tc.repoKey)
 			assert.Contains(t, result, tc.buildName)
