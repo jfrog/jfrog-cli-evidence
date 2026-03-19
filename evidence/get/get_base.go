@@ -33,15 +33,23 @@ type JsonlLine struct {
 }
 
 type EvidenceEntry struct {
-	PredicateSlug string         `json:"predicateSlug"`
-	PredicateType string         `json:"predicateType,omitempty"`
-	DownloadPath  string         `json:"downloadPath"`
-	Verified      bool           `json:"verified"`
-	SigningKey    map[string]any `json:"signingKey,omitempty"`
-	Subject       map[string]any `json:"subject"`
-	CreatedBy     string         `json:"createdBy"`
-	CreatedAt     string         `json:"createdAt"`
-	Predicate     map[string]any `json:"predicate,omitempty"`
+	PredicateSlug string               `json:"predicateSlug"`
+	PredicateType string               `json:"predicateType,omitempty"`
+	DownloadPath  string               `json:"downloadPath"`
+	Verified      bool                 `json:"verified"`
+	SigningKey    map[string]any       `json:"signingKey,omitempty"`
+	Subject       map[string]any       `json:"subject"`
+	CreatedBy     string               `json:"createdBy"`
+	CreatedAt     string               `json:"createdAt"`
+	Predicate     map[string]any       `json:"predicate,omitempty"`
+	Attachments   []EvidenceAttachment `json:"attachments,omitempty"`
+}
+
+type EvidenceAttachment struct {
+	Name         string `json:"name"`
+	Sha256       string `json:"sha256"`
+	Type         string `json:"type,omitempty"`
+	DownloadPath string `json:"downloadPath"`
 }
 
 type CustomEvidenceResult struct {
@@ -276,5 +284,47 @@ func createOrderedEvidenceEntry(node map[string]any, includePredicate bool) Evid
 		}
 	}
 
+	if attachments, ok := extractEvidenceAttachments(node); ok {
+		entry.Attachments = attachments
+	}
+
 	return entry
+}
+
+func extractEvidenceAttachments(node map[string]any) ([]EvidenceAttachment, bool) {
+	attachmentsRaw, exists := node["attachments"]
+	if !exists || attachmentsRaw == nil {
+		return nil, false
+	}
+
+	items, ok := attachmentsRaw.([]any)
+	if !ok || len(items) == 0 {
+		return nil, false
+	}
+
+	attachments := make([]EvidenceAttachment, 0, len(items))
+	for _, item := range items {
+		attMap, ok := item.(map[string]any)
+		if !ok {
+			continue
+		}
+
+		name, _ := attMap["name"].(string)
+		sha256, _ := attMap["sha256"].(string)
+		downloadPath, _ := attMap["downloadPath"].(string)
+
+		mimeType, _ := attMap["type"].(string)
+
+		attachments = append(attachments, EvidenceAttachment{
+			Name:         name,
+			Sha256:       sha256,
+			Type:         mimeType,
+			DownloadPath: downloadPath,
+		})
+	}
+
+	if len(attachments) == 0 {
+		return nil, false
+	}
+	return attachments, true
 }

@@ -7,15 +7,15 @@ import (
 	"github.com/jfrog/jfrog-cli-core/v2/artifactory/utils"
 	"github.com/jfrog/jfrog-cli-core/v2/utils/config"
 	"github.com/jfrog/jfrog-cli-evidence/evidence"
+	evidenceutils "github.com/jfrog/jfrog-cli-evidence/evidence/utils"
 	"github.com/jfrog/jfrog-client-go/onemodel"
 	"github.com/jfrog/jfrog-client-go/utils/log"
 )
 
-// A graphql query to get evidence for a release bundle including evidence on artifacts and builds inside the release bundle.
-// Artifacts in release bundle will be given from the first artifact YXJ0aWZhY3Q6MA== which is base64 of artifact:0
-const getReleaseBundleEvidenceWithoutPredicateGraphqlQuery = "{\"query\":\"{ releaseBundleVersion { getVersion(repositoryKey: \\\"%s\\\", name: \\\"%s\\\", version: \\\"%s\\\") { evidenceConnection { edges { node { predicateSlug predicateType downloadPath verified signingKey { alias } createdBy createdAt subject { sha256 } } } } artifactsConnection(first: %s, after: \\\"YXJ0aWZhY3Q6MA==\\\", where: { hasEvidence: true }) { totalCount edges { node { sourceRepositoryPath packageType evidenceConnection(first: 0) { totalCount edges { node { createdBy createdAt downloadPath predicateSlug verified signingKey { alias } subject { sha256 } } } } } } } fromBuilds { name number startedAt evidenceConnection { edges { node { predicateSlug predicateType downloadPath verified signingKey { alias } createdBy createdAt subject { sha256 } } } } } } } }\"}"
-
-const getReleaseBundleEvidenceWithPredicateGraphqlQuery = "{\"query\":\"{ releaseBundleVersion { getVersion(repositoryKey: \\\"%s\\\", name: \\\"%s\\\", version: \\\"%s\\\") { evidenceConnection { edges { node { predicateSlug predicateType downloadPath verified signingKey { alias } createdBy createdAt subject { sha256 } predicate } } } artifactsConnection(first: %s, after: \\\"YXJ0aWZhY3Q6MA==\\\", where: { hasEvidence: true }) { totalCount edges { node { sourceRepositoryPath packageType evidenceConnection(first: 0) { totalCount edges { node { createdBy createdAt downloadPath predicateSlug verified signingKey { alias } subject { sha256 } predicate } } } } } } fromBuilds { name number startedAt evidenceConnection { edges { node { predicateSlug predicateType downloadPath verified signingKey { alias } createdBy createdAt subject { sha256 } predicate } } } } } } }\"}"
+// GraphQL query template for release bundle evidence including artifacts and builds.
+// YXJ0aWZhY3Q6MA== is base64 for artifact:0 (pagination start cursor).
+// {{NODE_FIELDS}} is replaced at runtime by the NodeFieldsBuilder.
+const getReleaseBundleQueryTemplate = `{"query":"{ releaseBundleVersion { getVersion(repositoryKey: \"%s\", name: \"%s\", version: \"%s\") { evidenceConnection { edges { node { ` + evidenceutils.NodeFieldsPlaceholder + ` } } } artifactsConnection(first: %s, after: \"YXJ0aWZhY3Q6MA==\", where: { hasEvidence: true }) { totalCount edges { node { sourceRepositoryPath packageType evidenceConnection(first: 0) { totalCount edges { node { ` + evidenceutils.NodeFieldsPlaceholder + ` } } } } } } fromBuilds { name number startedAt evidenceConnection { edges { node { ` + evidenceutils.NodeFieldsPlaceholder + ` } } } } } } }"}`
 
 const defaultArtifactsLimit = "1000" // Default limit for the number of artifacts to show in the evidence response.
 type getEvidenceReleaseBundle struct {
@@ -77,10 +77,19 @@ func (g *getEvidenceReleaseBundle) Run() error {
 }
 
 func (g *getEvidenceReleaseBundle) getEvidence(onemodelClient onemodel.Manager) ([]byte, error) {
-	query := g.buildGraphqlQuery(g.releaseBundle, g.releaseBundleVersion)
+	query := g.buildGraphqlQuery(g.releaseBundle, g.releaseBundleVersion, true)
 	evidence, err := onemodelClient.GraphqlQuery(query)
 	if err != nil {
-		return nil, err
+		if evidenceutils.IsAttachmentsFieldNotFound(err) {
+			log.Debug("GraphQL schema does not support attachments field. Falling back to query without attachments.")
+			queryWithoutAttachments := g.buildGraphqlQuery(g.releaseBundle, g.releaseBundleVersion, false)
+			evidence, err = onemodelClient.GraphqlQuery(queryWithoutAttachments)
+			if err != nil {
+				return nil, err
+			}
+		} else {
+			return nil, err
+		}
 	}
 
 	if len(evidence) == 0 {
@@ -104,16 +113,23 @@ func (g *getEvidenceReleaseBundle) getRepoKey(project string) string {
 	return fmt.Sprintf("%s-%s", project, defaultReleaseBundleRepoKey)
 }
 
-func (g *getEvidenceReleaseBundle) getGraphqlQuery(includePredicate bool) string {
-	if includePredicate {
-		return getReleaseBundleEvidenceWithPredicateGraphqlQuery
-	}
-	return getReleaseBundleEvidenceWithoutPredicateGraphqlQuery
-}
-
-func (g *getEvidenceReleaseBundle) buildGraphqlQuery(releaseBundle, releaseBundleVersion string) []byte {
+func (g *getEvidenceReleaseBundle) buildGraphqlQuery(releaseBundle, releaseBundleVersion string, includeAttachments bool) []byte {
+	nodeFields := evidenceutils.NewNodeFieldsBuilder(
+		evidenceutils.FieldPredicateSlug,
+		evidenceutils.FieldPredicateType,
+		evidenceutils.FieldDownloadPath,
+		evidenceutils.FieldVerified,
+		evidenceutils.FieldSigningKeyAlias,
+		evidenceutils.FieldCreatedBy,
+		evidenceutils.FieldCreatedAt,
+		evidenceutils.FieldSubjectSha256,
+	).
+		WithIf(includeAttachments, evidenceutils.AttachmentsFragment).
+		WithIf(g.includePredicate, evidenceutils.FieldPredicate).
+		Build()
+	queryTemplate := evidenceutils.BuildQuery(getReleaseBundleQueryTemplate, nodeFields)
 	numberOfArtifactsToShow := g.getArtifactLimit(g.artifactsLimit)
-	graphqlQuery := fmt.Sprintf(g.getGraphqlQuery(g.includePredicate), g.getRepoKey(g.project), releaseBundle, releaseBundleVersion, numberOfArtifactsToShow)
+	graphqlQuery := fmt.Sprintf(queryTemplate, g.getRepoKey(g.project), releaseBundle, releaseBundleVersion, numberOfArtifactsToShow)
 	log.Debug("GraphQL query: ", graphqlQuery)
 	return []byte(graphqlQuery)
 }
