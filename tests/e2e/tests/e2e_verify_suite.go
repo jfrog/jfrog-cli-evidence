@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -41,6 +42,9 @@ func (r *EvidenceE2ETestsRunner) RunVerifyEvidenceSuite(t *testing.T) {
 	})
 	t.Run("WithJsonFormat", func(t *testing.T) {
 		r.RunVerifyEvidenceWithJsonFormat(t)
+	})
+	t.Run("WithAttachmentAndSubjectOnlyPermissions", func(t *testing.T) {
+		r.RunVerifyEvidenceWithAttachmentAndSubjectOnlyPermissions(t)
 	})
 }
 
@@ -670,4 +674,91 @@ func (r *EvidenceE2ETestsRunner) RunVerifyEvidenceWithJsonFormat(t *testing.T) {
 	t.Log("✅ User successfully verified evidence with JSON format output!")
 
 	t.Log("=== ✅ Verify Evidence with JSON Format Test Completed Successfully! ===")
+}
+
+// RunVerifyEvidenceWithAttachmentAndSubjectOnlyPermissions ensures verify works when user can read only the subject repo.
+func (r *EvidenceE2ETestsRunner) RunVerifyEvidenceWithAttachmentAndSubjectOnlyPermissions(t *testing.T) {
+	t.Log("=== Verify Evidence - Attachment with Subject-only permissions ===")
+	require.NotEmpty(t, SharedPrivateKeyPath, "shared key pair not initialized")
+	require.NotEmpty(t, SharedPublicKeyPath, "shared key pair not initialized")
+
+	ensureAttachmentSupportedArtifactoryVersion(t)
+	ensureAttachmentSupportedEvidenceVersion(t)
+
+	baseURL := getJfrogBaseURL()
+	adminToken := mustGetAdminToken(t)
+
+	var permissionName, userName, groupName string
+
+	t.Cleanup(func() {
+		if permissionName != "" {
+			if err := deleteAccessPermission(baseURL, adminToken, permissionName); err != nil {
+				t.Logf("Warning: failed to delete permission %s: %v", permissionName, err)
+			}
+		}
+		if groupName != "" {
+			if err := deleteAccessGroup(baseURL, adminToken, groupName); err != nil {
+				t.Logf("Warning: failed to delete group %s: %v", groupName, err)
+			}
+		}
+		if userName != "" {
+			if err := deleteAccessUser(baseURL, adminToken, userName); err != nil {
+				t.Logf("Warning: failed to delete user %s: %v", userName, err)
+			}
+		}
+	})
+
+	subjectRepo := utils.CreateTestRepositoryWithName(t, r.ServicesManager, "generic")
+	attachmentRepo := utils.CreateTestRepositoryWithName(t, r.ServicesManager, "generic")
+
+	subjectArtifactPath := utils.CreateTestArtifact(t, "subject artifact for verify attachment permissions")
+	subjectName := filepath.Base(subjectArtifactPath)
+	subjectRepoPath := fmt.Sprintf("%s/%s", subjectRepo, subjectName)
+	require.NoError(t, utils.UploadArtifact(r.ServicesManager, subjectArtifactPath, subjectRepoPath))
+
+	attachmentPath := utils.CreateTestArtifact(t, "attachment for verify")
+	attachmentRepoPath := fmt.Sprintf("%s/attachments/report.txt", attachmentRepo)
+	require.NoError(t, utils.UploadArtifact(r.ServicesManager, attachmentPath, attachmentRepoPath))
+
+	tempDir := t.TempDir()
+	predicatePath := filepath.Join(tempDir, "predicate.json")
+	require.NoError(t, os.WriteFile(predicatePath, []byte(`{"type":"verify-attachments-subject-only"}`), 0644))
+
+	createOutput := r.EvidenceAdminCLI.RunCliCmdWithOutput(t,
+		"create",
+		"--predicate", predicatePath,
+		"--predicate-type", "https://slsa.dev/provenance/v1",
+		"--subject-repo-path", subjectRepoPath,
+		"--attach-artifactory-path", attachmentRepoPath,
+		"--key", SharedPrivateKeyPath,
+		"--key-alias", SharedKeyAlias,
+	)
+	require.NotContains(t, createOutput, "Error", "evidence create with attachment should succeed")
+
+	userName = fmt.Sprintf("verify-att-user-%d", time.Now().UnixNano())
+	groupName = fmt.Sprintf("verify-att-group-%d", time.Now().UnixNano())
+	require.NoError(t, createAccessUser(baseURL, adminToken, userName, "Password!234", fmt.Sprintf("%s@test.local", userName)))
+
+	require.NoError(t, createAccessGroup(baseURL, adminToken, groupName, userName))
+
+	permissionName = fmt.Sprintf("perm-verify-subject-only-%d", time.Now().UnixNano())
+	require.NoError(t, createAccessPermissionForGroup(baseURL, adminToken, permissionName, groupName, []string{"READ"}, []string{subjectRepo}))
+
+	token, err := createGroupScopedUserToken(baseURL, adminToken, userName, groupName)
+	require.NoError(t, err)
+	require.NotEmpty(t, token)
+
+	verifyOutput, verifyErr := runEvidenceCommandWithToken(token,
+		"verify",
+		"--subject-repo-path", subjectRepoPath,
+		"--public-keys", SharedPublicKeyPath,
+		"--format", "json",
+	)
+	require.NoError(t, verifyErr, "verify should succeed with subject-only read permissions")
+	require.NotContains(t, strings.ToLower(verifyOutput), "permission", "verify output should not include permission errors")
+
+	var jsonData map[string]any
+	require.NoError(t, json.Unmarshal([]byte(verifyOutput), &jsonData), "verify output should be valid JSON")
+	require.Equal(t, "success", jsonData["overallVerificationStatus"])
+	t.Log("=== ✅ Verify Evidence with Attachment and Subject-only permissions completed ===")
 }

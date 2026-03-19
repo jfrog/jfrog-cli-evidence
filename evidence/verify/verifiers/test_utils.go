@@ -12,6 +12,7 @@ import (
 	"github.com/jfrog/jfrog-cli-evidence/evidence/dsse"
 	"github.com/jfrog/jfrog-cli-evidence/evidence/model"
 	"github.com/jfrog/jfrog-client-go/artifactory"
+	artUtils "github.com/jfrog/jfrog-client-go/artifactory/services/utils"
 	"github.com/sigstore/sigstore-go/pkg/root"
 	"github.com/stretchr/testify/mock"
 )
@@ -94,6 +95,9 @@ type MockArtifactoryServicesManagerVerifier struct {
 	ReadRemoteFileResponse io.ReadCloser
 	ReadRemoteFileError    error
 	ReadRemoteFileFunc     func() io.ReadCloser // Function to create new readers for each call
+	FileInfoResponse       *artUtils.FileInfo
+	FileInfoError          error
+	FileInfoFunc           func(path string) (*artUtils.FileInfo, error)
 }
 
 func (m *MockArtifactoryServicesManagerVerifier) ReadRemoteFile(_ string) (io.ReadCloser, error) {
@@ -104,6 +108,16 @@ func (m *MockArtifactoryServicesManagerVerifier) ReadRemoteFile(_ string) (io.Re
 		return m.ReadRemoteFileFunc(), nil
 	}
 	return m.ReadRemoteFileResponse, nil
+}
+
+func (m *MockArtifactoryServicesManagerVerifier) FileInfo(path string) (*artUtils.FileInfo, error) {
+	if m.FileInfoError != nil {
+		return nil, m.FileInfoError
+	}
+	if m.FileInfoFunc != nil {
+		return m.FileInfoFunc(path)
+	}
+	return m.FileInfoResponse, nil
 }
 
 type MockDSSEVerifier struct {
@@ -164,6 +178,15 @@ func (m *MockTUFRootCertificateProvider) LoadTUFRootGithubCertificate() (root.Tr
 		return trustedMaterial, args.Error(1)
 	}
 	return nil, args.Error(1)
+}
+
+type MockAttachmentVerifier struct {
+	mock.Mock
+}
+
+func (m *MockAttachmentVerifier) verify(evidence *model.SearchEvidenceEdge, result *model.EvidenceVerification) error {
+	args := m.Called(evidence, result)
+	return args.Error(0)
 }
 
 // Helper to create mock artifactory client

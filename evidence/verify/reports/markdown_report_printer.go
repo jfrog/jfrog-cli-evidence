@@ -64,5 +64,23 @@ func (p *markdownReportPrinter) Print(result *model.VerificationResponse) error 
 	}
 	fmt.Println()
 
+	for _, verification := range *result.EvidenceVerifications {
+		if !hasFailedAttachment(verification.AttachmentsVerification) {
+			continue
+		}
+		fmt.Println("### Attachment verification failures")
+		fmt.Printf("- Evidence: `%s`\n", verification.DownloadPath)
+		for _, attachment := range verification.AttachmentsVerification {
+			if attachment.VerificationStatus == model.Failed {
+				if attachment.FailureReason != "" {
+					fmt.Printf("  - `%s` - failed (%s)\n", attachment.Name, attachment.FailureReason)
+				} else {
+					fmt.Printf("  - `%s` - failed\n", attachment.Name)
+				}
+			}
+		}
+		fmt.Println()
+	}
+
 	return nil
 }

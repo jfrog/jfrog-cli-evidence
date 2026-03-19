@@ -7,6 +7,7 @@ import (
 	"github.com/jfrog/jfrog-cli-evidence/evidence/cryptox"
 	"github.com/jfrog/jfrog-cli-evidence/evidence/dsse"
 	"github.com/jfrog/jfrog-cli-evidence/evidence/model"
+	"github.com/jfrog/jfrog-client-go/artifactory"
 	clientLog "github.com/jfrog/jfrog-client-go/utils/log"
 )
 
@@ -21,12 +22,14 @@ type dsseVerifier struct {
 	keys               []string
 	useArtifactoryKeys bool
 	localKeys          []dsse.Verifier
+	attachmentVerifier attachmentVerifierInterface
 }
 
-func newDsseVerifier(keys []string, useArtifactoryKeys bool) dsseVerifierInterface {
+func newDsseVerifier(keys []string, useArtifactoryKeys bool, client *artifactory.ArtifactoryServicesManager) dsseVerifierInterface {
 	return &dsseVerifier{
 		keys:               keys,
 		useArtifactoryKeys: useArtifactoryKeys,
+		attachmentVerifier: newAttachmentVerifier(*client),
 	}
 }
 
@@ -38,24 +41,23 @@ func (v *dsseVerifier) verify(evidence *model.SearchEvidenceEdge, result *model.
 	if err != nil && v.keys != nil && len(v.keys) > 0 {
 		return err
 	}
+	signatureVerified := false
 	if len(localVerifiers) > 0 && verifyEnvelope(localVerifiers, result.DsseEnvelope, result) {
 		result.VerificationResult.KeySource = localKeySource
-		return nil
+		signatureVerified = true
 	}
 
-	// If verification is restricted to local keys, return the result early.
-	if !v.useArtifactoryKeys {
-		return nil
+	if !signatureVerified && v.useArtifactoryKeys {
+		artifactoryVerifiers, err := getArtifactoryVerifiers(evidence)
+		if err != nil {
+			return err
+		}
+		if verifyEnvelope(artifactoryVerifiers, result.DsseEnvelope, result) {
+			result.VerificationResult.KeySource = artifactoryKeySource
+		}
 	}
-	artifactoryVerifiers, err := getArtifactoryVerifiers(evidence)
-	if err != nil {
-		return err
-	}
-	if verifyEnvelope(artifactoryVerifiers, result.DsseEnvelope, result) {
-		result.VerificationResult.KeySource = artifactoryKeySource
-		return nil
-	}
-	return nil
+
+	return v.attachmentVerifier.verify(evidence, result)
 }
 
 func (v *dsseVerifier) getLocalVerifiers() ([]dsse.Verifier, error) {
