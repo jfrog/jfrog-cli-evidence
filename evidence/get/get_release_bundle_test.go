@@ -15,7 +15,7 @@ import (
 type mockOnemodelManagerSuccess struct{}
 
 func (m *mockOnemodelManagerSuccess) GraphqlQuery(_ []byte) ([]byte, error) {
-	response := `{"data":{"releaseBundleVersion":{"getVersion":{"createdBy":"user","createdAt":"2021-01-01T00:00:00Z","evidenceConnection":{"edges":[{"cursor":"1","node":{"path":"path/to/evidence","name":"evidenceName","predicateSlug":"slug"}}]},"artifactsConnection":{"totalCount":1,"edges":[{"cursor":"artifact1","node":{"path":"path/to/artifact","name":"artifactName","packageType":"npm","sourceRepositoryPath":"npm-local","evidenceConnection":{"totalCount":1}}}]}}}}}`
+	response := `{"data":{"releaseBundleVersion":{"getVersion":{"createdBy":"user","createdAt":"2021-01-01T00:00:00Z","evidenceConnection":{"edges":[{"cursor":"1","node":{"predicateSlug":"slug","downloadPath":"rb/evd/path","verified":true,"subject":{"sha256":"rb-sha"},"createdBy":"rb-user","createdAt":"2021-01-01T00:00:00Z"}}]},"artifactsConnection":{"totalCount":1,"edges":[{"cursor":"artifact1","node":{"packageType":"npm","sourceRepositoryPath":"npm-local","evidenceConnection":{"totalCount":1,"edges":[{"cursor":"art-evd-1","node":{"predicateSlug":"art-slug","downloadPath":"art/evd/path","verified":true,"subject":{"sha256":"art-sha"},"createdBy":"art-user","createdAt":"2021-02-01T00:00:00Z"}}]}}}]}}}}}`
 	return []byte(response), nil
 }
 
@@ -24,6 +24,19 @@ type mockOnemodelManagerError struct{}
 
 func (m *mockOnemodelManagerError) GraphqlQuery(_ []byte) ([]byte, error) {
 	return nil, fmt.Errorf("HTTP %d: Not Found", http.StatusNotFound)
+}
+
+type mockOnemodelManagerReleaseBundleFallback struct {
+	calls int
+}
+
+func (m *mockOnemodelManagerReleaseBundleFallback) GraphqlQuery(_ []byte) ([]byte, error) {
+	m.calls++
+	if m.calls == 1 {
+		return nil, fmt.Errorf(`{"errors":[{"message":"Cannot query field \"attachments\" on type \"Evidence\"."}]}`)
+	}
+	response := `{"data":{"releaseBundleVersion":{"getVersion":{"evidenceConnection":{"edges":[{"cursor":"1","node":{"predicateSlug":"slug","downloadPath":"test/path","verified":true,"subject":{"sha256":"abc"},"createdBy":"user","createdAt":"now"}}]},"artifactsConnection":{"edges":[]}}}}}`
+	return []byte(response), nil
 }
 
 func TestNewGetEvidenceReleaseBundle(t *testing.T) {
@@ -45,10 +58,9 @@ func TestNewGetEvidenceReleaseBundle(t *testing.T) {
 
 func TestGetEvidence(t *testing.T) {
 	tests := []struct {
-		name             string
-		onemodelClient   onemodel.Manager
-		expectedError    bool
-		expectedEvidence string
+		name           string
+		onemodelClient onemodel.Manager
+		expectedError  bool
 	}{
 		{
 			name:           "Successful evidence retrieval",
@@ -83,7 +95,30 @@ func TestGetEvidence(t *testing.T) {
 				assert.Empty(t, evidence)
 			} else {
 				assert.NoError(t, err)
-				assert.NotEmpty(t, evidence)
+
+				var output ReleaseBundleOutput
+				assert.NoError(t, json.Unmarshal(evidence, &output))
+				assert.Equal(t, SchemaVersion, output.SchemaVersion)
+				assert.Equal(t, ReleaseBundleType, output.Type)
+				assert.Equal(t, "myBundle", output.Result.ReleaseBundle)
+				assert.Equal(t, SchemaVersion, output.Result.ReleaseBundleVersion)
+
+				if assert.Len(t, output.Result.Evidence, 1) {
+					entry := output.Result.Evidence[0]
+					assert.Equal(t, "slug", entry.PredicateSlug)
+					assert.Equal(t, "rb/evd/path", entry.DownloadPath)
+					assert.Equal(t, true, entry.Verified)
+					assert.Equal(t, "rb-user", entry.CreatedBy)
+				}
+
+				if assert.Len(t, output.Result.Artifacts, 1) {
+					art := output.Result.Artifacts[0]
+					assert.Equal(t, "npm-local", art.RepoPath)
+					assert.Equal(t, "npm", art.PackageType)
+					assert.Equal(t, "art-slug", art.Evidence.PredicateSlug)
+					assert.Equal(t, "art/evd/path", art.Evidence.DownloadPath)
+					assert.Equal(t, "art-user", art.Evidence.CreatedBy)
+				}
 			}
 		})
 	}
@@ -134,7 +169,7 @@ func TestCreateReleaseBundleGetEvidenceQuery(t *testing.T) {
 				artifactsLimit:       tt.artifactsLimit,
 			}
 
-			result := g.buildGraphqlQuery(tt.releaseBundle, tt.releaseBundleVersion)
+			result := g.buildGraphqlQuery(tt.releaseBundle, tt.releaseBundleVersion, true)
 			assert.Contains(t, string(result), tt.expectedSubstring)
 		})
 	}
@@ -269,4 +304,34 @@ func TestTransformReleaseBundleGraphQLOutputInvalidStructure(t *testing.T) {
 	_, err = g.transformReleaseBundleGraphQLOutput([]byte(input))
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "missing releaseBundleVersion field")
+}
+
+func TestGetEvidence_FallbackToLegacyQueryWhenAttachmentsUnsupported(t *testing.T) {
+	manager := &mockOnemodelManagerReleaseBundleFallback{}
+	g := &getEvidenceReleaseBundle{
+		releaseBundle:        "myBundle",
+		releaseBundleVersion: SchemaVersion,
+		project:              "myProject",
+		getEvidenceBase: getEvidenceBase{
+			includePredicate: false,
+		},
+	}
+
+	evidence, err := g.getEvidence(manager)
+	assert.NoError(t, err)
+	assert.Equal(t, 2, manager.calls, "should have made 2 GraphQL calls (initial + fallback)")
+
+	var output ReleaseBundleOutput
+	assert.NoError(t, json.Unmarshal(evidence, &output))
+	assert.Equal(t, SchemaVersion, output.SchemaVersion)
+	assert.Equal(t, ReleaseBundleType, output.Type)
+	assert.Equal(t, "myBundle", output.Result.ReleaseBundle)
+
+	if assert.Len(t, output.Result.Evidence, 1) {
+		entry := output.Result.Evidence[0]
+		assert.Equal(t, "slug", entry.PredicateSlug)
+		assert.Equal(t, "test/path", entry.DownloadPath)
+		assert.Equal(t, true, entry.Verified)
+		assert.Equal(t, "user", entry.CreatedBy)
+	}
 }

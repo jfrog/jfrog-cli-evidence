@@ -34,11 +34,21 @@ func (m *MockOneModelManagerBase) GraphqlQuery(_ []byte) ([]byte, error) {
 type MockOneModelManagerWithQueryCapture struct {
 	GraphqlResponse []byte
 	GraphqlError    error
+	GraphqlErrors   []error
 	CapturedQuery   []byte
+	CapturedQueries [][]byte
+	callIndex       int
 }
 
 func (m *MockOneModelManagerWithQueryCapture) GraphqlQuery(query []byte) ([]byte, error) {
 	m.CapturedQuery = query
+	m.CapturedQueries = append(m.CapturedQueries, query)
+	if m.callIndex < len(m.GraphqlErrors) && m.GraphqlErrors[m.callIndex] != nil {
+		err := m.GraphqlErrors[m.callIndex]
+		m.callIndex++
+		return nil, err
+	}
+	m.callIndex++
 	if m.GraphqlError != nil {
 		return nil, m.GraphqlError
 	}
@@ -164,8 +174,17 @@ func TestVerifyEvidenceBase_QueryEvidenceMetadata_SuccessWithPublicKey(t *testin
 	}
 	edges, err := v.queryEvidenceMetadata("test-repo", "test/path", "test-file.txt")
 	assert.NoError(t, err)
-	assert.NotNil(t, edges)
-	assert.Equal(t, 1, len(*edges))
+
+	if assert.NotNil(t, edges) && assert.Len(t, *edges, 1) {
+		node := (*edges)[0].Node
+		assert.Equal(t, "p", node.DownloadPath)
+		assert.Equal(t, "t", node.PredicateType)
+		assert.Equal(t, "cat", node.PredicateCategory)
+		assert.Equal(t, "now", node.CreatedAt)
+		assert.Equal(t, "me", node.CreatedBy)
+		assert.Equal(t, "abc", node.Subject.Sha256)
+		assert.Equal(t, "a", node.SigningKey.Alias)
+	}
 }
 
 func TestVerifyEvidenceBase_QueryEvidenceMetadata_SuccessWithoutPublicKey(t *testing.T) {
@@ -179,8 +198,13 @@ func TestVerifyEvidenceBase_QueryEvidenceMetadata_SuccessWithoutPublicKey(t *tes
 	}
 	edges, err := v.queryEvidenceMetadata("test-repo", "test/path", "test-file.txt")
 	assert.NoError(t, err)
-	assert.NotNil(t, edges)
-	assert.Equal(t, 1, len(*edges))
+
+	if assert.NotNil(t, edges) && assert.Len(t, *edges, 1) {
+		edge := (*edges)[0]
+		assert.Equal(t, "p", edge.Node.DownloadPath)
+		assert.Equal(t, "t", edge.Node.PredicateType)
+		assert.Equal(t, "abc", edge.Node.Subject.Sha256)
+	}
 }
 
 func TestVerifyEvidenceBase_QueryEvidenceMetadata_GraphqlError(t *testing.T) {
@@ -230,21 +254,46 @@ func TestVerifyEvidenceBase_QueryEvidenceMetadata_CreateOneModelClient(t *testin
 }
 
 func TestVerifyEvidenceBase_SearchEvidenceQueryExactMatch(t *testing.T) {
-	// Test the exact query string to protect against accidental modifications
-	// This test ensures the GraphQL query structure remains unchanged
-	expectedQuery := `{"query":"{ evidence { searchEvidence( where: { hasSubjectWith: { repositoryKey: \"%s\", path: \"%s\", name: \"%s\" }} ) { edges { cursor node { downloadPath predicateType createdAt createdBy subject { sha256 } signingKey {alias, publicKey} } } } } }"}`
+	v := &verifyEvidenceBase{useArtifactoryKeys: true}
+	builtQuery := v.buildSearchEvidenceQuery(true)
+	expectedQuery := `{"query":"{ evidence { searchEvidence( where: { hasSubjectWith: { repositoryKey: \"%s\", path: \"%s\", name: \"%s\" }} ) { edges { cursor node { downloadPath predicateType createdAt createdBy subject { sha256 } attachments { name sha256 type downloadPath } signingKey {alias, publicKey} } } } } }"}`
 
-	assert.Equal(t, expectedQuery, searchEvidenceQueryWithPublicKey,
-		"searchEvidenceQueryWithPublicKey has been modified. If this change is intentional, please update this test. "+
-			"This test protects against accidental modifications to the GraphQL query structure.")
+	assert.Equal(t, expectedQuery, builtQuery,
+		"Built query with publicKey+attachments has been modified. "+
+			"If this change is intentional, please update this test.")
 
-	// Verify the query can be formatted with test parameters
-	formattedQuery := fmt.Sprintf(searchEvidenceQueryWithPublicKey, "test-repo", "test/path", "test-file.txt")
+	formattedQuery := fmt.Sprintf(builtQuery, "test-repo", "test/path", "test-file.txt")
 	assert.Contains(t, formattedQuery, "test-repo")
 	assert.Contains(t, formattedQuery, "test/path")
 	assert.Contains(t, formattedQuery, "test-file.txt")
 
-	// Verify the formatted query is valid JSON structure
+	var jsonCheck any
+	err := json.Unmarshal([]byte(formattedQuery), &jsonCheck)
+	assert.NoError(t, err, "Formatted query should be valid JSON")
+}
+
+func TestVerifyEvidenceBase_SearchEvidenceQueryWithoutAttachments(t *testing.T) {
+	v := &verifyEvidenceBase{useArtifactoryKeys: true}
+	builtQuery := v.buildSearchEvidenceQuery(false)
+
+	assert.NotContains(t, builtQuery, "attachments")
+	assert.Contains(t, builtQuery, "signingKey {alias, publicKey}")
+
+	formattedQuery := fmt.Sprintf(builtQuery, "test-repo", "test/path", "test-file.txt")
+	var jsonCheck any
+	err := json.Unmarshal([]byte(formattedQuery), &jsonCheck)
+	assert.NoError(t, err, "Formatted query should be valid JSON")
+}
+
+func TestVerifyEvidenceBase_SearchEvidenceQueryWithoutPublicKey(t *testing.T) {
+	v := &verifyEvidenceBase{useArtifactoryKeys: false}
+	builtQuery := v.buildSearchEvidenceQuery(true)
+
+	assert.Contains(t, builtQuery, "attachments")
+	assert.NotContains(t, builtQuery, "publicKey")
+	assert.NotContains(t, builtQuery, "signingKey")
+
+	formattedQuery := fmt.Sprintf(builtQuery, "test-repo", "test/path", "test-file.txt")
 	var jsonCheck any
 	err := json.Unmarshal([]byte(formattedQuery), &jsonCheck)
 	assert.NoError(t, err, "Formatted query should be valid JSON")
@@ -403,6 +452,57 @@ func TestVerifyEvidenceBase_QueryEvidenceMetadata_GraphqlValidationError_PublicK
 	assert.Contains(t, err.Error(), "the onemodel version should be at least 1.55.0")
 }
 
+func TestVerifyEvidenceBase_QueryEvidenceMetadata_FallbackToQueryWithoutAttachmentsWhenUnsupported(t *testing.T) {
+	mockManager := &MockOneModelManagerWithQueryCapture{
+		GraphqlErrors: []error{
+			fmt.Errorf(`{"errors":[{"message":"Cannot query field \"attachments\" on type \"EvidenceMetadata\"."}]}`),
+			nil,
+		},
+		GraphqlResponse: []byte(`{"data":{"evidence":{"searchEvidence":{"edges":[{"cursor":"c","node":{"downloadPath":"p","predicateType":"t","createdAt":"now","createdBy":"me","subject":{"sha256":"abc"},"signingKey":{"alias":"a","publicKey":"pk"}}}]}}}}`),
+	}
+	v := &verifyEvidenceBase{
+		oneModelClient:     mockManager,
+		useArtifactoryKeys: true,
+	}
+
+	edges, err := v.queryEvidenceMetadata("test-repo", "test/path", "test-file.txt")
+	assert.NoError(t, err)
+
+	if assert.NotNil(t, edges) && assert.Len(t, *edges, 1) {
+		edge := (*edges)[0]
+		assert.Equal(t, "p", edge.Node.DownloadPath)
+		assert.Equal(t, "t", edge.Node.PredicateType)
+		assert.Equal(t, "me", edge.Node.CreatedBy)
+		assert.Equal(t, "abc", edge.Node.Subject.Sha256)
+		assert.Equal(t, "a", edge.Node.SigningKey.Alias)
+	}
+
+	assert.Len(t, mockManager.CapturedQueries, 2)
+	assert.Contains(t, string(mockManager.CapturedQueries[0]), "attachments")
+	assert.NotContains(t, string(mockManager.CapturedQueries[1]), "attachments")
+}
+
+func TestVerifyEvidenceBase_QueryEvidenceMetadata_FallbackWithoutAttachments_PublicKeyError(t *testing.T) {
+	mockManager := &MockOneModelManagerWithQueryCapture{
+		GraphqlErrors: []error{
+			fmt.Errorf(`{"errors":[{"message":"Cannot query field \"attachments\" on type \"EvidenceMetadata\"."}]}`),
+			fmt.Errorf(`{"errors":[{"message":"Cannot query field \"publicKey\" on type \"EvidenceSigningKey\"."}]}`),
+		},
+	}
+	v := &verifyEvidenceBase{
+		oneModelClient:     mockManager,
+		useArtifactoryKeys: true,
+	}
+
+	_, err := v.queryEvidenceMetadata("test-repo", "test/path", "test-file.txt")
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "the evidence service version should be at least 7.125.0")
+	assert.Contains(t, err.Error(), "the onemodel version should be at least 1.55.0")
+	assert.Len(t, mockManager.CapturedQueries, 2)
+	assert.Contains(t, string(mockManager.CapturedQueries[0]), "attachments")
+	assert.NotContains(t, string(mockManager.CapturedQueries[1]), "attachments")
+}
+
 func TestIsVerificationSucceed(t *testing.T) {
 	tests := []struct {
 		name           string
@@ -482,7 +582,7 @@ func TestIsVerificationSucceed(t *testing.T) {
 			description:    "Sigstore bundle verification should fail when SigstoreBundleVerificationStatus is failed",
 		},
 		{
-			name: "SigstoreBundle_SuccessWithOthersFailed",
+			name: "SigstoreBundle_SuccessWithSignaturesFailed",
 			verification: model.EvidenceVerification{
 				MediaType: model.SigstoreBundle,
 				VerificationResult: model.EvidenceVerificationResult{
@@ -492,7 +592,7 @@ func TestIsVerificationSucceed(t *testing.T) {
 				},
 			},
 			expectedResult: true,
-			description:    "Verification should succeed with Sigstore bundle success even if DSSE fields are failed",
+			description:    "Verification should succeed with Sigstore bundle success even if Signatures verification failed",
 		},
 		{
 			name: "DSSE_SuccessWithSigstoreFailed",
@@ -506,6 +606,19 @@ func TestIsVerificationSucceed(t *testing.T) {
 			},
 			expectedResult: true,
 			description:    "Verification should succeed with DSSE success even if Sigstore bundle field is failed",
+		},
+		{
+			name: "DSSE_AttachmentsFailed",
+			verification: model.EvidenceVerification{
+				MediaType: model.SimpleDSSE,
+				VerificationResult: model.EvidenceVerificationResult{
+					Sha256VerificationStatus:      model.Success,
+					SignaturesVerificationStatus:  model.Success,
+					AttachmentsVerificationStatus: model.Failed,
+				},
+			},
+			expectedResult: false,
+			description:    "Verification should fail when attachments verification fails",
 		},
 		{
 			name: "AllFieldsEmpty",

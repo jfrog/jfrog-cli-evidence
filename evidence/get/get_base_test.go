@@ -178,3 +178,31 @@ func TestExportEvidenceToConsole(t *testing.T) {
 	err = exportEvidenceToJsonlFile(inputJSON, "")
 	assert.NoError(t, err)
 }
+
+func TestCreateOrderedEvidenceEntry_Attachments(t *testing.T) {
+	entry := createOrderedEvidenceEntry(map[string]any{
+		"predicateSlug": "slug",
+		"attachments": []any{
+			map[string]any{
+				"name":         "a.txt",
+				"sha256":       "abc",
+				"type":         "text/plain",
+				"downloadPath": "repo/.evidence/a.txt",
+			},
+		},
+	}, false)
+
+	if assert.Len(t, entry.Attachments, 1) {
+		assert.Equal(t, "a.txt", entry.Attachments[0].Name)
+		assert.Equal(t, "abc", entry.Attachments[0].Sha256)
+		assert.Equal(t, "text/plain", entry.Attachments[0].Type)
+	}
+}
+
+func TestCreateOrderedEvidenceEntry_NoAttachmentsFieldWhenEmpty(t *testing.T) {
+	entry := createOrderedEvidenceEntry(map[string]any{
+		"predicateSlug": "slug",
+		"attachments":   []any{},
+	}, false)
+	assert.Nil(t, entry.Attachments)
+}
