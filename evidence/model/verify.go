@@ -57,8 +57,8 @@ type AttachmentVerification struct {
 type VerificationStatus string
 
 const (
-	Success = "success"
-	Failed  = "failed"
+	Success VerificationStatus = "success"
+	Failed  VerificationStatus = "failed"
 )
 
 type MediaType string

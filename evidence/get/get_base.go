@@ -9,7 +9,7 @@ import (
 	"github.com/jfrog/jfrog-client-go/utils/log"
 )
 
-const SchemaVersion = "1.0"
+const SchemaVersion = "1.1"
 
 type SubjectType string // Types in GetEvidence output
 

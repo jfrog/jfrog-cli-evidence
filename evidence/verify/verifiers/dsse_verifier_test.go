@@ -107,7 +107,7 @@ func TestDsseVerifier_VerifyWithLocalKeys_Success(t *testing.T) {
 
 	err := verifier.verify(evidence, result)
 	assert.NoError(t, err)
-	assert.Equal(t, model.VerificationStatus(model.Success), result.VerificationResult.SignaturesVerificationStatus)
+	assert.Equal(t, model.Success, result.VerificationResult.SignaturesVerificationStatus)
 	assert.Equal(t, localKeySource, result.VerificationResult.KeySource)
 
 	mockVerifier.AssertExpectations(t)
@@ -147,7 +147,7 @@ func TestDsseVerifier_VerifyWithLocalKeys_Failed(t *testing.T) {
 
 	err := verifier.verify(evidence, result)
 	assert.NoError(t, err)
-	assert.Equal(t, model.VerificationStatus(model.Failed), result.VerificationResult.SignaturesVerificationStatus)
+	assert.Equal(t, model.Failed, result.VerificationResult.SignaturesVerificationStatus)
 }
 
 func TestDsseVerifier_VerifyWithMultipleLocalKeys(t *testing.T) {
@@ -200,7 +200,7 @@ func TestDsseVerifier_VerifyWithMultipleLocalKeys(t *testing.T) {
 
 	err := verifier.verify(evidence, result)
 	assert.NoError(t, err)
-	assert.Equal(t, model.VerificationStatus(model.Success), result.VerificationResult.SignaturesVerificationStatus)
+	assert.Equal(t, model.Success, result.VerificationResult.SignaturesVerificationStatus)
 	assert.Equal(t, localKeySource, result.VerificationResult.KeySource)
 }
 
@@ -229,7 +229,7 @@ func TestDsseVerifier_VerifyWithLocalKeys(t *testing.T) {
 
 	err := verifier.verify(evidence, result)
 	assert.NoError(t, err)
-	assert.Equal(t, model.VerificationStatus(model.Success), result.VerificationResult.SignaturesVerificationStatus)
+	assert.Equal(t, model.Success, result.VerificationResult.SignaturesVerificationStatus)
 	assert.Equal(t, localKeySource, result.VerificationResult.KeySource)
 }
 
@@ -256,7 +256,7 @@ func TestDsseVerifier_VerifyNoKeysAvailable(t *testing.T) {
 
 	err := verifier.verify(evidence, result)
 	assert.NoError(t, err)
-	assert.Equal(t, model.VerificationStatus(model.Failed), result.VerificationResult.SignaturesVerificationStatus)
+	assert.Equal(t, model.Failed, result.VerificationResult.SignaturesVerificationStatus)
 }
 
 func TestDsseVerifier_GetLocalVerifiers(t *testing.T) {
@@ -313,7 +313,7 @@ func TestVerifyEnvelope_Success(t *testing.T) {
 
 	success := verifyEnvelope([]dsse.Verifier{mockVerifier}, &envelope, result)
 	assert.True(t, success)
-	assert.Equal(t, model.VerificationStatus(model.Success), result.VerificationResult.SignaturesVerificationStatus)
+	assert.Equal(t, model.Success, result.VerificationResult.SignaturesVerificationStatus)
 }
 
 func TestVerifyEnvelope_Failed(t *testing.T) {
@@ -330,7 +330,7 @@ func TestVerifyEnvelope_Failed(t *testing.T) {
 
 	success := verifyEnvelope([]dsse.Verifier{mockVerifier}, &envelope, result)
 	assert.False(t, success)
-	assert.Equal(t, model.VerificationStatus(model.Failed), result.VerificationResult.SignaturesVerificationStatus)
+	assert.Equal(t, model.Failed, result.VerificationResult.SignaturesVerificationStatus)
 }
 
 func TestVerifyEnvelope_NilInputs(t *testing.T) {
@@ -340,7 +340,7 @@ func TestVerifyEnvelope_NilInputs(t *testing.T) {
 
 	success := verifyEnvelope(nil, nil, result)
 	assert.False(t, success)
-	assert.Equal(t, model.VerificationStatus(model.Failed), result.VerificationResult.SignaturesVerificationStatus)
+	assert.Equal(t, model.Failed, result.VerificationResult.SignaturesVerificationStatus)
 }
 
 func TestVerifyEnvelope_NilResult(t *testing.T) {

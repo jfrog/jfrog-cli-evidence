@@ -44,6 +44,11 @@ func (v *attachmentVerifier) verify(evidence *model.SearchEvidenceEdge, result *
 		return nil
 	}
 	if evidence.Node.AttachmentsUnavailable {
+		if result.VerificationResult.SignaturesVerificationStatus == model.Failed {
+			result.VerificationResult.AttachmentsVerificationStatus = model.Failed
+			result.VerificationResult.FailureReason = attachmentMetadataUnavailableReason
+			return nil
+		}
 		return errors.New(attachmentMetadataUnavailableReason)
 	}
 
@@ -130,7 +135,7 @@ func isAttachmentNotFoundError(err error) bool {
 		return false
 	}
 	errString := err.Error()
-	return strings.Contains(errString, "404") || strings.Contains(errString, "Not Found")
+	return strings.Contains(errString, "404 Not Found")
 }
 
 func handleAttachmentFileInfoErrors(downloadPath string, fileInfo *artUtils.FileInfo, fileInfoErr error) error {

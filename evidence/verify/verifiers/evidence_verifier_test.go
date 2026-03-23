@@ -96,7 +96,7 @@ func TestVerify_MultipleEvidence(t *testing.T) {
 
 		// Verify that checksum verification was performed and status is set
 		assert.Equal(t, testSha256, verification.SubjectChecksum)
-		assert.Equal(t, model.VerificationStatus(model.Success), verification.VerificationResult.Sha256VerificationStatus)
+		assert.Equal(t, model.Success, verification.VerificationResult.Sha256VerificationStatus)
 	}
 }
 
@@ -174,14 +174,14 @@ func TestVerify_OverallStatus(t *testing.T) {
 func TestVerifyChecksum_Success(t *testing.T) {
 	sha256 := createTestSHA256()
 	result := verifyChecksum(sha256, sha256)
-	assert.Equal(t, model.VerificationStatus(model.Success), result)
+	assert.Equal(t, model.Success, result)
 }
 
 func TestVerifyChecksum_Failed(t *testing.T) {
 	sha256a := createTestSHA256()
 	sha256b := "1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef"
 	result := verifyChecksum(sha256a, sha256b)
-	assert.Equal(t, model.VerificationStatus(model.Failed), result)
+	assert.Equal(t, model.Failed, result)
 }
 
 func TestVerify_ChecksumVerificationFailure(t *testing.T) {
@@ -221,10 +221,10 @@ func TestVerify_ChecksumVerificationFailure(t *testing.T) {
 
 	// Verify that checksum verification was performed and failed
 	assert.Equal(t, differentSha256, verification.SubjectChecksum)
-	assert.Equal(t, model.VerificationStatus(model.Failed), verification.VerificationResult.Sha256VerificationStatus)
+	assert.Equal(t, model.Failed, verification.VerificationResult.Sha256VerificationStatus)
 
 	// Overall status should be failed due to checksum mismatch
-	assert.Equal(t, model.VerificationStatus(model.Failed), result.OverallVerificationStatus)
+	assert.Equal(t, model.Failed, result.OverallVerificationStatus)
 }
 
 func TestVerify_ChecksumVerificationAlwaysCalled(t *testing.T) {
@@ -346,8 +346,8 @@ func TestVerify_AttachmentsVerificationSuccess(t *testing.T) {
 
 	result, err := verifier.Verify(createTestSHA256(), evidence, "/path/to/file")
 	assert.NoError(t, err)
-	assert.Equal(t, model.VerificationStatus(model.Success), result.OverallVerificationStatus)
-	assert.Equal(t, model.VerificationStatus(model.Success), (*result.EvidenceVerifications)[0].VerificationResult.AttachmentsVerificationStatus)
+	assert.Equal(t, model.Success, result.OverallVerificationStatus)
+	assert.Equal(t, model.Success, (*result.EvidenceVerifications)[0].VerificationResult.AttachmentsVerificationStatus)
 	assert.Len(t, (*result.EvidenceVerifications)[0].AttachmentsVerification, 1)
 }
 
@@ -371,9 +371,9 @@ func TestVerify_AttachmentsVerificationFailsWhenMetadataMissing(t *testing.T) {
 
 	result, err := verifier.Verify(createTestSHA256(), evidence, "/path/to/file")
 	assert.NoError(t, err)
-	assert.Equal(t, model.VerificationStatus(model.Failed), result.OverallVerificationStatus)
+	assert.Equal(t, model.Failed, result.OverallVerificationStatus)
 	verification := (*result.EvidenceVerifications)[0]
-	assert.Equal(t, model.VerificationStatus(model.Failed), verification.VerificationResult.AttachmentsVerificationStatus)
+	assert.Equal(t, model.Failed, verification.VerificationResult.AttachmentsVerificationStatus)
 	assert.Equal(t, "attachment failed verification", verification.VerificationResult.FailureReason)
 	assert.Equal(t, "attachment metadata not found in GraphQL response", verification.AttachmentsVerification[0].FailureReason)
 }
@@ -437,9 +437,9 @@ func TestVerify_AttachmentsVerificationFailsWhenChecksumMismatch(t *testing.T) {
 
 	result, err := verifier.Verify(createTestSHA256(), evidence, "/path/to/file")
 	assert.NoError(t, err)
-	assert.Equal(t, model.VerificationStatus(model.Failed), result.OverallVerificationStatus)
+	assert.Equal(t, model.Failed, result.OverallVerificationStatus)
 	verification := (*result.EvidenceVerifications)[0]
-	assert.Equal(t, model.VerificationStatus(model.Failed), verification.VerificationResult.AttachmentsVerificationStatus)
+	assert.Equal(t, model.Failed, verification.VerificationResult.AttachmentsVerificationStatus)
 	assert.Contains(t, verification.AttachmentsVerification[0].FailureReason, "checksum mismatch")
 }
 
