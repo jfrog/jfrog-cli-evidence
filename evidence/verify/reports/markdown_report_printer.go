@@ -38,7 +38,7 @@ func (p *markdownReportPrinter) Print(result *model.VerificationResponse) error 
 	fmt.Println("| Predicate type | Media type | Key source | Key fingerprint | Verification status | Failure reason |")
 	fmt.Println("|-|-|-|-|-|-|")
 	for _, verification := range *result.EvidenceVerifications {
-		var verificationStatus model.VerificationStatus = model.Failed
+		verificationStatus := model.Failed
 		if IsVerificationSucceed(verification) {
 			verificationStatus = model.Success
 		}
