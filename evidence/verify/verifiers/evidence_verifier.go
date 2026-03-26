@@ -15,7 +15,6 @@ type EvidenceVerifierInterface interface {
 type evidenceVerifier struct {
 	keys               []string
 	useArtifactoryKeys bool
-	artifactoryClient  artifactory.ArtifactoryServicesManager
 	parser             evidenceParserInterface
 	dsseVerifier       dsseVerifierInterface
 	sigstoreVerifier   sigstoreVerifierInterface
@@ -25,10 +24,9 @@ type evidenceVerifier struct {
 func NewEvidenceVerifier(keys []string, useArtifactoryKeys bool, client *artifactory.ArtifactoryServicesManager, progressMgr ioUtils.ProgressMgr) EvidenceVerifierInterface {
 	return &evidenceVerifier{
 		keys:               keys,
-		artifactoryClient:  *client,
 		useArtifactoryKeys: useArtifactoryKeys,
 		parser:             newEvidenceParser(client, progressMgr),
-		dsseVerifier:       newDsseVerifier(keys, useArtifactoryKeys),
+		dsseVerifier:       newDsseVerifier(keys, useArtifactoryKeys, client),
 		sigstoreVerifier:   newSigstoreVerifier(),
 		progressMgr:        progressMgr,
 	}
@@ -103,7 +101,8 @@ func (v *evidenceVerifier) performVerification(evidence *model.SearchEvidenceEdg
 func shouldFailOverall(verification *model.EvidenceVerification) bool {
 	return verification.VerificationResult.SignaturesVerificationStatus == model.Failed ||
 		verification.VerificationResult.Sha256VerificationStatus == model.Failed ||
-		verification.VerificationResult.SigstoreBundleVerificationStatus == model.Failed
+		verification.VerificationResult.SigstoreBundleVerificationStatus == model.Failed ||
+		verification.VerificationResult.AttachmentsVerificationStatus == model.Failed
 }
 
 func verifyChecksum(subjectSha256, evidenceChecksum string) model.VerificationStatus {
