@@ -375,7 +375,7 @@ func TestVerify_AttachmentsVerificationFailsWhenMetadataMissing(t *testing.T) {
 	verification := (*result.EvidenceVerifications)[0]
 	assert.Equal(t, model.Failed, verification.VerificationResult.AttachmentsVerificationStatus)
 	assert.Equal(t, "attachment failed verification", verification.VerificationResult.FailureReason)
-	assert.Equal(t, "attachment metadata not found in GraphQL response", verification.AttachmentsVerification[0].FailureReason)
+	assert.Equal(t, attachmentMetadataNotFoundReason, verification.AttachmentsVerification[0].FailureReason)
 }
 
 func TestVerify_AttachmentsVerificationReturnsErrorWhenMetadataUnavailableViaFallback(t *testing.T) {

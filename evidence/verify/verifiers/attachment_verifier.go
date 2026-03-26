@@ -14,7 +14,9 @@ import (
 )
 
 const (
-	attachmentMetadataNotFoundReason    = "attachment metadata not found in GraphQL response"
+	attachmentMetadataNotFoundReason    = "attachment not found in Evidence"
+	attachmentArtifactNotFoundReason    = "attachment not found in Artifactory"
+	checksumMismatchReason              = "checksum mismatch"
 	attachmentMetadataUnavailableReason = "unable to get attachment metadata from GraphQL (query without attachments)"
 	attachmentVerificationFailedReason  = "attachment failed verification"
 )
@@ -76,7 +78,7 @@ func (v *attachmentVerifier) verify(evidence *model.SearchEvidenceEdge, result *
 		fileInfo, fileInfoErr := v.artifactoryClient.FileInfo(actualAttachment.DownloadPath)
 		if fileInfoErr != nil && isAttachmentNotFoundError(fileInfoErr) {
 			verification.VerificationStatus = model.Failed
-			verification.FailureReason = "file not found"
+			verification.FailureReason = attachmentArtifactNotFoundReason
 			verifications = append(verifications, verification)
 			hasFailures = true
 			continue
@@ -89,7 +91,7 @@ func (v *attachmentVerifier) verify(evidence *model.SearchEvidenceEdge, result *
 		verification.ActualSha256 = fileInfo.Checksums.Sha256
 		if verification.ActualSha256 != expected.Sha256 {
 			verification.VerificationStatus = model.Failed
-			verification.FailureReason = "checksum mismatch"
+			verification.FailureReason = checksumMismatchReason
 			hasFailures = true
 		}
 		verifications = append(verifications, verification)
