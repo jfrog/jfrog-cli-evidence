@@ -267,7 +267,7 @@ func TestCreateEnvelope_Intoto_AndUploadDetails(t *testing.T) {
 		providerId:        "prov",
 	}
 
-	env, err := c.createEnvelope("repo/path/name", "")
+	env, err := c.createEnvelope("repo/path/name", "", nil)
 	assert.NoError(t, err)
 
 	var envObj dsse.Envelope
@@ -283,7 +283,7 @@ func TestCreateEnvelope_Intoto_AndUploadDetails(t *testing.T) {
 	assert.Equal(t, "![image](data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTAiIGhlaWdodD0iMTAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PHJlY3Qgd2lkdGg9IjEwIiBoZWlnaHQ9IjEwIiBmaWxsPSJyZWQiLz48L3N2Zz4=)", st.Markdown)
 	assert.Equal(t, "alice", st.CreatedBy)
 
-	resp, err := c.uploadEvidence(env, "repo/path/name")
+	resp, err := c.uploadEvidence(env, "repo/path/name", nil)
 	assert.NoError(t, err)
 	assert.True(t, resp.Verified)
 	assert.Equal(t, "repo/path/name", upl.last.SubjectUri)
@@ -307,7 +307,7 @@ func TestCreateEnvelope_Sonar_ProviderAndSubjectStage(t *testing.T) {
 		stmtResolver:      &fakeStmtResolver{out: stmt},
 	}
 
-	env, err := c.createEnvelope("any/repo/path", "")
+	env, err := c.createEnvelope("any/repo/path", "", nil)
 	assert.NoError(t, err)
 	assert.Equal(t, "sonar", c.providerId)
 
@@ -437,7 +437,7 @@ func (i *invalidJSONUploader) UploadEvidence(d evdservices.EvidenceDetails) ([]b
 
 func TestBuildIntotoStatementJson_PredicateReadError(t *testing.T) {
 	c := &createEvidenceBase{predicateFilePath: "/no/such/file.json", serverDetails: &config.ServerDetails{}}
-	_, err := c.buildIntotoStatementJson("repo/p", "")
+	_, err := c.buildIntotoStatementJson("repo/p", "", nil)
 	assert.Error(t, err)
 }
 
@@ -466,27 +466,27 @@ func TestCreateEnvelope_SubjectShaMismatch(t *testing.T) {
 	assert.NoError(t, os.WriteFile(pred, []byte(`{"a":1}`), 0600))
 	keyContent, _ := os.ReadFile(filepath.Join("../..", "tests/testdata/ecdsa_key.pem"))
 	c := &createEvidenceBase{predicateFilePath: pred, predicateType: "t", key: string(keyContent), serverDetails: &config.ServerDetails{}, artifactoryClient: createFileInfoOnlyMock("abc")}
-	_, err := c.createEnvelope("repo/a", "def")
+	_, err := c.createEnvelope("repo/a", "def", nil)
 	assert.Error(t, err)
 }
 
 func TestUploadEvidence_Error(t *testing.T) {
 	u := &failingUploader{err: errors.New("server response: 500 Internal Server Error")}
 	c := &createEvidenceBase{uploader: u}
-	_, err := c.uploadEvidence([]byte("data"), "r/p")
+	_, err := c.uploadEvidence([]byte("data"), "r/p", nil)
 	assert.Error(t, err)
 }
 
 func TestUploadEvidence_InvalidJSON(t *testing.T) {
 	u := &invalidJSONUploader{}
 	c := &createEvidenceBase{uploader: u}
-	_, err := c.uploadEvidence([]byte("data"), "r/p")
+	_, err := c.uploadEvidence([]byte("data"), "r/p", nil)
 	assert.Error(t, err)
 }
 
 func TestAddSubjectAndStageToStatement_StageEmpty(t *testing.T) {
 	in := []byte(`{"predicateType":"x"}`)
-	out, err := addSubjectAndStageToStatement(in, "abc", "")
+	out, err := adjustSonarStatement(in, "abc", "", nil)
 	assert.NoError(t, err)
 	var m map[string]any
 	assert.NoError(t, json.Unmarshal(out, &m))
@@ -504,21 +504,21 @@ func TestAddSubjectAndStageToStatement_StageEmpty(t *testing.T) {
 func TestBuildSonarStatement_ResolverError(t *testing.T) {
 	keyContent, _ := os.ReadFile(filepath.Join("../..", "tests/testdata/ecdsa_key.pem"))
 	c := &createEvidenceBase{stmtResolver: &fakeStmtResolver{err: errors.New("x")}, artifactoryClient: createFileInfoOnlyMock("s"), key: string(keyContent)}
-	_, err := c.buildSonarStatement("r/p", "")
+	_, err := c.buildSonarStatement("r/p", "", nil)
 	assert.Error(t, err)
 }
 
 func TestBuildSonarStatement_InvalidJSON(t *testing.T) {
 	keyContent, _ := os.ReadFile(filepath.Join("../..", "tests/testdata/ecdsa_key.pem"))
 	c := &createEvidenceBase{stmtResolver: &fakeStmtResolver{out: []byte("x")}, artifactoryClient: createFileInfoOnlyMock("s"), key: string(keyContent)}
-	_, err := c.buildSonarStatement("r/p", "")
+	_, err := c.buildSonarStatement("r/p", "", nil)
 	assert.Error(t, err)
 }
 
 func TestBuildIntotoStatementJsonWithPredicateAndType(t *testing.T) {
 	art := createFileInfoOnlyMock("zzz")
 	c := &createEvidenceBase{serverDetails: &config.ServerDetails{User: "bob"}, artifactoryClient: art}
-	out, err := c.buildIntotoStatementJsonWithPredicateAndPredicateType("r/p", "", "ptype", []byte(`{"a":2}`))
+	out, err := c.buildIntotoStatementJsonWithPredicateAndPredicateType("r/p", "", "ptype", []byte(`{"a":2}`), nil)
 	assert.NoError(t, err)
 	var st intoto.Statement
 	assert.NoError(t, json.Unmarshal(out, &st))
@@ -529,7 +529,7 @@ func TestBuildIntotoStatementJsonWithPredicateAndType(t *testing.T) {
 func TestBuildIntotoStatementJsonWithPredicateAndType_MarkdownError(t *testing.T) {
 	art := createFileInfoOnlyMock("sha")
 	c := &createEvidenceBase{serverDetails: &config.ServerDetails{User: "u"}, artifactoryClient: art, markdownFilePath: "bad.txt"}
-	_, err := c.buildIntotoStatementJsonWithPredicateAndPredicateType("r/p", "", "ptype", []byte(`{"a":2}`))
+	_, err := c.buildIntotoStatementJsonWithPredicateAndPredicateType("r/p", "", "ptype", []byte(`{"a":2}`), nil)
 	assert.Error(t, err)
 }
 
@@ -538,7 +538,7 @@ func TestBuildIntotoStatementJson_ResolveSubjectSha256Error(t *testing.T) {
 	pred := filepath.Join(dir, "p.json")
 	assert.NoError(t, os.WriteFile(pred, []byte(`{"a":1}`), 0600))
 	c := &createEvidenceBase{serverDetails: &config.ServerDetails{User: "u"}, predicateFilePath: pred, predicateType: "ptype", artifactoryClient: &failingArt{}}
-	_, err := c.buildIntotoStatementJson("r/p", "")
+	_, err := c.buildIntotoStatementJson("r/p", "", nil)
 	assert.Error(t, err)
 }
 
@@ -549,7 +549,7 @@ func TestCreateEnvelope_DefaultUserWhenEmpty(t *testing.T) {
 	keyContent, _ := os.ReadFile(filepath.Join("../..", "tests/testdata/ecdsa_key.pem"))
 	art := createFileInfoOnlyMock("sha")
 	c := &createEvidenceBase{predicateFilePath: pred, predicateType: "ptype", key: string(keyContent), artifactoryClient: art, serverDetails: &config.ServerDetails{User: ""}}
-	env, err := c.createEnvelope("r/p", "")
+	env, err := c.createEnvelope("r/p", "", nil)
 	assert.NoError(t, err)
 	var ds dsse.Envelope
 	assert.NoError(t, json.Unmarshal(env, &ds))
@@ -563,7 +563,7 @@ func TestCreateEnvelopeWithPredicateAndPredicateType_SetsFields(t *testing.T) {
 	keyContent, _ := os.ReadFile(filepath.Join("../..", "tests/testdata/ecdsa_key.pem"))
 	art := createFileInfoOnlyMock("ssss")
 	c := &createEvidenceBase{key: string(keyContent), artifactoryClient: art, serverDetails: &config.ServerDetails{User: "u"}}
-	env, err := c.createEnvelopeWithPredicateAndPredicateType("r/p", "", "my-type", []byte(`{"z":3}`))
+	env, err := c.createEnvelopeWithPredicateAndPredicateType("r/p", "", "my-type", []byte(`{"z":3}`), nil)
 	assert.NoError(t, err)
 	var ds dsse.Envelope
 	assert.NoError(t, json.Unmarshal(env, &ds))
@@ -575,7 +575,7 @@ func TestCreateEnvelopeWithPredicateAndPredicateType_SetsFields(t *testing.T) {
 }
 
 func TestAddSubjectAndStageToStatement_InvalidJSON(t *testing.T) {
-	_, err := addSubjectAndStageToStatement([]byte("not-json"), "abc", "stage")
+	_, err := adjustSonarStatement([]byte("not-json"), "abc", "stage", nil)
 	assert.Error(t, err)
 }
 
@@ -588,7 +588,7 @@ func (f *failingArt) FileInfo(_ string) (*utils.FileInfo, error) { return nil, e
 func TestBuildSonarStatement_FileInfoError(t *testing.T) {
 	keyContent, _ := os.ReadFile(filepath.Join("../..", "tests/testdata/ecdsa_key.pem"))
 	c := &createEvidenceBase{stmtResolver: &fakeStmtResolver{out: []byte(`{"a":1}`)}, artifactoryClient: &failingArt{}, key: string(keyContent)}
-	_, err := c.buildSonarStatement("r/p", "")
+	_, err := c.buildSonarStatement("r/p", "", nil)
 	assert.Error(t, err)
 }
 
@@ -597,7 +597,7 @@ func TestBuildIntotoStatementJson_InvalidMarkdownExtension(t *testing.T) {
 	pred := filepath.Join(dir, "p.json")
 	assert.NoError(t, os.WriteFile(pred, []byte(`{"a":1}`), 0600))
 	c := &createEvidenceBase{predicateFilePath: pred, predicateType: "t", markdownFilePath: filepath.Join(dir, "notes.txt"), serverDetails: &config.ServerDetails{User: "u"}}
-	_, err := c.buildIntotoStatementJson("r/p", "")
+	_, err := c.buildIntotoStatementJson("r/p", "", nil)
 	assert.Error(t, err)
 }
 
@@ -606,6 +606,7 @@ func TestCreateAndSignEnvelope_KeyFromPath_Succeeds(t *testing.T) {
 	keyPath := filepath.Join(t.TempDir(), "key.pem")
 	content, err := os.ReadFile(filepath.Join("../..", "tests/testdata/ecdsa_key.pem"))
 	assert.NoError(t, err)
+	// #nosec G703 -- test writes into t.TempDir() controlled path.
 	assert.NoError(t, os.WriteFile(keyPath, content, 0600))
 	env, err := createAndSignEnvelope([]byte(`{"p":true}`), keyPath, "kid")
 	assert.NoError(t, err)

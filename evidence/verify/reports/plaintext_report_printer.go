@@ -52,24 +52,32 @@ func (p *plaintextReportPrinter) Print(result *model.VerificationResponse) error
 
 func (p *plaintextReportPrinter) printVerificationResult(verification *model.EvidenceVerification, index int) {
 	fmt.Printf("- Evidence %d:\n", index+1)
-	fmt.Printf("    - Media type:                     %s\n", verification.MediaType)
-	fmt.Printf("    - Predicate type:                 %s\n", verification.PredicateType)
-	fmt.Printf("    - Evidence subject sha256:        %s\n", verification.SubjectChecksum)
+	fmt.Printf("    - Media type:                      %s\n", verification.MediaType)
+	fmt.Printf("    - Predicate type:                  %s\n", verification.PredicateType)
+	fmt.Printf("    - Evidence subject sha256:         %s\n", verification.SubjectChecksum)
 	if verification.VerificationResult.KeySource != "" {
-		fmt.Printf("    - Key source:                     %s\n", verification.VerificationResult.KeySource)
+		fmt.Printf("    - Key source:                      %s\n", verification.VerificationResult.KeySource)
 	}
 	if verification.VerificationResult.KeyFingerprint != "" {
-		fmt.Printf("    - Key fingerprint:                %s\n", verification.VerificationResult.KeyFingerprint)
+		fmt.Printf("    - Key fingerprint:                 %s\n", verification.VerificationResult.KeyFingerprint)
 	}
-	fmt.Printf("    - Sha256 verification status:     %s\n", p.getColoredStatus(verification.VerificationResult.Sha256VerificationStatus))
+	fmt.Printf("    - Sha256 verification status:      %s\n", p.getColoredStatus(verification.VerificationResult.Sha256VerificationStatus))
 	if verification.MediaType == model.SimpleDSSE {
-		fmt.Printf("    - Signatures verification status: %s\n", p.getColoredStatus(verification.VerificationResult.SignaturesVerificationStatus))
+		fmt.Printf("    - Signatures verification status:  %s\n", p.getColoredStatus(verification.VerificationResult.SignaturesVerificationStatus))
 	}
 	if verification.MediaType == model.SigstoreBundle {
-		fmt.Printf("    - Sigstore verification status:   %s\n", p.getColoredStatus(verification.VerificationResult.SigstoreBundleVerificationStatus))
+		fmt.Printf("    - Sigstore verification status:    %s\n", p.getColoredStatus(verification.VerificationResult.SigstoreBundleVerificationStatus))
 	}
+
+	if shouldPrintAttachmentStatus(verification) {
+		fmt.Printf("    - Attachments verification status: %s\n", p.getColoredStatus(verification.VerificationResult.AttachmentsVerificationStatus))
+		if hasFailedAttachment(verification.AttachmentsVerification) {
+			p.printAttachmentFailures(verification.AttachmentsVerification)
+		}
+	}
+
 	if verification.VerificationResult.FailureReason != "" {
-		fmt.Printf("    - Failure reason:                 %s\n", verification.VerificationResult.FailureReason)
+		fmt.Printf("    - Failure reason:                  %s\n", verification.VerificationResult.FailureReason)
 	}
 }
 
@@ -79,5 +87,44 @@ func (p *plaintextReportPrinter) getColoredStatus(status model.VerificationStatu
 		return p.success
 	default:
 		return p.failed
+	}
+}
+
+func shouldPrintAttachmentStatus(verification *model.EvidenceVerification) bool {
+	if verification == nil {
+		return false
+	}
+	return verification.VerificationResult.AttachmentsVerificationStatus != ""
+}
+
+func hasFailedAttachment(attachments []model.AttachmentVerification) bool {
+	for _, attachment := range attachments {
+		if attachment.VerificationStatus == model.Failed {
+			return true
+		}
+	}
+	return false
+}
+
+func (p *plaintextReportPrinter) printAttachmentFailures(attachments []model.AttachmentVerification) {
+	failedCount := 0
+	for _, attachment := range attachments {
+		if attachment.VerificationStatus == model.Failed {
+			failedCount++
+		}
+	}
+	total := len(attachments)
+	if total == 0 {
+		return
+	}
+	fmt.Printf("    - Attachments summary:             %d/%d verified\n", total-failedCount, total)
+	for _, attachment := range attachments {
+		if attachment.VerificationStatus == model.Failed {
+			if attachment.FailureReason != "" {
+				fmt.Printf("      • %s %s: %s\n", attachment.Name, p.failed, attachment.FailureReason)
+			} else {
+				fmt.Printf("      • %s %s\n", attachment.Name, p.failed)
+			}
+		}
 	}
 }

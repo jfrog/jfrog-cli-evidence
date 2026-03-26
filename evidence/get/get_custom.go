@@ -10,11 +10,11 @@ import (
 	"github.com/jfrog/jfrog-cli-core/v2/artifactory/utils"
 	"github.com/jfrog/jfrog-cli-core/v2/utils/config"
 	"github.com/jfrog/jfrog-cli-evidence/evidence"
+	evidenceutils "github.com/jfrog/jfrog-cli-evidence/evidence/utils"
 	"github.com/jfrog/jfrog-client-go/onemodel"
 )
 
-const getCustomEvidenceWithoutPredicateGraphqlQuery = `{"query":"{ evidence { searchEvidence( where: { hasSubjectWith: { repositoryKey: \"%s\", path: \"%s\", name: \"%s\"}} ) { totalCount edges { node { predicateSlug predicateType downloadPath verified signingKey { alias } createdBy createdAt subject { sha256 } } } } } }"}`
-const getCustomEvidenceWithPredicateGraphqlQuery = `{"query":"{ evidence { searchEvidence( where: { hasSubjectWith: { repositoryKey: \"%s\", path: \"%s\", name: \"%s\"}} ) { totalCount edges { node { predicateSlug predicateType downloadPath verified signingKey { alias } createdBy createdAt subject { sha256 } predicate } } } } }"}`
+const getCustomEvidenceQueryTemplate = `{"query":"{ evidence { searchEvidence( where: { hasSubjectWith: { repositoryKey: \"%s\", path: \"%s\", name: \"%s\"}} ) { totalCount edges { node { ` + evidenceutils.NodeFieldsPlaceholder + ` } } } } }"}`
 
 type getEvidenceCustom struct {
 	getEvidenceBase
@@ -66,13 +66,25 @@ func (g *getEvidenceCustom) Run() error {
 }
 
 func (g *getEvidenceCustom) getEvidence(onemodelClient onemodel.Manager) ([]byte, error) {
-	query, err := g.buildGraphqlQuery(g.subjectRepoPath)
+	query, err := g.buildGraphqlQuery(g.subjectRepoPath, true)
 	if err != nil {
 		return nil, err
 	}
 	evidence, err := onemodelClient.GraphqlQuery(query)
 	if err != nil {
-		return nil, err
+		if evidenceutils.IsAttachmentsFieldNotFound(err) {
+			log.Debug("GraphQL schema does not support attachments field. Falling back to query without attachments.")
+			queryWithoutAttachments, qErr := g.buildGraphqlQuery(g.subjectRepoPath, false)
+			if qErr != nil {
+				return nil, qErr
+			}
+			evidence, err = onemodelClient.GraphqlQuery(queryWithoutAttachments)
+			if err != nil {
+				return nil, err
+			}
+		} else {
+			return nil, err
+		}
 	}
 
 	transformedEvidence, err := g.transformGraphQLOutput(evidence)
@@ -136,21 +148,28 @@ func (g *getEvidenceCustom) transformGraphQLOutput(rawEvidence []byte) ([]byte, 
 	return transformed, nil
 }
 
-func (g *getEvidenceCustom) buildGraphqlQuery(subjectRepoPath string) ([]byte, error) {
-	repoKey, path, name, err := g.getRepoKeyAndPath(subjectRepoPath)
+func (g *getEvidenceCustom) buildGraphqlQuery(subjectRepoPath string, includeAttachments bool) ([]byte, error) {
+	repoKey, pathVal, name, err := g.getRepoKeyAndPath(subjectRepoPath)
 	if err != nil {
 		return nil, err
 	}
-	graphqlQuery := fmt.Sprintf(g.getGraphqlQuery(g.includePredicate), repoKey, path, name)
+	nodeFields := evidenceutils.NewNodeFieldsBuilder(
+		evidenceutils.FieldPredicateSlug,
+		evidenceutils.FieldPredicateType,
+		evidenceutils.FieldDownloadPath,
+		evidenceutils.FieldVerified,
+		evidenceutils.FieldSigningKeyAlias,
+		evidenceutils.FieldCreatedBy,
+		evidenceutils.FieldCreatedAt,
+		evidenceutils.FieldSubjectSha256,
+	).
+		WithIf(includeAttachments, evidenceutils.AttachmentsFragment).
+		WithIf(g.includePredicate, evidenceutils.FieldPredicate).
+		Build()
+	queryTemplate := evidenceutils.BuildQuery(getCustomEvidenceQueryTemplate, nodeFields)
+	graphqlQuery := fmt.Sprintf(queryTemplate, repoKey, pathVal, name)
 	log.Debug("GraphQL query: ", graphqlQuery)
 	return []byte(graphqlQuery), nil
-}
-
-func (g *getEvidenceCustom) getGraphqlQuery(includePredicate bool) string {
-	if includePredicate {
-		return getCustomEvidenceWithPredicateGraphqlQuery
-	}
-	return getCustomEvidenceWithoutPredicateGraphqlQuery
 }
 
 func (g *getEvidenceCustom) getRepoKeyAndPath(subjectRepoPath string) (string, string, string, error) {

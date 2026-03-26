@@ -14,7 +14,9 @@ func verifyNotEmptyResponse(result *model.VerificationResponse) error {
 }
 
 func IsVerificationSucceed(v model.EvidenceVerification) bool {
+	attachmentsStatusOk := v.VerificationResult.AttachmentsVerificationStatus == "" || v.VerificationResult.AttachmentsVerificationStatus == model.Success
 	return v.VerificationResult.Sha256VerificationStatus == model.Success &&
+		attachmentsStatusOk &&
 		(v.VerificationResult.SignaturesVerificationStatus == model.Success ||
 			v.VerificationResult.SigstoreBundleVerificationStatus == model.Success)
 }

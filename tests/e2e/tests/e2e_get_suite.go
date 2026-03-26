@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -35,6 +36,9 @@ func (r *EvidenceE2ETestsRunner) RunGetEvidenceSuite(t *testing.T) {
 	})
 	t.Run("ForReleaseBundle", func(t *testing.T) {
 		r.RunGetEvidenceForReleaseBundle(t)
+	})
+	t.Run("WithAttachmentAndSubjectOnlyPermissions", func(t *testing.T) {
+		r.RunGetEvidenceWithAttachmentAndSubjectOnlyPermissions(t)
 	})
 }
 
@@ -521,4 +525,100 @@ func (r *EvidenceE2ETestsRunner) RunGetEvidenceForReleaseBundle(t *testing.T) {
 	t.Log("✅ User successfully retrieved release bundle evidence!")
 
 	t.Log("=== ✅ Get Evidence for Release Bundle Test Completed Successfully! ===")
+}
+
+// RunGetEvidenceWithAttachmentAndSubjectOnlyPermissions verifies get works for evidence with attachments
+// when the user has read permission only on the subject repository.
+func (r *EvidenceE2ETestsRunner) RunGetEvidenceWithAttachmentAndSubjectOnlyPermissions(t *testing.T) {
+	t.Log("=== Get Evidence - Attachment with Subject-only permissions ===")
+	require.NotEmpty(t, SharedPrivateKeyPath, "shared key pair not initialized")
+
+	ensureAttachmentSupportedArtifactoryVersion(t)
+	ensureAttachmentSupportedEvidenceVersion(t)
+
+	baseURL := getJfrogBaseURL()
+	adminToken := mustGetAdminToken(t)
+
+	var permissionName, userName, groupName string
+
+	t.Cleanup(func() {
+		if permissionName != "" {
+			if err := deleteAccessPermission(baseURL, adminToken, permissionName); err != nil {
+				t.Logf("Warning: failed to delete permission %s: %v", permissionName, err)
+			}
+		}
+		if groupName != "" {
+			if err := deleteAccessGroup(baseURL, adminToken, groupName); err != nil {
+				t.Logf("Warning: failed to delete group %s: %v", groupName, err)
+			}
+		}
+		if userName != "" {
+			if err := deleteAccessUser(baseURL, adminToken, userName); err != nil {
+				t.Logf("Warning: failed to delete user %s: %v", userName, err)
+			}
+		}
+	})
+
+	subjectRepo := utils.CreateTestRepositoryWithName(t, r.ServicesManager, "generic")
+	attachmentRepo := utils.CreateTestRepositoryWithName(t, r.ServicesManager, "generic")
+
+	subjectArtifactPath := utils.CreateTestArtifact(t, "subject artifact for get attachment permissions")
+	subjectName := filepath.Base(subjectArtifactPath)
+	subjectRepoPath := fmt.Sprintf("%s/%s", subjectRepo, subjectName)
+	require.NoError(t, utils.UploadArtifact(r.ServicesManager, subjectArtifactPath, subjectRepoPath))
+
+	attachmentPath := utils.CreateTestArtifact(t, "attachment for get")
+	attachmentRepoPath := fmt.Sprintf("%s/attachments/report.txt", attachmentRepo)
+	require.NoError(t, utils.UploadArtifact(r.ServicesManager, attachmentPath, attachmentRepoPath))
+
+	tempDir := t.TempDir()
+	predicatePath := filepath.Join(tempDir, "predicate.json")
+	require.NoError(t, os.WriteFile(predicatePath, []byte(`{"type":"get-attachments-subject-only"}`), 0644))
+
+	createOutput := r.EvidenceAdminCLI.RunCliCmdWithOutput(t,
+		"create",
+		"--predicate", predicatePath,
+		"--predicate-type", "https://slsa.dev/provenance/v1",
+		"--subject-repo-path", subjectRepoPath,
+		"--attach-artifactory-path", attachmentRepoPath,
+		"--key", SharedPrivateKeyPath,
+		"--key-alias", SharedKeyAlias,
+	)
+	require.NotContains(t, createOutput, "Error", "evidence create with attachment should succeed")
+
+	userName = fmt.Sprintf("get-att-user-%d", time.Now().UnixNano())
+	groupName = fmt.Sprintf("get-att-group-%d", time.Now().UnixNano())
+	require.NoError(t, createAccessUser(baseURL, adminToken, userName, "Password!234", fmt.Sprintf("%s@test.local", userName)))
+
+	require.NoError(t, createAccessGroup(baseURL, adminToken, groupName, userName))
+
+	permissionName = fmt.Sprintf("perm-get-subject-only-%d", time.Now().UnixNano())
+	require.NoError(t, createAccessPermissionForGroup(baseURL, adminToken, permissionName, groupName, []string{"READ"}, []string{subjectRepo}))
+
+	token, err := createGroupScopedUserToken(baseURL, adminToken, userName, groupName)
+	require.NoError(t, err)
+	require.NotEmpty(t, token)
+
+	getOutput, getErr := runEvidenceCommandWithToken(token,
+		"get",
+		"--subject-repo-path", subjectRepoPath,
+		"--format", "json",
+	)
+	require.NoError(t, getErr, "get should succeed with subject-only read permissions")
+	require.NotContains(t, strings.ToLower(getOutput), "permission", "get output should not include permission errors")
+
+	var jsonData map[string]any
+	require.NoError(t, json.Unmarshal([]byte(getOutput), &jsonData), "get output should be valid JSON")
+	resultMap, ok := jsonData["result"].(map[string]any)
+	require.True(t, ok, "get output must include result")
+	evidences, ok := resultMap["evidence"].([]any)
+	require.True(t, ok)
+	require.NotEmpty(t, evidences)
+
+	firstEvidence, ok := evidences[0].(map[string]any)
+	require.True(t, ok)
+	attachments, exists := firstEvidence["attachments"]
+	require.True(t, exists, "attachments should be present for evidence with attachment")
+	require.NotEmpty(t, attachments)
+	t.Log("=== ✅ Get Evidence with Attachment and Subject-only permissions completed ===")
 }

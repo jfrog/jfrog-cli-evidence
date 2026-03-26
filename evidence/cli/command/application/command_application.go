@@ -38,7 +38,11 @@ func (eac *evidenceApplicationCommand) CreateEvidence(ctx *components.Context, s
 		eac.ctx.GetStringFlagValue(flags.ApplicationKey),
 		eac.ctx.GetStringFlagValue(flags.ApplicationVersion),
 		eac.ctx.GetStringFlagValue(flags.ProviderId),
-		eac.ctx.GetStringFlagValue(flags.Integration))
+		eac.ctx.GetStringFlagValue(flags.Integration),
+		eac.ctx.GetStringFlagValue(flags.AttachLocal),
+		eac.ctx.GetStringFlagValue(flags.AttachArtifactoryTempPath),
+		eac.ctx.GetStringFlagValue(flags.AttachArtifactoryPath),
+	)
 	return eac.execute(createCmd)
 }
 
