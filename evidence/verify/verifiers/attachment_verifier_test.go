@@ -232,7 +232,7 @@ func TestAttachmentVerifier_Verify_FileNotFound404(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, model.Failed, result.VerificationResult.AttachmentsVerificationStatus)
 	if assert.Len(t, result.AttachmentsVerification, 1) {
-		assert.Equal(t, "file not found", result.AttachmentsVerification[0].FailureReason)
+		assert.Equal(t, attachmentArtifactNotFoundReason, result.AttachmentsVerification[0].FailureReason)
 		assert.Equal(t, model.Failed, result.AttachmentsVerification[0].VerificationStatus)
 	}
 }
