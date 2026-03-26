@@ -42,6 +42,9 @@ func (r *EvidenceE2ETestsRunner) RunCreateEvidenceSuite(t *testing.T) {
 	t.Run("WithSubjectSha256", func(t *testing.T) {
 		r.RunCreateEvidenceWithSubjectSha256(t)
 	})
+	t.Run("WithAttachmentPermissions", func(t *testing.T) {
+		r.RunCreateEvidenceWithAttachmentPermissions(t)
+	})
 }
 
 func (r *EvidenceE2ETestsRunner) RunCreateEvidenceForArtifact(t *testing.T) {

@@ -36,31 +36,34 @@ const sonarProviderId = "sonar"
 const maxImageSizePixels = 400
 
 type createEvidenceBase struct {
-	serverDetails     *config.ServerDetails
-	predicateFilePath string
-	predicateType     string
-	markdownFilePath  string
-	key               string
-	keyId             string
-	providerId        string
-	stage             string
-	flagType          FlagType
-	integration       string
-
-	artifactoryClient artifactory.ArtifactoryServicesManager
-	uploader          evidenceUploader
-	stmtResolver      sonar.StatementResolver
+	serverDetails             *config.ServerDetails
+	predicateFilePath         string
+	predicateType             string
+	markdownFilePath          string
+	key                       string
+	keyId                     string
+	providerId                string
+	stage                     string
+	flagType                  FlagType
+	integration               string
+	sigstoreBundlePath        string
+	attachLocalPath           string
+	attachArtifactoryTempPath string
+	attachArtifactoryPath     string
+	artifactoryClient         artifactory.ArtifactoryServicesManager
+	uploader                  evidenceUploader
+	stmtResolver              sonar.StatementResolver
 }
 
 const EvdDefaultUser = "JFrog CLI"
 
-func (c *createEvidenceBase) createEnvelope(subject, subjectSha256 string) ([]byte, error) {
+func (c *createEvidenceBase) createEnvelope(subject, subjectSha256 string, attachment *statementAttachment) ([]byte, error) {
 	var statementJson []byte
 	var err error
 	if evidenceUtils.IsSonarIntegration(c.integration) {
-		statementJson, err = c.buildSonarStatement(subject, subjectSha256)
+		statementJson, err = c.buildSonarStatement(subject, subjectSha256, attachment)
 	} else {
-		statementJson, err = c.buildIntotoStatementJson(subject, subjectSha256)
+		statementJson, err = c.buildIntotoStatementJson(subject, subjectSha256, attachment)
 	}
 	if err != nil {
 		return nil, err
@@ -77,7 +80,7 @@ func (c *createEvidenceBase) createEnvelope(subject, subjectSha256 string) ([]by
 }
 
 // buildSonarStatement get in-toto statement from sonar, augments it with subject and stage, and returns it.
-func (c *createEvidenceBase) buildSonarStatement(subject, subjectSha256 string) ([]byte, error) {
+func (c *createEvidenceBase) buildSonarStatement(subject, subjectSha256 string, attachment *statementAttachment) ([]byte, error) {
 	if c.stmtResolver == nil {
 		c.stmtResolver = sonar.NewStatementResolver()
 	}
@@ -96,7 +99,7 @@ func (c *createEvidenceBase) buildSonarStatement(subject, subjectSha256 string) 
 		return nil, err
 	}
 
-	extendedStatement, err := addSubjectAndStageToStatement(statementBytes, sha256, c.stage)
+	extendedStatement, err := adjustSonarStatement(statementBytes, sha256, c.stage, toStatementAttachmentMeta(attachment))
 	if err != nil {
 		return nil, err
 	}
@@ -105,9 +108,9 @@ func (c *createEvidenceBase) buildSonarStatement(subject, subjectSha256 string) 
 }
 
 func (c *createEvidenceBase) createEnvelopeWithPredicateAndPredicateType(subject,
-	subjectSha256, predicateType string, predicate []byte) ([]byte, error) {
+	subjectSha256, predicateType string, predicate []byte, attachment *statementAttachment) ([]byte, error) {
 	statementJson, err := c.buildIntotoStatementJsonWithPredicateAndPredicateType(subject,
-		subjectSha256, predicateType, predicate)
+		subjectSha256, predicateType, predicate, attachment)
 	if err != nil {
 		return nil, err
 	}
@@ -125,7 +128,7 @@ func (c *createEvidenceBase) createEnvelopeWithPredicateAndPredicateType(subject
 	return envelopeBytes, nil
 }
 
-func (c *createEvidenceBase) buildIntotoStatementJson(subject, subjectSha256 string) ([]byte, error) {
+func (c *createEvidenceBase) buildIntotoStatementJson(subject, subjectSha256 string, attachment *statementAttachment) ([]byte, error) {
 	predicate, err := os.ReadFile(c.predicateFilePath)
 	if err != nil {
 		log.Warn(fmt.Sprintf("failed to read predicate file '%s'", predicate))
@@ -156,6 +159,7 @@ func (c *createEvidenceBase) buildIntotoStatementJson(subject, subjectSha256 str
 		return nil, err
 	}
 	statement.SetStage(c.stage)
+	statement.SetAttachments(toStatementAttachmentMeta(attachment))
 	statementJson, err := statement.Marshal()
 	if err != nil {
 		log.Error("failed marshaling statement json file", err)
@@ -175,7 +179,7 @@ func (c *createEvidenceBase) resolveSubjectSha256(servicesManager artifactory.Ar
 	return sha256, nil
 }
 
-func (c *createEvidenceBase) buildIntotoStatementJsonWithPredicateAndPredicateType(subject, subjectSha256, predicateType string, predicate []byte) ([]byte, error) {
+func (c *createEvidenceBase) buildIntotoStatementJsonWithPredicateAndPredicateType(subject, subjectSha256, predicateType string, predicate []byte, attachment *statementAttachment) ([]byte, error) {
 	artifactoryClient, err := c.createArtifactoryClient()
 	if err != nil {
 		return nil, err
@@ -197,6 +201,7 @@ func (c *createEvidenceBase) buildIntotoStatementJsonWithPredicateAndPredicateTy
 		return nil, err
 	}
 
+	statement.SetAttachments(toStatementAttachmentMeta(attachment))
 	statementJson, err := statement.Marshal()
 	if err != nil {
 		log.Error("failed marshaling statement json file", err)
@@ -225,7 +230,7 @@ func (c *createEvidenceBase) setMarkdown(statement *intoto.Statement) error {
 	return nil
 }
 
-func (c *createEvidenceBase) uploadEvidence(evidencePayload []byte, repoPath string) (*model.CreateResponse, error) {
+func (c *createEvidenceBase) uploadEvidence(evidencePayload []byte, repoPath string, attachment *statementAttachment) (*model.CreateResponse, error) {
 	if c.uploader == nil {
 		manager, err := utils.CreateEvidenceServiceManager(c.serverDetails, false)
 		if err != nil {
@@ -234,11 +239,25 @@ func (c *createEvidenceBase) uploadEvidence(evidencePayload []byte, repoPath str
 		c.uploader = manager
 	}
 
+	payload, err := c.wrapCreatePayloadWithAttachments(evidencePayload, attachment)
+	if err != nil {
+		return nil, err
+	}
+
+	var evidenceAttachments []evidenceService.AttachmentDetails
+	if attachment != nil {
+		evidenceAttachments = []evidenceService.AttachmentDetails{{
+			Repository: attachment.Repository,
+			Path:       attachment.Path,
+			Sha256:     attachment.Sha256,
+		}}
+	}
 	evidenceDetails := evidenceService.EvidenceDetails{
 		SubjectUri: repoPath,
 		// evidencePayload may contain not only a DSSE envelop.
-		DSSEFileRaw: evidencePayload,
+		DSSEFileRaw: payload,
 		ProviderId:  c.providerId,
+		Attachments: evidenceAttachments,
 	}
 	log.Debug("Uploading evidence for subject:", repoPath)
 	body, err := c.uploader.UploadEvidence(evidenceDetails)
@@ -291,7 +310,9 @@ func (c *createEvidenceBase) getFileChecksum(path string, artifactoryClient arti
 func createAndSignEnvelope(payloadJson []byte, key string, keyId string) (*dsse.Envelope, error) {
 	// Load private key from file if ec.key is not a path to a file then try to load it as a key
 	keyFile := []byte(key)
+	// #nosec G703 -- `key` is an explicit CLI argument and is intentionally allowed to reference a local key file path.
 	if _, err := os.Stat(key); err == nil {
+		// #nosec G703 -- same as above; reading user-provided key path is required behavior for key-based signing.
 		keyFile, err = os.ReadFile(key)
 		if err != nil {
 			return nil, err
@@ -366,8 +387,8 @@ func enhanceKeyError(originalErr error, keyId string) error {
 	return fmt.Errorf("failed to load private key. Please verify the provided key is correct. Original error: %w", originalErr)
 }
 
-// addSubjectAndStageToStatement injects subject and stage into the given in-toto statement JSON.
-func addSubjectAndStageToStatement(statement []byte, sha256 string, stage string) ([]byte, error) {
+// adjustSonarStatement injects subject and stage into the given in-toto statement JSON.
+func adjustSonarStatement(statement []byte, sha256 string, stage string, attachments []intoto.Attachment) ([]byte, error) {
 	var m map[string]any
 	if err := json.Unmarshal(statement, &m); err != nil {
 		return nil, err
@@ -382,6 +403,9 @@ func addSubjectAndStageToStatement(statement []byte, sha256 string, stage string
 	// stage
 	if stage != "" {
 		m["stage"] = stage
+	}
+	if len(attachments) > 0 {
+		m["attachments"] = attachments
 	}
 	return json.Marshal(m)
 }

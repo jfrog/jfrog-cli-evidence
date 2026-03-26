@@ -95,15 +95,19 @@ func TestDsseVerifier_VerifyWithLocalKeys_Success(t *testing.T) {
 		},
 	}
 
+	mockAttVerifier := &MockAttachmentVerifier{}
+	mockAttVerifier.On("verify", mock.Anything, mock.Anything).Return(nil)
+
 	verifier := &dsseVerifier{
 		keys:               []string{"test-key"},
 		useArtifactoryKeys: false,
 		localKeys:          []dsse.Verifier{mockVerifier},
+		attachmentVerifier: mockAttVerifier,
 	}
 
 	err := verifier.verify(evidence, result)
 	assert.NoError(t, err)
-	assert.Equal(t, model.VerificationStatus(model.Success), result.VerificationResult.SignaturesVerificationStatus)
+	assert.Equal(t, model.Success, result.VerificationResult.SignaturesVerificationStatus)
 	assert.Equal(t, localKeySource, result.VerificationResult.KeySource)
 
 	mockVerifier.AssertExpectations(t)
@@ -131,15 +135,19 @@ func TestDsseVerifier_VerifyWithLocalKeys_Failed(t *testing.T) {
 		},
 	}
 
+	mockAttVerifier := &MockAttachmentVerifier{}
+	mockAttVerifier.On("verify", mock.Anything, mock.Anything).Return(nil)
+
 	verifier := &dsseVerifier{
 		keys:               []string{"test-key"},
 		useArtifactoryKeys: false,
 		localKeys:          []dsse.Verifier{mockVerifier},
+		attachmentVerifier: mockAttVerifier,
 	}
 
 	err := verifier.verify(evidence, result)
 	assert.NoError(t, err)
-	assert.Equal(t, model.VerificationStatus(model.Failed), result.VerificationResult.SignaturesVerificationStatus)
+	assert.Equal(t, model.Failed, result.VerificationResult.SignaturesVerificationStatus)
 }
 
 func TestDsseVerifier_VerifyWithMultipleLocalKeys(t *testing.T) {
@@ -180,15 +188,19 @@ func TestDsseVerifier_VerifyWithMultipleLocalKeys(t *testing.T) {
 		},
 	}
 
+	mockAttVerifier := &MockAttachmentVerifier{}
+	mockAttVerifier.On("verify", mock.Anything, mock.Anything).Return(nil)
+
 	verifier := &dsseVerifier{
 		keys:               []string{"key1", "key2"},
 		useArtifactoryKeys: false,
 		localKeys:          []dsse.Verifier{mockVerifier1, mockVerifier2},
+		attachmentVerifier: mockAttVerifier,
 	}
 
 	err := verifier.verify(evidence, result)
 	assert.NoError(t, err)
-	assert.Equal(t, model.VerificationStatus(model.Success), result.VerificationResult.SignaturesVerificationStatus)
+	assert.Equal(t, model.Success, result.VerificationResult.SignaturesVerificationStatus)
 	assert.Equal(t, localKeySource, result.VerificationResult.KeySource)
 }
 
@@ -205,15 +217,19 @@ func TestDsseVerifier_VerifyWithLocalKeys(t *testing.T) {
 	}
 	evidence := &model.SearchEvidenceEdge{}
 
+	mockAttVerifier := &MockAttachmentVerifier{}
+	mockAttVerifier.On("verify", mock.Anything, mock.Anything).Return(nil)
+
 	verifier := &dsseVerifier{
 		keys:               []string{"test-key"},
 		useArtifactoryKeys: false,
 		localKeys:          []dsse.Verifier{mockVerifier},
+		attachmentVerifier: mockAttVerifier,
 	}
 
 	err := verifier.verify(evidence, result)
 	assert.NoError(t, err)
-	assert.Equal(t, model.VerificationStatus(model.Success), result.VerificationResult.SignaturesVerificationStatus)
+	assert.Equal(t, model.Success, result.VerificationResult.SignaturesVerificationStatus)
 	assert.Equal(t, localKeySource, result.VerificationResult.KeySource)
 }
 
@@ -229,14 +245,18 @@ func TestDsseVerifier_VerifyNoKeysAvailable(t *testing.T) {
 		},
 	}
 
+	mockAttVerifier := &MockAttachmentVerifier{}
+	mockAttVerifier.On("verify", mock.Anything, mock.Anything).Return(nil)
+
 	verifier := &dsseVerifier{
 		useArtifactoryKeys: true,
-		localKeys:          []dsse.Verifier{}, // No local keys
+		localKeys:          []dsse.Verifier{},
+		attachmentVerifier: mockAttVerifier,
 	}
 
 	err := verifier.verify(evidence, result)
 	assert.NoError(t, err)
-	assert.Equal(t, model.VerificationStatus(model.Failed), result.VerificationResult.SignaturesVerificationStatus)
+	assert.Equal(t, model.Failed, result.VerificationResult.SignaturesVerificationStatus)
 }
 
 func TestDsseVerifier_GetLocalVerifiers(t *testing.T) {
@@ -293,7 +313,7 @@ func TestVerifyEnvelope_Success(t *testing.T) {
 
 	success := verifyEnvelope([]dsse.Verifier{mockVerifier}, &envelope, result)
 	assert.True(t, success)
-	assert.Equal(t, model.VerificationStatus(model.Success), result.VerificationResult.SignaturesVerificationStatus)
+	assert.Equal(t, model.Success, result.VerificationResult.SignaturesVerificationStatus)
 }
 
 func TestVerifyEnvelope_Failed(t *testing.T) {
@@ -310,7 +330,7 @@ func TestVerifyEnvelope_Failed(t *testing.T) {
 
 	success := verifyEnvelope([]dsse.Verifier{mockVerifier}, &envelope, result)
 	assert.False(t, success)
-	assert.Equal(t, model.VerificationStatus(model.Failed), result.VerificationResult.SignaturesVerificationStatus)
+	assert.Equal(t, model.Failed, result.VerificationResult.SignaturesVerificationStatus)
 }
 
 func TestVerifyEnvelope_NilInputs(t *testing.T) {
@@ -320,7 +340,7 @@ func TestVerifyEnvelope_NilInputs(t *testing.T) {
 
 	success := verifyEnvelope(nil, nil, result)
 	assert.False(t, success)
-	assert.Equal(t, model.VerificationStatus(model.Failed), result.VerificationResult.SignaturesVerificationStatus)
+	assert.Equal(t, model.Failed, result.VerificationResult.SignaturesVerificationStatus)
 }
 
 func TestVerifyEnvelope_NilResult(t *testing.T) {
@@ -381,6 +401,58 @@ func TestGetArtifactoryVerifiers_InvalidKey(t *testing.T) {
 	_, err := getArtifactoryVerifiers(evidence)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to load artifactory key")
+}
+
+func TestDsseVerifier_Verify_CallsAttachmentVerifier(t *testing.T) {
+	envelope := createMockDsseEnvelope()
+	result := &model.EvidenceVerification{
+		DsseEnvelope:       &envelope,
+		VerificationResult: model.EvidenceVerificationResult{},
+	}
+	evidence := &model.SearchEvidenceEdge{
+		Node: model.EvidenceMetadata{
+			Subject: model.EvidenceSubject{Sha256: createTestSHA256()},
+		},
+	}
+
+	mockAttachmentVerifier := &MockAttachmentVerifier{}
+	mockAttachmentVerifier.On("verify", evidence, result).Return(nil).Once()
+
+	verifier := &dsseVerifier{
+		useArtifactoryKeys: false,
+		localKeys:          []dsse.Verifier{},
+		attachmentVerifier: mockAttachmentVerifier,
+	}
+
+	err := verifier.verify(evidence, result)
+	assert.NoError(t, err)
+	mockAttachmentVerifier.AssertExpectations(t)
+}
+
+func TestDsseVerifier_Verify_ReturnsAttachmentVerifierError(t *testing.T) {
+	envelope := createMockDsseEnvelope()
+	result := &model.EvidenceVerification{
+		DsseEnvelope:       &envelope,
+		VerificationResult: model.EvidenceVerificationResult{},
+	}
+	evidence := &model.SearchEvidenceEdge{
+		Node: model.EvidenceMetadata{
+			Subject: model.EvidenceSubject{Sha256: createTestSHA256()},
+		},
+	}
+
+	mockAttachmentVerifier := &MockAttachmentVerifier{}
+	mockAttachmentVerifier.On("verify", evidence, result).Return(errors.New("attachment verification error")).Once()
+
+	verifier := &dsseVerifier{
+		useArtifactoryKeys: false,
+		localKeys:          []dsse.Verifier{},
+		attachmentVerifier: mockAttachmentVerifier,
+	}
+
+	err := verifier.verify(evidence, result)
+	assert.EqualError(t, err, "attachment verification error")
+	mockAttachmentVerifier.AssertExpectations(t)
 }
 
 // Helper function to export RSA public key as PEM

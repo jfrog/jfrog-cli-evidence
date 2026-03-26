@@ -42,7 +42,11 @@ func (erc *evidenceReleaseBundleCommand) CreateEvidence(ctx *components.Context,
 		erc.ctx.GetStringFlagValue(flags.ReleaseBundle),
 		erc.ctx.GetStringFlagValue(flags.ReleaseBundleVersion),
 		erc.ctx.GetStringFlagValue(flags.ProviderId),
-		erc.ctx.GetStringFlagValue(flags.Integration))
+		erc.ctx.GetStringFlagValue(flags.Integration),
+		erc.ctx.GetStringFlagValue(flags.AttachLocal),
+		erc.ctx.GetStringFlagValue(flags.AttachArtifactoryTempPath),
+		erc.ctx.GetStringFlagValue(flags.AttachArtifactoryPath),
+	)
 	return erc.execute(createCmd)
 }
 

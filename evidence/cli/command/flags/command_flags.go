@@ -32,23 +32,26 @@ const (
 	ApplicationKey       = "application-key"
 	ApplicationVersion   = "application-version"
 
-	Predicate          = "predicate"
-	PredicateType      = "predicate-type"
-	IncludePredicate   = "include-predicate"
-	Markdown           = "markdown"
-	SubjectRepoPath    = "subject-repo-path"
-	SubjectSha256      = "subject-sha256"
-	Key                = "key"
-	KeyAlias           = "key-alias"
-	ProviderId         = "provider-id"
-	PublicKeys         = "public-keys"
-	UseArtifactoryKeys = "use-artifactory-keys"
-	Integration        = "integration"
-	SigstoreBundle     = "sigstore-bundle"
-	ArtifactsLimit     = "artifacts-limit"
-	UploadPublicKey    = "upload-public-key"
-	KeyFilePath        = "key-file-path"
-	KeyFileName        = "key-file-name"
+	Predicate                 = "predicate"
+	PredicateType             = "predicate-type"
+	IncludePredicate          = "include-predicate"
+	Markdown                  = "markdown"
+	SubjectRepoPath           = "subject-repo-path"
+	SubjectSha256             = "subject-sha256"
+	Key                       = "key"
+	KeyAlias                  = "key-alias"
+	ProviderId                = "provider-id"
+	PublicKeys                = "public-keys"
+	UseArtifactoryKeys        = "use-artifactory-keys"
+	Integration               = "integration"
+	SigstoreBundle            = "sigstore-bundle"
+	AttachLocal               = "attach-local"
+	AttachArtifactoryTempPath = "attach-artifactory-temp-path"
+	AttachArtifactoryPath     = "attach-artifactory-path"
+	ArtifactsLimit            = "artifacts-limit"
+	UploadPublicKey           = "upload-public-key"
+	KeyFilePath               = "key-file-path"
+	KeyFileName               = "key-file-name"
 )
 
 // Flag keys mapped to their corresponding components.Flag definition.
@@ -82,15 +85,18 @@ var flagsMap = map[string]components.Flag{
 	Key:              components.NewStringFlag(Key, "Path to a private key that will sign the DSSE. Supported keys: 'ecdsa','rsa' and 'ed25519'.", func(f *components.StringFlag) { f.Mandatory = false }),
 	KeyAlias:         components.NewStringFlag(KeyAlias, "Key alias", func(f *components.StringFlag) { f.Mandatory = false }),
 
-	ProviderId:         components.NewStringFlag(ProviderId, "Provider ID for the evidence.", func(f *components.StringFlag) { f.Mandatory = false }),
-	PublicKeys:         components.NewStringFlag(PublicKeys, "Array of paths to public keys for signatures verification with \";\" separator. Supported keys: 'ecdsa','rsa' and 'ed25519'.", func(f *components.StringFlag) { f.Mandatory = false }),
-	SigstoreBundle:     components.NewStringFlag(SigstoreBundle, "Path to a Sigstore bundle file with a pre-signed DSSE envelope. Incompatible with --"+Key+", --"+KeyAlias+", --"+Predicate+", --"+PredicateType+" and --"+SubjectSha256+".", func(f *components.StringFlag) { f.Mandatory = false }),
-	UseArtifactoryKeys: components.NewBoolFlag(UseArtifactoryKeys, "Use Artifactory keys for verification. When enabled, the verify command retrieves keys from Artifactory.", components.WithBoolDefaultValueFalse()),
-	ArtifactsLimit:     components.NewStringFlag(ArtifactsLimit, "The number of artifacts in a release bundle to be included in the evidences file. The default value is 1000 artifacts", func(f *components.StringFlag) { f.Mandatory = false }),
-	Integration:        components.NewStringFlag(Integration, "Specify an integration to automatically generate the Predicate. Supported: 'sonar'. When using 'sonar', the 'SONAR_TOKEN' or 'SONARQUBE_TOKEN' environment variable must be set.", func(f *components.StringFlag) { f.Mandatory = false }),
-	UploadPublicKey:    components.NewBoolFlag(UploadPublicKey, "Upload the generated public key to JFrog platform trusted keys. Requires server connection.", components.WithBoolDefaultValueTrue()),
-	KeyFilePath:        components.NewStringFlag(KeyFilePath, "Directory path for key files. Creates the directory if it doesn't exist. Defaults to current directory.", func(f *components.StringFlag) { f.Mandatory = false }),
-	KeyFileName:        components.NewStringFlag(KeyFileName, "Base name for key files (without extension). Private key will be saved as <name>.key and public key as <name>.pub. Defaults to 'evidence'.", func(f *components.StringFlag) { f.Mandatory = false }),
+	ProviderId:                components.NewStringFlag(ProviderId, "Provider ID for the evidence.", func(f *components.StringFlag) { f.Mandatory = false }),
+	PublicKeys:                components.NewStringFlag(PublicKeys, "Array of paths to public keys for signatures verification with \";\" separator. Supported keys: 'ecdsa','rsa' and 'ed25519'.", func(f *components.StringFlag) { f.Mandatory = false }),
+	SigstoreBundle:            components.NewStringFlag(SigstoreBundle, "Path to a Sigstore bundle file with a pre-signed DSSE envelope. Incompatible with --"+Key+", --"+KeyAlias+", --"+Predicate+", --"+PredicateType+" and --"+SubjectSha256+".", func(f *components.StringFlag) { f.Mandatory = false }),
+	AttachLocal:               components.NewStringFlag(AttachLocal, "Path to a local file to attach to created evidence. Incompatible with --"+AttachArtifactoryPath+".", func(f *components.StringFlag) { f.Mandatory = false }),
+	AttachArtifactoryTempPath: components.NewStringFlag(AttachArtifactoryTempPath, "Temporary Artifactory upload path for --"+AttachLocal+" in format <repo/path[/name]>. Use trailing slash for directory targets. Can also be set via env var EVIDENCE_ATTACHMENT_ARTIFACTORY_TEMP_PATH or config key attachment.artifactoryTempPath. Once provided, the value is persisted for subsequent runs.", func(f *components.StringFlag) { f.Mandatory = false }),
+	AttachArtifactoryPath:     components.NewStringFlag(AttachArtifactoryPath, "Existing Artifactory file path to attach in format <repo/path>.", func(f *components.StringFlag) { f.Mandatory = false }),
+	UseArtifactoryKeys:        components.NewBoolFlag(UseArtifactoryKeys, "Use Artifactory keys for verification. When enabled, the verify command retrieves keys from Artifactory.", components.WithBoolDefaultValueFalse()),
+	ArtifactsLimit:            components.NewStringFlag(ArtifactsLimit, "The number of artifacts in a release bundle to be included in the evidences file. The default value is 1000 artifacts", func(f *components.StringFlag) { f.Mandatory = false }),
+	Integration:               components.NewStringFlag(Integration, "Specify an integration to automatically generate the Predicate. Supported: 'sonar'. When using 'sonar', the 'SONAR_TOKEN' or 'SONARQUBE_TOKEN' environment variable must be set.", func(f *components.StringFlag) { f.Mandatory = false }),
+	UploadPublicKey:           components.NewBoolFlag(UploadPublicKey, "Upload the generated public key to JFrog platform trusted keys. Requires server connection.", components.WithBoolDefaultValueTrue()),
+	KeyFilePath:               components.NewStringFlag(KeyFilePath, "Directory path for key files. Creates the directory if it doesn't exist. Defaults to current directory.", func(f *components.StringFlag) { f.Mandatory = false }),
+	KeyFileName:               components.NewStringFlag(KeyFileName, "Base name for key files (without extension). Private key will be saved as <name>.key and public key as <name>.pub. Defaults to 'evidence'.", func(f *components.StringFlag) { f.Mandatory = false }),
 }
 
 var commandFlags = map[string][]string{
@@ -120,6 +126,9 @@ var commandFlags = map[string][]string{
 		ProviderId,
 		Integration,
 		SigstoreBundle,
+		AttachLocal,
+		AttachArtifactoryTempPath,
+		AttachArtifactoryPath,
 	},
 	VerifyEvidence: {
 		Url,

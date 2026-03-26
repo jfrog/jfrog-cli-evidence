@@ -10,6 +10,7 @@ import (
 	"github.com/jfrog/jfrog-cli-core/v2/utils/config"
 	"github.com/jfrog/jfrog-cli-core/v2/utils/coreutils"
 	"github.com/jfrog/jfrog-cli-evidence/evidence/model"
+	evidenceutils "github.com/jfrog/jfrog-cli-evidence/evidence/utils"
 	"github.com/jfrog/jfrog-cli-evidence/evidence/verify/reports"
 	"github.com/jfrog/jfrog-cli-evidence/evidence/verify/verifiers"
 
@@ -19,8 +20,7 @@ import (
 	"github.com/jfrog/jfrog-client-go/utils/log"
 )
 
-const searchEvidenceQueryWithPublicKey = `{"query":"{ evidence { searchEvidence( where: { hasSubjectWith: { repositoryKey: \"%s\", path: \"%s\", name: \"%s\" }} ) { edges { cursor node { downloadPath predicateType createdAt createdBy subject { sha256 } signingKey {alias, publicKey} } } } } }"}`
-const searchEvidenceQueryWithoutPublicKey = `{"query":"{ evidence { searchEvidence( where: { hasSubjectWith: { repositoryKey: \"%s\", path: \"%s\", name: \"%s\" }} ) { edges { cursor node { downloadPath predicateType createdAt createdBy subject { sha256 } } } } } }"}`
+const searchEvidenceQueryTemplate = `{"query":"{ evidence { searchEvidence( where: { hasSubjectWith: { repositoryKey: \"%s\", path: \"%s\", name: \"%s\" }} ) { edges { cursor node { ` + evidenceutils.NodeFieldsPlaceholder + ` } } } } }"}`
 
 // verifyEvidenceBase provides shared logic for evidence verification command.
 type verifyEvidenceBase struct {
@@ -114,21 +114,9 @@ func (v *verifyEvidenceBase) queryEvidenceMetadata(repo string, path string, nam
 	if err != nil {
 		return nil, err
 	}
-	var query string
-	if v.useArtifactoryKeys {
-		query = fmt.Sprintf(searchEvidenceQueryWithPublicKey, repo, path, name)
-	} else {
-		query = fmt.Sprintf(searchEvidenceQueryWithoutPublicKey, repo, path, name)
-	}
-	log.Debug("Fetch evidence metadata using query:", query)
-	queryByteArray := []byte(query)
-	response, err := v.oneModelClient.GraphqlQuery(queryByteArray)
+	response, usedFallbackWithoutAttachments, err := v.fetchSearchEvidenceResponse(repo, path, name)
 	if err != nil {
-		errStr := err.Error()
-		if isPublicKeyFieldNotFound(errStr) {
-			return nil, fmt.Errorf("the evidence service version should be at least 7.125.0 and the onemodel version should be at least 1.55.0")
-		}
-		return nil, fmt.Errorf("error querying evidence from One-Model service: %w", err)
+		return nil, err
 	}
 	evidence := model.ResponseSearchEvidence{}
 	err = json.Unmarshal(response, &evidence)
@@ -139,7 +127,40 @@ func (v *verifyEvidenceBase) queryEvidenceMetadata(repo string, path string, nam
 	if len(edges) == 0 {
 		return nil, fmt.Errorf("no evidence found for the given subject")
 	}
+	if usedFallbackWithoutAttachments {
+		for i := range edges {
+			edges[i].Node.AttachmentsUnavailable = true
+		}
+	}
 	return &edges, nil
+}
+
+func (v *verifyEvidenceBase) fetchSearchEvidenceResponse(repo, path, name string) ([]byte, bool, error) {
+	queryWithAttachments := fmt.Sprintf(v.buildSearchEvidenceQuery(true), repo, path, name)
+	log.Debug("Fetch evidence metadata using query:", queryWithAttachments)
+	response, err := v.oneModelClient.GraphqlQuery([]byte(queryWithAttachments))
+	if err == nil {
+		return response, false, nil
+	}
+
+	if evidenceutils.IsAttachmentsFieldNotFound(err) {
+		log.Debug("GraphQL schema does not support attachments field. Falling back to verify query without attachments.")
+		queryWithoutAttachments := fmt.Sprintf(v.buildSearchEvidenceQuery(false), repo, path, name)
+		log.Debug("Fetch evidence metadata using query without attachments:", queryWithoutAttachments)
+		response, err = v.oneModelClient.GraphqlQuery([]byte(queryWithoutAttachments))
+		if err != nil {
+			return nil, false, mapGraphqlQueryError(err)
+		}
+		return response, true, nil
+	}
+	return nil, false, mapGraphqlQueryError(err)
+}
+
+func mapGraphqlQueryError(err error) error {
+	if isPublicKeyFieldNotFound(err.Error()) {
+		return fmt.Errorf("the evidence service version should be at least 7.125.0 and the onemodel version should be at least 1.55.0")
+	}
+	return fmt.Errorf("error querying evidence from One-Model service: %w", err)
 }
 
 func createOneModelService(v *verifyEvidenceBase) error {
@@ -156,4 +177,18 @@ func createOneModelService(v *verifyEvidenceBase) error {
 
 func isPublicKeyFieldNotFound(errStr string) bool {
 	return strings.Contains(errStr, "publicKey")
+}
+
+func (v *verifyEvidenceBase) buildSearchEvidenceQuery(includeAttachments bool) string {
+	nodeFields := evidenceutils.NewNodeFieldsBuilder(
+		evidenceutils.FieldDownloadPath,
+		evidenceutils.FieldPredicateType,
+		evidenceutils.FieldCreatedAt,
+		evidenceutils.FieldCreatedBy,
+		evidenceutils.FieldSubjectSha256,
+	).
+		WithIf(includeAttachments, evidenceutils.AttachmentsFragment).
+		WithIf(v.useArtifactoryKeys, evidenceutils.FieldSigningKeyWithPublicKey).
+		Build()
+	return evidenceutils.BuildQuery(searchEvidenceQueryTemplate, nodeFields)
 }

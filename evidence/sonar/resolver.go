@@ -25,10 +25,7 @@ func NewStatementResolver() StatementResolver {
 
 func (d *statementResolver) ResolveStatement() ([]byte, error) {
 	log.Info("Fetching SonarQube in-toto statement")
-	var cfg *conf.EvidenceConfig
-	if c, err := conf.LoadEvidenceConfig(); err == nil {
-		cfg = c
-	}
+	cfg := conf.LoadEvidenceConfig()
 	return d.resolveStatementWithConfig(cfg)
 }
 

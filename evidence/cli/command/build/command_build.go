@@ -40,7 +40,11 @@ func (ebc *evidenceBuildCommand) CreateEvidence(ctx *components.Context, serverD
 		ebc.ctx.GetStringFlagValue(flags.BuildName),
 		ebc.ctx.GetStringFlagValue(flags.BuildNumber),
 		ebc.ctx.GetStringFlagValue(flags.ProviderId),
-		ebc.ctx.GetStringFlagValue(flags.Integration))
+		ebc.ctx.GetStringFlagValue(flags.Integration),
+		ebc.ctx.GetStringFlagValue(flags.AttachLocal),
+		ebc.ctx.GetStringFlagValue(flags.AttachArtifactoryTempPath),
+		ebc.ctx.GetStringFlagValue(flags.AttachArtifactoryPath),
+	)
 	return ebc.execute(createCmd)
 }
 

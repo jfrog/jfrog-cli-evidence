@@ -38,7 +38,7 @@ func (p *markdownReportPrinter) Print(result *model.VerificationResponse) error 
 	fmt.Println("| Predicate type | Media type | Key source | Key fingerprint | Verification status | Failure reason |")
 	fmt.Println("|-|-|-|-|-|-|")
 	for _, verification := range *result.EvidenceVerifications {
-		var verificationStatus model.VerificationStatus = model.Failed
+		verificationStatus := model.Failed
 		if IsVerificationSucceed(verification) {
 			verificationStatus = model.Success
 		}
@@ -63,6 +63,24 @@ func (p *markdownReportPrinter) Print(result *model.VerificationResponse) error 
 			failureReason)
 	}
 	fmt.Println()
+
+	for _, verification := range *result.EvidenceVerifications {
+		if !hasFailedAttachment(verification.AttachmentsVerification) {
+			continue
+		}
+		fmt.Println("### Attachment verification failures")
+		fmt.Printf("- Evidence: `%s`\n", verification.DownloadPath)
+		for _, attachment := range verification.AttachmentsVerification {
+			if attachment.VerificationStatus == model.Failed {
+				if attachment.FailureReason != "" {
+					fmt.Printf("  - `%s` - failed (%s)\n", attachment.Name, attachment.FailureReason)
+				} else {
+					fmt.Printf("  - `%s` - failed\n", attachment.Name)
+				}
+			}
+		}
+		fmt.Println()
+	}
 
 	return nil
 }

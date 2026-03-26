@@ -55,17 +55,20 @@ type createGitHubEvidence struct {
 	buildNumber string
 }
 
-func NewCreateGithub(serverDetails *config.ServerDetails, predicateFilePath, predicateType, markdownFilePath, key, keyId, project, buildName, buildNumber, typeFlag string) evidence.Command {
+func NewCreateGithub(serverDetails *config.ServerDetails, predicateFilePath, predicateType, markdownFilePath, key, keyId, project, buildName, buildNumber, typeFlag, attachLocalPath, attachArtifactoryTempPath, attachArtifactoryPath string) evidence.Command {
 	flagType := getFlagType(typeFlag)
 	return &createGitHubEvidence{
 		createEvidenceBase: createEvidenceBase{
-			serverDetails:     serverDetails,
-			predicateFilePath: predicateFilePath,
-			predicateType:     predicateType,
-			markdownFilePath:  markdownFilePath,
-			key:               key,
-			keyId:             keyId,
-			flagType:          flagType,
+			serverDetails:             serverDetails,
+			predicateFilePath:         predicateFilePath,
+			predicateType:             predicateType,
+			markdownFilePath:          markdownFilePath,
+			key:                       key,
+			keyId:                     keyId,
+			flagType:                  flagType,
+			attachLocalPath:           attachLocalPath,
+			attachArtifactoryTempPath: attachArtifactoryTempPath,
+			attachArtifactoryPath:     attachArtifactoryPath,
 		},
 		project:     project,
 		buildName:   buildName,
@@ -105,16 +108,24 @@ func (c *createGitHubEvidence) Run() error {
 		log.Error("failed to create Artifactory client", err)
 		return err
 	}
+	attachment, cleanup, err := c.resolveAttachment(artifactoryClient)
+	if err != nil {
+		return err
+	}
+	if cleanup != nil {
+		defer cleanup()
+	}
+
 	subject, sha256, err := c.buildBuildInfoSubjectPath(artifactoryClient)
 	if err != nil {
 		return err
 	}
 	envelope, err := c.createEnvelopeWithPredicateAndPredicateType(subject,
-		sha256, ghDefaultPredicateType, evidencePredicate)
+		sha256, ghDefaultPredicateType, evidencePredicate, attachment)
 	if err != nil {
 		return err
 	}
-	_, err = c.uploadEvidence(envelope, subject)
+	_, err = c.uploadEvidence(envelope, subject, attachment)
 	if err != nil {
 		return err
 	}
@@ -266,7 +277,7 @@ func (c *createGitHubEvidence) getGitCommitEntries(serverDetails *config.ServerD
 		return nil, err
 	}
 
-	re := regexp.MustCompile(`'(\{.*?\})'`)
+	re := regexp.MustCompile(`'(\{.*?})'`)
 	matches := re.FindAllStringSubmatch(fullLog, -1)
 
 	var entries []model.GitLogEntry

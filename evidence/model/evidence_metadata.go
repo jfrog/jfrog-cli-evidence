@@ -36,6 +36,10 @@ type EvidenceMetadata struct {
 	Subject           EvidenceSubject `json:"subject"`
 	ProviderId        string          `json:"providerId"`
 	SigningKey        SingingKey      `json:"signingKey"`
+	Attachments       []AttachmentRef `json:"attachments,omitempty"`
+	// AttachmentsUnavailable indicates metadata was loaded via GraphQL fallback
+	// where the attachments field is not supported by server schema.
+	AttachmentsUnavailable bool `json:"-"`
 }
 
 type EvidenceSubject struct {
@@ -48,4 +52,11 @@ type EvidenceSubject struct {
 type SingingKey struct {
 	Alias     string `json:"alias"`
 	PublicKey string `json:"publicKey"`
+}
+
+type AttachmentRef struct {
+	Name         string  `json:"name"`
+	Sha256       string  `json:"sha256"`
+	Type         *string `json:"type,omitempty"`
+	DownloadPath string  `json:"downloadPath"`
 }

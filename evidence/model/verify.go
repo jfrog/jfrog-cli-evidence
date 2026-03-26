@@ -6,7 +6,7 @@ import (
 	"github.com/sigstore/sigstore-go/pkg/verify"
 )
 
-const SchemaVersion = "1.1"
+const SchemaVersion = "1.2"
 
 type VerificationResponse struct {
 	// Update the schemaVersion value when this structure is updated.
@@ -22,15 +22,16 @@ type Subject struct {
 }
 
 type EvidenceVerification struct {
-	MediaType          MediaType                  `json:"mediaType"`
-	DownloadPath       string                     `json:"downloadPath"`
-	SubjectChecksum    string                     `json:"evidenceSubjectSha256"`
-	PredicateType      string                     `json:"predicateType"`
-	CreatedBy          string                     `json:"createdBy"`
-	CreatedAt          string                     `json:"createdAt"`
-	VerificationResult EvidenceVerificationResult `json:"verificationResult"`
-	DsseEnvelope       *dsse.Envelope             `json:"dsseEnvelope,omitempty"`
-	SigstoreBundle     *bundle.Bundle             `json:"sigstoreBundle,omitempty"`
+	MediaType               MediaType                  `json:"mediaType"`
+	DownloadPath            string                     `json:"downloadPath"`
+	SubjectChecksum         string                     `json:"evidenceSubjectSha256"`
+	PredicateType           string                     `json:"predicateType"`
+	CreatedBy               string                     `json:"createdBy"`
+	CreatedAt               string                     `json:"createdAt"`
+	VerificationResult      EvidenceVerificationResult `json:"verificationResult"`
+	AttachmentsVerification []AttachmentVerification   `json:"attachmentsVerification,omitempty"`
+	DsseEnvelope            *dsse.Envelope             `json:"dsseEnvelope,omitempty"`
+	SigstoreBundle          *bundle.Bundle             `json:"sigstoreBundle,omitempty"`
 }
 
 type EvidenceVerificationResult struct {
@@ -40,14 +41,24 @@ type EvidenceVerificationResult struct {
 	KeySource                        string                     `json:"keySource,omitempty"`
 	KeyFingerprint                   string                     `json:"keyFingerprint,omitempty"`
 	SigstoreBundleVerificationResult *verify.VerificationResult `json:"sigstoreBundleVerificationResult,omitempty"`
+	AttachmentsVerificationStatus    VerificationStatus         `json:"attachmentsVerificationStatus,omitempty"`
 	FailureReason                    string                     `json:"failureReason,omitempty"`
+}
+
+type AttachmentVerification struct {
+	Name               string             `json:"name"`
+	ExpectedSha256     string             `json:"expectedSha256,omitempty"`
+	ActualSha256       string             `json:"actualSha256,omitempty"`
+	DownloadPath       string             `json:"downloadPath,omitempty"`
+	VerificationStatus VerificationStatus `json:"verificationStatus"`
+	FailureReason      string             `json:"failureReason,omitempty"`
 }
 
 type VerificationStatus string
 
 const (
-	Success = "success"
-	Failed  = "failed"
+	Success VerificationStatus = "success"
+	Failed  VerificationStatus = "failed"
 )
 
 type MediaType string
