@@ -7,13 +7,15 @@ import (
 	"io"
 	"net/http"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"runtime"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/jfrog/jfrog-cli-core/v2/plugins"
+	coreTests "github.com/jfrog/jfrog-cli-core/v2/utils/tests"
+	"github.com/jfrog/jfrog-cli-evidence/evidence/cli"
 	"github.com/jfrog/jfrog-cli-evidence/tests/e2e"
 	"github.com/jfrog/jfrog-cli-evidence/tests/e2e/utils"
 	clientutils "github.com/jfrog/jfrog-client-go/utils"
@@ -24,8 +26,8 @@ import (
 func (r *EvidenceE2ETestsRunner) RunCreateEvidenceWithAttachmentPermissions(t *testing.T) {
 	t.Log("=== Create Evidence - Attachment Permissions Test ===")
 	require.NotEmpty(t, SharedPrivateKeyPath, "shared key pair not initialized")
-	ensureAttachmentSupportedArtifactoryVersion(t)
-	ensureAttachmentSupportedEvidenceVersion(t)
+	ensureAttachmentSupportedArtifactoryVersion(t, r)
+	ensureAttachmentSupportedEvidenceVersion(t, r)
 
 	t.Run("LocalAttachment_UserHasSubjectAndTempWritePermissions", func(t *testing.T) {
 		r.runAttachmentCase(t, attachmentCase{
@@ -85,8 +87,8 @@ type attachmentCase struct {
 func (r *EvidenceE2ETestsRunner) runAttachmentCase(t *testing.T, tc attachmentCase) {
 	t.Helper()
 
-	adminToken := mustGetAdminToken(t)
-	baseURL := getJfrogBaseURL()
+	adminToken := mustGetAdminToken(t, r)
+	baseURL := getJfrogBaseURL(t, r)
 
 	// Track access resources for cleanup. Populated after repo creation,
 	// but cleaned up AFTER repo deletion (LIFO: registered first, runs last).
@@ -197,7 +199,7 @@ func (r *EvidenceE2ETestsRunner) runAttachmentCase(t *testing.T, tc attachmentCa
 		createArgs = append(createArgs, "--attach-artifactory-path", attachmentRepoPath)
 	}
 
-	output, runErr := runEvidenceCommandWithToken(userToken, createArgs...)
+	output, runErr := runEvidenceCommandWithToken(t, r, userToken, createArgs...)
 	combined := output
 	if runErr != nil {
 		combined = combined + "\n" + runErr.Error()
@@ -216,23 +218,45 @@ func (r *EvidenceE2ETestsRunner) runAttachmentCase(t *testing.T, tc attachmentCa
 	require.NotContains(t, combined, "Failed")
 }
 
-func runEvidenceCommandWithToken(token string, args ...string) (string, error) {
-	_, currentFile, _, _ := runtime.Caller(0)
-	binaryPath := filepath.Join(filepath.Dir(currentFile), "..", "..", "..", "build", "jfrog-evidence")
-	cmdArgs := append([]string{}, args...)
-	cmdArgs = append(cmdArgs, fmt.Sprintf("--url=%s", *e2e.JfrogUrl), fmt.Sprintf("--access-token=%s", token))
-	cmd := exec.Command(binaryPath, cmdArgs...)
-	output, err := cmd.CombinedOutput()
-	return string(output), err
-}
-
-func getJfrogBaseURL() string {
-	return strings.TrimRight(*e2e.JfrogUrl, "/")
-}
-
-func ensureAttachmentSupportedEvidenceVersion(t *testing.T) {
+func runEvidenceCommandWithToken(t *testing.T, r *EvidenceE2ETestsRunner, token string, args ...string) (string, error) {
 	t.Helper()
-	req, err := http.NewRequest(http.MethodGet, getJfrogBaseURL()+"/evidence/api/v1/system/version", nil)
+
+	tokenScopedCli := newEvidenceCLIWithToken(t, r, token)
+	return tokenScopedCli.RunCliCmdWithOutputs(t, args...)
+}
+
+func getJfrogBaseURL(t *testing.T, r *EvidenceE2ETestsRunner) string {
+	t.Helper()
+	require.NotNil(t, r)
+	require.NotNil(t, r.ServicesManager, "services manager not initialized")
+
+	config := r.ServicesManager.GetConfig()
+	require.NotNil(t, config, "services manager config not initialized")
+
+	serviceDetails := config.GetServiceDetails()
+	require.NotNil(t, serviceDetails, "service details not initialized")
+
+	baseURL := strings.TrimRight(serviceDetails.GetUrl(), "/")
+	require.NotEmpty(t, baseURL, "jfrog base url not configured")
+	return baseURL
+}
+
+func newEvidenceCLIWithToken(t *testing.T, r *EvidenceE2ETestsRunner, token string) *coreTests.JfrogCli {
+	t.Helper()
+	require.NotEmpty(t, token, "access token is required")
+
+	return coreTests.NewJfrogCli(execStandaloneEvidenceCliMain, "jfrog-evidence",
+		fmt.Sprintf("--url=%s --access-token=%s", getJfrogBaseURL(t, r), token))
+}
+
+func execStandaloneEvidenceCliMain() error {
+	plugins.PluginMain(cli.GetStandaloneEvidenceApp())
+	return nil
+}
+
+func ensureAttachmentSupportedEvidenceVersion(t *testing.T, r *EvidenceE2ETestsRunner) {
+	t.Helper()
+	req, err := http.NewRequest(http.MethodGet, getJfrogBaseURL(t, r)+"/evidence/api/v1/system/version", nil)
 	require.NoError(t, err)
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
@@ -250,11 +274,11 @@ func ensureAttachmentSupportedEvidenceVersion(t *testing.T) {
 	}
 }
 
-func ensureAttachmentSupportedArtifactoryVersion(t *testing.T) {
+func ensureAttachmentSupportedArtifactoryVersion(t *testing.T, r *EvidenceE2ETestsRunner) {
 	t.Helper()
-	req, err := http.NewRequest(http.MethodGet, getJfrogBaseURL()+"/artifactory/api/system/version", nil)
+	req, err := http.NewRequest(http.MethodGet, getJfrogBaseURL(t, r)+"/artifactory/api/system/version", nil)
 	require.NoError(t, err)
-	req.Header.Set("Authorization", "Bearer "+mustGetAdminToken(t))
+	req.Header.Set("Authorization", "Bearer "+mustGetAdminToken(t, r))
 
 	resp, err := http.DefaultClient.Do(req)
 	require.NoError(t, err, "failed to query Artifactory version")
@@ -275,8 +299,20 @@ func ensureAttachmentSupportedArtifactoryVersion(t *testing.T) {
 	}
 }
 
-func mustGetAdminToken(t *testing.T) string {
+func mustGetAdminToken(t *testing.T, r *EvidenceE2ETestsRunner) string {
 	t.Helper()
+	require.NotNil(t, r)
+	require.NotNil(t, r.ServicesManager, "services manager not initialized")
+
+	config := r.ServicesManager.GetConfig()
+	require.NotNil(t, config, "services manager config not initialized")
+
+	serviceDetails := config.GetServiceDetails()
+	require.NotNil(t, serviceDetails, "service details not initialized")
+
+	if token := strings.TrimSpace(serviceDetails.GetAccessToken()); token != "" {
+		return token
+	}
 	if e2e.ArtifactoryAdminToken != nil && strings.TrimSpace(*e2e.ArtifactoryAdminToken) != "" {
 		return strings.TrimSpace(*e2e.ArtifactoryAdminToken)
 	}

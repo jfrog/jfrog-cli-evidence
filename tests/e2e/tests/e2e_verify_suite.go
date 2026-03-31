@@ -682,11 +682,11 @@ func (r *EvidenceE2ETestsRunner) RunVerifyEvidenceWithAttachmentAndSubjectOnlyPe
 	require.NotEmpty(t, SharedPrivateKeyPath, "shared key pair not initialized")
 	require.NotEmpty(t, SharedPublicKeyPath, "shared key pair not initialized")
 
-	ensureAttachmentSupportedArtifactoryVersion(t)
-	ensureAttachmentSupportedEvidenceVersion(t)
+	ensureAttachmentSupportedArtifactoryVersion(t, r)
+	ensureAttachmentSupportedEvidenceVersion(t, r)
 
-	baseURL := getJfrogBaseURL()
-	adminToken := mustGetAdminToken(t)
+	baseURL := getJfrogBaseURL(t, r)
+	adminToken := mustGetAdminToken(t, r)
 
 	var permissionName, userName, groupName string
 
@@ -748,7 +748,7 @@ func (r *EvidenceE2ETestsRunner) RunVerifyEvidenceWithAttachmentAndSubjectOnlyPe
 	require.NoError(t, err)
 	require.NotEmpty(t, token)
 
-	verifyOutput, verifyErr := runEvidenceCommandWithToken(token,
+	verifyOutput, verifyErr := runEvidenceCommandWithToken(t, r, token,
 		"verify",
 		"--subject-repo-path", subjectRepoPath,
 		"--public-keys", SharedPublicKeyPath,
