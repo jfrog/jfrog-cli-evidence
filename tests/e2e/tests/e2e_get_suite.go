@@ -533,11 +533,11 @@ func (r *EvidenceE2ETestsRunner) RunGetEvidenceWithAttachmentAndSubjectOnlyPermi
 	t.Log("=== Get Evidence - Attachment with Subject-only permissions ===")
 	require.NotEmpty(t, SharedPrivateKeyPath, "shared key pair not initialized")
 
-	ensureAttachmentSupportedArtifactoryVersion(t)
-	ensureAttachmentSupportedEvidenceVersion(t)
+	ensureAttachmentSupportedArtifactoryVersion(t, r)
+	ensureAttachmentSupportedEvidenceVersion(t, r)
 
-	baseURL := getJfrogBaseURL()
-	adminToken := mustGetAdminToken(t)
+	baseURL := getJfrogBaseURL(t, r)
+	adminToken := mustGetAdminToken(t, r)
 
 	var permissionName, userName, groupName string
 
@@ -599,7 +599,7 @@ func (r *EvidenceE2ETestsRunner) RunGetEvidenceWithAttachmentAndSubjectOnlyPermi
 	require.NoError(t, err)
 	require.NotEmpty(t, token)
 
-	getOutput, getErr := runEvidenceCommandWithToken(token,
+	getOutput, getErr := runEvidenceCommandWithToken(t, r, token,
 		"get",
 		"--subject-repo-path", subjectRepoPath,
 		"--format", "json",
