@@ -7,15 +7,13 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"runtime"
 	"strings"
 	"testing"
 	"time"
 
-	"github.com/jfrog/jfrog-cli-core/v2/plugins"
-	coreTests "github.com/jfrog/jfrog-cli-core/v2/utils/tests"
-	"github.com/jfrog/jfrog-cli-evidence/evidence/cli"
 	"github.com/jfrog/jfrog-cli-evidence/tests/e2e"
 	"github.com/jfrog/jfrog-cli-evidence/tests/e2e/utils"
 	clientutils "github.com/jfrog/jfrog-client-go/utils"
@@ -220,9 +218,15 @@ func (r *EvidenceE2ETestsRunner) runAttachmentCase(t *testing.T, tc attachmentCa
 
 func runEvidenceCommandWithToken(t *testing.T, r *EvidenceE2ETestsRunner, token string, args ...string) (string, error) {
 	t.Helper()
+	require.NotEmpty(t, token, "access token is required")
 
-	tokenScopedCli := newEvidenceCLIWithToken(t, r, token)
-	return tokenScopedCli.RunCliCmdWithOutputs(t, args...)
+	_, currentFile, _, _ := runtime.Caller(0)
+	binaryPath := filepath.Join(filepath.Dir(currentFile), "..", "..", "..", "build", "jfrog-evidence")
+	cmdArgs := append([]string{}, args...)
+	cmdArgs = append(cmdArgs, fmt.Sprintf("--url=%s", getJfrogBaseURL(t, r)), fmt.Sprintf("--access-token=%s", token))
+	cmd := exec.Command(binaryPath, cmdArgs...)
+	output, err := cmd.CombinedOutput()
+	return string(output), err
 }
 
 func getJfrogBaseURL(t *testing.T, r *EvidenceE2ETestsRunner) string {
@@ -241,17 +245,27 @@ func getJfrogBaseURL(t *testing.T, r *EvidenceE2ETestsRunner) string {
 	return baseURL
 }
 
-func newEvidenceCLIWithToken(t *testing.T, r *EvidenceE2ETestsRunner, token string) *coreTests.JfrogCli {
+func getArtifactoryBaseURL(t *testing.T, r *EvidenceE2ETestsRunner) string {
 	t.Helper()
-	require.NotEmpty(t, token, "access token is required")
+	require.NotNil(t, r)
+	require.NotNil(t, r.ServicesManager, "services manager not initialized")
 
-	return coreTests.NewJfrogCli(execStandaloneEvidenceCliMain, "jfrog-evidence",
-		fmt.Sprintf("--url=%s --access-token=%s", getJfrogBaseURL(t, r), token))
-}
+	config := r.ServicesManager.GetConfig()
+	require.NotNil(t, config, "services manager config not initialized")
 
-func execStandaloneEvidenceCliMain() error {
-	plugins.PluginMain(cli.GetStandaloneEvidenceApp())
-	return nil
+	serviceDetails := config.GetServiceDetails()
+	require.NotNil(t, serviceDetails, "service details not initialized")
+
+	type artifactoryURLProvider interface {
+		GetArtifactoryUrl() string
+	}
+	if detailsWithArtifactoryURL, ok := serviceDetails.(artifactoryURLProvider); ok {
+		if artifactoryURL := strings.TrimRight(detailsWithArtifactoryURL.GetArtifactoryUrl(), "/"); artifactoryURL != "" {
+			return artifactoryURL
+		}
+	}
+
+	return getJfrogBaseURL(t, r) + "/artifactory"
 }
 
 func ensureAttachmentSupportedEvidenceVersion(t *testing.T, r *EvidenceE2ETestsRunner) {
@@ -276,7 +290,7 @@ func ensureAttachmentSupportedEvidenceVersion(t *testing.T, r *EvidenceE2ETestsR
 
 func ensureAttachmentSupportedArtifactoryVersion(t *testing.T, r *EvidenceE2ETestsRunner) {
 	t.Helper()
-	req, err := http.NewRequest(http.MethodGet, getJfrogBaseURL(t, r)+"/artifactory/api/system/version", nil)
+	req, err := http.NewRequest(http.MethodGet, getArtifactoryBaseURL(t, r)+"/api/system/version", nil)
 	require.NoError(t, err)
 	req.Header.Set("Authorization", "Bearer "+mustGetAdminToken(t, r))
 
