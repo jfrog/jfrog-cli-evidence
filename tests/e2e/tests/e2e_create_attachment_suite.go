@@ -240,32 +240,14 @@ func getJfrogBaseURL(t *testing.T, r *EvidenceE2ETestsRunner) string {
 	serviceDetails := config.GetServiceDetails()
 	require.NotNil(t, serviceDetails, "service details not initialized")
 
-	baseURL := strings.TrimRight(serviceDetails.GetUrl(), "/")
+	baseURL := normalizePlatformURL(serviceDetails.GetUrl())
 	require.NotEmpty(t, baseURL, "jfrog base url not configured")
 	return baseURL
 }
 
-func getArtifactoryBaseURL(t *testing.T, r *EvidenceE2ETestsRunner) string {
-	t.Helper()
-	require.NotNil(t, r)
-	require.NotNil(t, r.ServicesManager, "services manager not initialized")
-
-	config := r.ServicesManager.GetConfig()
-	require.NotNil(t, config, "services manager config not initialized")
-
-	serviceDetails := config.GetServiceDetails()
-	require.NotNil(t, serviceDetails, "service details not initialized")
-
-	type artifactoryURLProvider interface {
-		GetArtifactoryUrl() string
-	}
-	if detailsWithArtifactoryURL, ok := serviceDetails.(artifactoryURLProvider); ok {
-		if artifactoryURL := strings.TrimRight(detailsWithArtifactoryURL.GetArtifactoryUrl(), "/"); artifactoryURL != "" {
-			return artifactoryURL
-		}
-	}
-
-	return getJfrogBaseURL(t, r) + "/artifactory"
+func normalizePlatformURL(rawURL string) string {
+	baseURL := strings.TrimRight(rawURL, "/")
+	return strings.TrimSuffix(baseURL, "/artifactory")
 }
 
 func ensureAttachmentSupportedEvidenceVersion(t *testing.T, r *EvidenceE2ETestsRunner) {
@@ -290,22 +272,12 @@ func ensureAttachmentSupportedEvidenceVersion(t *testing.T, r *EvidenceE2ETestsR
 
 func ensureAttachmentSupportedArtifactoryVersion(t *testing.T, r *EvidenceE2ETestsRunner) {
 	t.Helper()
-	req, err := http.NewRequest(http.MethodGet, getArtifactoryBaseURL(t, r)+"/api/system/version", nil)
-	require.NoError(t, err)
-	req.Header.Set("Authorization", "Bearer "+mustGetAdminToken(t, r))
+	require.NotNil(t, r)
+	require.NotNil(t, r.ServicesManager, "services manager not initialized")
 
-	resp, err := http.DefaultClient.Do(req)
+	version, err := r.ServicesManager.GetVersion()
 	require.NoError(t, err, "failed to query Artifactory version")
-	defer func() { _ = resp.Body.Close() }()
-	require.Equal(t, http.StatusOK, resp.StatusCode, "Artifactory version endpoint returned unexpected status: %s", resp.Status)
-
-	body, err := io.ReadAll(resp.Body)
-	require.NoError(t, err)
-	var versionResponse struct {
-		Version string `json:"version"`
-	}
-	require.NoError(t, json.Unmarshal(body, &versionResponse), "failed to parse Artifactory version response")
-	version := strings.TrimSpace(versionResponse.Version)
+	version = strings.TrimSpace(version)
 	require.NotEmpty(t, version, "empty Artifactory version in response")
 
 	if err = clientutils.ValidateMinimumVersion("JFrog Artifactory", version, "7.143.0"); err != nil {
