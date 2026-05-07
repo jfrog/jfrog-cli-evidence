@@ -53,6 +53,12 @@ type createEvidenceBase struct {
 	artifactoryClient         artifactory.ArtifactoryServicesManager
 	uploader                  evidenceUploader
 	stmtResolver              sonar.StatementResolver
+	collectedResponses        []*model.CreateResponse
+}
+
+// CollectedResponses returns the list of CreateResponse objects gathered during evidence upload.
+func (c *createEvidenceBase) CollectedResponses() []*model.CreateResponse {
+	return c.collectedResponses
 }
 
 const EvdDefaultUser = "JFrog CLI"
@@ -275,6 +281,7 @@ func (c *createEvidenceBase) uploadEvidence(evidencePayload []byte, repoPath str
 	} else {
 		log.Info("Evidence successfully created but not verified due to missing/invalid public key")
 	}
+	c.collectedResponses = append(c.collectedResponses, createResponse)
 	return createResponse, nil
 }
 
