@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"flag"
 	"os"
-	"strings"
 	"testing"
 
 	"github.com/jfrog/jfrog-cli-core/v2/common/commands"
@@ -909,16 +908,21 @@ func TestPrintCreateEvidenceResponse_JSON(t *testing.T) {
 	err := printCreateEvidenceResponse(&buf, format.Json, []*model.CreateResponse{r})
 	assert.NoError(t, err)
 
-	out := buf.String()
-	// Must be valid JSON.
-	assert.True(t, strings.HasPrefix(strings.TrimSpace(out), "{"), "expected JSON object, got: %s", out)
-	// Must contain key fields.
-	assert.Contains(t, out, `"repository"`)
-	assert.Contains(t, out, `"my-repo"`)
-	assert.Contains(t, out, `"sha256"`)
-	assert.Contains(t, out, `"abc123def456"`)
-	assert.Contains(t, out, `"verified"`)
-	assert.Contains(t, out, `true`)
+	expected := `{
+		"repository": "my-repo",
+		"path": "com/example",
+		"name": "artifact-1.0.jar",
+		"uri": "https://example.jfrog.io/my-repo/com/example/artifact-1.0.jar",
+		"sha256": "abc123def456",
+		"predicate_category": "SPDX",
+		"predicate_type": "https://in-toto.io/attestation/vulns",
+		"predicate_slug": "vulns",
+		"created_at": "2024-01-15T10:30:00Z",
+		"created_by": "ci-user",
+		"verified": true,
+		"provider_id": "jfrog"
+	}`
+	assert.JSONEq(t, expected, buf.String())
 }
 
 func TestPrintCreateEvidenceResponse_JSON_MultipleResponses(t *testing.T) {
@@ -930,11 +934,37 @@ func TestPrintCreateEvidenceResponse_JSON_MultipleResponses(t *testing.T) {
 	err := printCreateEvidenceResponse(&buf, format.Json, []*model.CreateResponse{r1, r2})
 	assert.NoError(t, err)
 
-	out := buf.String()
-	// Multiple responses should be encoded as a JSON array.
-	assert.True(t, strings.HasPrefix(strings.TrimSpace(out), "["), "expected JSON array, got: %s", out)
-	assert.Contains(t, out, `"artifact-1.0.jar"`)
-	assert.Contains(t, out, `"artifact-2.0.jar"`)
+	expected := `[
+		{
+			"repository": "my-repo",
+			"path": "com/example",
+			"name": "artifact-1.0.jar",
+			"uri": "https://example.jfrog.io/my-repo/com/example/artifact-1.0.jar",
+			"sha256": "abc123def456",
+			"predicate_category": "SPDX",
+			"predicate_type": "https://in-toto.io/attestation/vulns",
+			"predicate_slug": "vulns",
+			"created_at": "2024-01-15T10:30:00Z",
+			"created_by": "ci-user",
+			"verified": true,
+			"provider_id": "jfrog"
+		},
+		{
+			"repository": "my-repo",
+			"path": "com/example",
+			"name": "artifact-2.0.jar",
+			"uri": "https://example.jfrog.io/my-repo/com/example/artifact-1.0.jar",
+			"sha256": "abc123def456",
+			"predicate_category": "SPDX",
+			"predicate_type": "https://in-toto.io/attestation/vulns",
+			"predicate_slug": "vulns",
+			"created_at": "2024-01-15T10:30:00Z",
+			"created_by": "ci-user",
+			"verified": true,
+			"provider_id": "jfrog"
+		}
+	]`
+	assert.JSONEq(t, expected, buf.String())
 }
 
 func TestPrintCreateEvidenceResponse_Table(t *testing.T) {
