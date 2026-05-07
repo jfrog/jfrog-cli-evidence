@@ -1,17 +1,20 @@
 package command
 
 import (
+	"bytes"
 	"flag"
-	"github.com/jfrog/jfrog-cli-evidence/evidence/cli/command/flags"
-	"github.com/jfrog/jfrog-cli-evidence/evidence/cli/command/utils"
-	"github.com/jfrog/jfrog-cli-evidence/evidence/cli/test"
-	evdConfig "github.com/jfrog/jfrog-cli-evidence/evidence/config"
 	"os"
 	"testing"
 
 	"github.com/jfrog/jfrog-cli-core/v2/common/commands"
+	"github.com/jfrog/jfrog-cli-core/v2/common/format"
 	"github.com/jfrog/jfrog-cli-core/v2/plugins/components"
 	coreUtils "github.com/jfrog/jfrog-cli-core/v2/utils/coreutils"
+	"github.com/jfrog/jfrog-cli-evidence/evidence/cli/command/flags"
+	"github.com/jfrog/jfrog-cli-evidence/evidence/cli/command/utils"
+	"github.com/jfrog/jfrog-cli-evidence/evidence/cli/test"
+	evdConfig "github.com/jfrog/jfrog-cli-evidence/evidence/config"
+	"github.com/jfrog/jfrog-cli-evidence/evidence/model"
 	"github.com/stretchr/testify/assert"
 	"github.com/urfave/cli"
 	"go.uber.org/mock/gomock"
@@ -877,4 +880,137 @@ func TestValidateCreateEvidenceCommonContext_Attachments(t *testing.T) {
 		assert.NoError(t, err)
 		assert.Error(t, validateCreateEvidenceCommonContext(c))
 	})
+}
+
+// ── printCreateEvidenceResponse tests ──────────────────────────────────────────
+
+func sampleResponse() *model.CreateResponse {
+	return &model.CreateResponse{
+		Repository:        "my-repo",
+		Path:              "com/example",
+		Name:              "artifact-1.0.jar",
+		Uri:               "https://example.jfrog.io/my-repo/com/example/artifact-1.0.jar",
+		Sha256:            "abc123def456",
+		PredicateType:     "https://in-toto.io/attestation/vulns",
+		PredicateCategory: "SPDX",
+		PredicateSlug:     "vulns",
+		CreatedAt:         "2024-01-15T10:30:00Z",
+		CreatedBy:         "ci-user",
+		Verified:          true,
+		ProviderId:        "jfrog",
+	}
+}
+
+func TestPrintCreateEvidenceResponse_JSON(t *testing.T) {
+	var buf bytes.Buffer
+	r := sampleResponse()
+
+	err := printCreateEvidenceResponse(&buf, format.Json, []*model.CreateResponse{r})
+	assert.NoError(t, err)
+
+	expected := `{
+		"repository": "my-repo",
+		"path": "com/example",
+		"name": "artifact-1.0.jar",
+		"uri": "https://example.jfrog.io/my-repo/com/example/artifact-1.0.jar",
+		"sha256": "abc123def456",
+		"predicate_category": "SPDX",
+		"predicate_type": "https://in-toto.io/attestation/vulns",
+		"predicate_slug": "vulns",
+		"created_at": "2024-01-15T10:30:00Z",
+		"created_by": "ci-user",
+		"verified": true,
+		"provider_id": "jfrog"
+	}`
+	assert.JSONEq(t, expected, buf.String())
+}
+
+func TestPrintCreateEvidenceResponse_JSON_MultipleResponses(t *testing.T) {
+	var buf bytes.Buffer
+	r1 := sampleResponse()
+	r2 := sampleResponse()
+	r2.Name = "artifact-2.0.jar"
+
+	err := printCreateEvidenceResponse(&buf, format.Json, []*model.CreateResponse{r1, r2})
+	assert.NoError(t, err)
+
+	expected := `[
+		{
+			"repository": "my-repo",
+			"path": "com/example",
+			"name": "artifact-1.0.jar",
+			"uri": "https://example.jfrog.io/my-repo/com/example/artifact-1.0.jar",
+			"sha256": "abc123def456",
+			"predicate_category": "SPDX",
+			"predicate_type": "https://in-toto.io/attestation/vulns",
+			"predicate_slug": "vulns",
+			"created_at": "2024-01-15T10:30:00Z",
+			"created_by": "ci-user",
+			"verified": true,
+			"provider_id": "jfrog"
+		},
+		{
+			"repository": "my-repo",
+			"path": "com/example",
+			"name": "artifact-2.0.jar",
+			"uri": "https://example.jfrog.io/my-repo/com/example/artifact-1.0.jar",
+			"sha256": "abc123def456",
+			"predicate_category": "SPDX",
+			"predicate_type": "https://in-toto.io/attestation/vulns",
+			"predicate_slug": "vulns",
+			"created_at": "2024-01-15T10:30:00Z",
+			"created_by": "ci-user",
+			"verified": true,
+			"provider_id": "jfrog"
+		}
+	]`
+	assert.JSONEq(t, expected, buf.String())
+}
+
+func TestPrintCreateEvidenceResponse_Table(t *testing.T) {
+	var buf bytes.Buffer
+	r := sampleResponse()
+
+	err := printCreateEvidenceResponse(&buf, format.Table, []*model.CreateResponse{r})
+	assert.NoError(t, err)
+
+	out := buf.String()
+	// Table must have a FIELD / VALUE header.
+	assert.Contains(t, out, "FIELD")
+	assert.Contains(t, out, "VALUE")
+	// Known field names and values should appear.
+	assert.Contains(t, out, "repository")
+	assert.Contains(t, out, "my-repo")
+	assert.Contains(t, out, "sha256")
+	assert.Contains(t, out, "abc123def456")
+	assert.Contains(t, out, "verified")
+	assert.Contains(t, out, "true")
+}
+
+func TestPrintCreateEvidenceResponse_Table_AbsentFieldsOmitted(t *testing.T) {
+	var buf bytes.Buffer
+	// Sparse response – only repository is set.
+	r := &model.CreateResponse{
+		Repository: "sparse-repo",
+	}
+
+	err := printCreateEvidenceResponse(&buf, format.Table, []*model.CreateResponse{r})
+	assert.NoError(t, err)
+
+	out := buf.String()
+	assert.Contains(t, out, "repository")
+	assert.Contains(t, out, "sparse-repo")
+	// Fields that are empty must not appear in the table.
+	assert.NotContains(t, out, "sha256")
+	assert.NotContains(t, out, "predicate_type")
+	assert.NotContains(t, out, "provider_id")
+}
+
+func TestPrintCreateEvidenceResponse_UnsupportedFormat(t *testing.T) {
+	var buf bytes.Buffer
+	r := sampleResponse()
+
+	err := printCreateEvidenceResponse(&buf, format.OutputFormat("xml"), []*model.CreateResponse{r})
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "unsupported format")
 }

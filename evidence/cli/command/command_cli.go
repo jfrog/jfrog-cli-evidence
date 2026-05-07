@@ -1,25 +1,31 @@
 package command
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"slices"
 	"strings"
 
+	"github.com/jedib0t/go-pretty/v6/table"
+	"github.com/jedib0t/go-pretty/v6/text"
 	"github.com/jfrog/jfrog-cli-evidence/evidence/cli/command/application"
 	"github.com/jfrog/jfrog-cli-evidence/evidence/cli/command/artifacts"
 	"github.com/jfrog/jfrog-cli-evidence/evidence/cli/command/build"
 	"github.com/jfrog/jfrog-cli-evidence/evidence/cli/command/flags"
 	"github.com/jfrog/jfrog-cli-evidence/evidence/cli/command/github"
-	"github.com/jfrog/jfrog-cli-evidence/evidence/cli/command/interface"
-	"github.com/jfrog/jfrog-cli-evidence/evidence/cli/command/package"
+	_interface "github.com/jfrog/jfrog-cli-evidence/evidence/cli/command/interface"
+	_package "github.com/jfrog/jfrog-cli-evidence/evidence/cli/command/package"
 	"github.com/jfrog/jfrog-cli-evidence/evidence/cli/command/releasebundle"
 	commandUtils "github.com/jfrog/jfrog-cli-evidence/evidence/cli/command/utils"
 	evdConfig "github.com/jfrog/jfrog-cli-evidence/evidence/config"
+	"github.com/jfrog/jfrog-cli-evidence/evidence/model"
 
 	commonCliUtils "github.com/jfrog/jfrog-cli-core/v2/common/cliutils"
 	"github.com/jfrog/jfrog-cli-core/v2/common/commands"
+	"github.com/jfrog/jfrog-cli-core/v2/common/format"
 	pluginsCommon "github.com/jfrog/jfrog-cli-core/v2/plugins/common"
 	"github.com/jfrog/jfrog-cli-core/v2/plugins/components"
 	"github.com/jfrog/jfrog-cli-core/v2/utils/config"
@@ -37,15 +43,23 @@ import (
 	generateCmd "github.com/jfrog/jfrog-cli-evidence/evidence/generate"
 )
 
+// responseCollector is implemented by evidence create commands that accumulate
+// CreateResponse values during Run(). The interface is checked via type assertion
+// after command execution so that printCreateEvidenceResponse can format output.
+type responseCollector interface {
+	CollectedResponses() []*model.CreateResponse
+}
+
 func GetCommands() []components.Command {
 	return []components.Command{
 		{
-			Name:        "create-evidence",
-			Aliases:     []string{"create"},
-			Flags:       flags.GetCommandFlags(flags.CreateEvidence),
-			Description: create.GetDescription(),
-			Arguments:   create.GetArguments(),
-			Action:      createEvidence,
+			Name:             "create-evidence",
+			Aliases:          []string{"create"},
+			Flags:            flags.GetCommandFlags(flags.CreateEvidence),
+			Description:      create.GetDescription(),
+			Arguments:        create.GetArguments(),
+			Action:           createEvidence,
+			SupportedFormats: []format.OutputFormat{format.Json, format.Table},
 		},
 		{
 			Name:        "get-evidence",
@@ -74,8 +88,10 @@ func GetCommands() []components.Command {
 	}
 }
 
-var execFunc = commands.Exec
-var ErrUnsupportedSubject = errors.New("unsupported subject")
+var (
+	execFunc              = commands.Exec
+	ErrUnsupportedSubject = errors.New("unsupported subject")
+)
 
 func createEvidence(ctx *components.Context) error {
 	if err := validateCreateEvidenceCommonContext(ctx); err != nil {
@@ -90,23 +106,50 @@ func createEvidence(ctx *components.Context) error {
 		return err
 	}
 
+	outputFormat, err := ctx.GetOutputFormat()
+	if err != nil {
+		return err
+	}
+
+	// Wrap execFunc to capture collected responses after each command runs.
+	var collectedResponses []*model.CreateResponse
+	collectingExec := func(cmd commands.Command) error {
+		if runErr := execFunc(cmd); runErr != nil {
+			return runErr
+		}
+		if rc, ok := cmd.(responseCollector); ok {
+			collectedResponses = append(collectedResponses, rc.CollectedResponses()...)
+		}
+		return nil
+	}
+
+	var createErr error
 	if slices.Contains(evidenceType, flags.TypeFlag) || (slices.Contains(evidenceType, flags.BuildName) && slices.Contains(evidenceType, flags.TypeFlag)) {
-		return github.NewEvidenceGitHubCommand(ctx, execFunc).CreateEvidence(ctx, serverDetails)
+		createErr = github.NewEvidenceGitHubCommand(ctx, collectingExec).CreateEvidence(ctx, serverDetails)
+	} else {
+		evidenceCommands := map[string]func(*components.Context, commandUtils.ExecCommandFunc) _interface.EvidenceCommands{
+			flags.SubjectRepoPath: artifacts.NewEvidenceCustomCommand,
+			flags.ReleaseBundle:   releasebundle.NewEvidenceReleaseBundleCommand,
+			flags.BuildName:       build.NewEvidenceBuildCommand,
+			flags.PackageName:     _package.NewEvidencePackageCommand,
+			flags.ApplicationKey:  application.NewEvidenceApplicationCommand,
+		}
+
+		if commandFunc, exists := evidenceCommands[evidenceType[0]]; exists {
+			createErr = commandFunc(ctx, collectingExec).CreateEvidence(ctx, serverDetails)
+		} else {
+			return ErrUnsupportedSubject
+		}
 	}
 
-	evidenceCommands := map[string]func(*components.Context, commandUtils.ExecCommandFunc) _interface.EvidenceCommands{
-		flags.SubjectRepoPath: artifacts.NewEvidenceCustomCommand,
-		flags.ReleaseBundle:   releasebundle.NewEvidenceReleaseBundleCommand,
-		flags.BuildName:       build.NewEvidenceBuildCommand,
-		flags.PackageName:     _package.NewEvidencePackageCommand,
-		flags.ApplicationKey:  application.NewEvidenceApplicationCommand,
+	if createErr != nil {
+		return createErr
 	}
 
-	if commandFunc, exists := evidenceCommands[evidenceType[0]]; exists {
-		return commandFunc(ctx, execFunc).CreateEvidence(ctx, serverDetails)
+	if outputFormat != "" {
+		return printCreateEvidenceResponse(os.Stdout, outputFormat, collectedResponses)
 	}
-
-	return ErrUnsupportedSubject
+	return nil
 }
 
 func getEvidence(ctx *components.Context) error {
@@ -486,4 +529,76 @@ func generateKeyPair(ctx *components.Context) error {
 
 	cmd := generateCmd.NewGenerateKeyPairCommand(serverDetails, uploadKey, alias, keyFilePath, fileName)
 	return cmd.Run()
+}
+
+// tableFieldOrder defines the display order for create-evidence table output.
+var tableFieldOrder = []struct {
+	key   string
+	value func(*model.CreateResponse) string
+}{
+	{"repository", func(r *model.CreateResponse) string { return r.Repository }},
+	{"path", func(r *model.CreateResponse) string { return r.Path }},
+	{"name", func(r *model.CreateResponse) string { return r.Name }},
+	{"uri", func(r *model.CreateResponse) string { return r.Uri }},
+	{"sha256", func(r *model.CreateResponse) string { return r.Sha256 }},
+	{"predicate_type", func(r *model.CreateResponse) string { return r.PredicateType }},
+	{"predicate_category", func(r *model.CreateResponse) string { return r.PredicateCategory }},
+	{"predicate_slug", func(r *model.CreateResponse) string { return r.PredicateSlug }},
+	{"created_at", func(r *model.CreateResponse) string { return r.CreatedAt }},
+	{"created_by", func(r *model.CreateResponse) string { return r.CreatedBy }},
+	{"verified", func(r *model.CreateResponse) string {
+		if r.Verified {
+			return "true"
+		}
+		return "false"
+	}},
+	{"provider_id", func(r *model.CreateResponse) string { return r.ProviderId }},
+}
+
+// printCreateEvidenceResponse writes formatted output for the given responses.
+func printCreateEvidenceResponse(w io.Writer, outputFormat format.OutputFormat, responses []*model.CreateResponse) error {
+	switch outputFormat {
+	case format.Json:
+		return printCreateEvidenceJSON(w, responses)
+	case format.Table:
+		return printCreateEvidenceTable(w, responses)
+	default:
+		return fmt.Errorf("unsupported format %q: accepted values are json, table", outputFormat)
+	}
+}
+
+func printCreateEvidenceJSON(w io.Writer, responses []*model.CreateResponse) error {
+	enc := json.NewEncoder(w)
+	enc.SetIndent("", "  ")
+	if len(responses) == 1 {
+		return enc.Encode(responses[0])
+	}
+	return enc.Encode(responses)
+}
+
+func printCreateEvidenceTable(w io.Writer, responses []*model.CreateResponse) error {
+	for i, r := range responses {
+		if i > 0 {
+			if _, err := fmt.Fprintln(w); err != nil {
+				return err
+			}
+		}
+		t := table.NewWriter()
+		t.SetOutputMirror(w)
+		t.SetStyle(table.StyleLight)
+		t.Style().Options.SeparateRows = false
+		t.AppendHeader(table.Row{"FIELD", "VALUE"})
+		t.SetColumnConfigs([]table.ColumnConfig{
+			{Number: 1, Align: text.AlignLeft, AlignHeader: text.AlignLeft},
+			{Number: 2, Align: text.AlignLeft, AlignHeader: text.AlignLeft},
+		})
+		for _, field := range tableFieldOrder {
+			val := field.value(r)
+			if val != "" {
+				t.AppendRow(table.Row{field.key, val})
+			}
+		}
+		t.Render()
+	}
+	return nil
 }
