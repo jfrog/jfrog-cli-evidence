@@ -7,8 +7,6 @@ on:
     branches: [ '**' ]  # Run on internal PRs (skipped for fork PRs - see job `if`)
   pull_request_target:
     # Used to run E2E on fork PRs after a maintainer applies the `safe to test` label.
-    # SECURITY: this trigger gives access to repo secrets while running fork code,
-    # gated by the label check in the e2e-tests-saas job below.
     types: [ labeled, synchronize ]
   workflow_dispatch:  # Allow manual trigger
 
