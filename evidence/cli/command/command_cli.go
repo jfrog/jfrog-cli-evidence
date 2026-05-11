@@ -598,7 +598,43 @@ func printCreateEvidenceTable(w io.Writer, responses []*model.CreateResponse) er
 				t.AppendRow(table.Row{field.key, val})
 			}
 		}
+		for _, row := range attachmentTableRows(r.Attachments) {
+			t.AppendRow(row)
+		}
 		t.Render()
 	}
 	return nil
+}
+
+// attachmentTableRows builds FIELD/VALUE rows for an attachments slice.
+// Single attachment uses "attachment.<field>", multiple use "attachments[i].<field>".
+// download_path is intentionally omitted from table output (too long to render
+// without distorting the layout); it is still emitted in JSON output.
+func attachmentTableRows(attachments []model.CreateResponseAttachment) []table.Row {
+	if len(attachments) == 0 {
+		return nil
+	}
+	fields := []struct {
+		key   string
+		value func(model.CreateResponseAttachment) string
+	}{
+		{"name", func(a model.CreateResponseAttachment) string { return a.Name }},
+		{"sha256", func(a model.CreateResponseAttachment) string { return a.Sha256 }},
+		{"type", func(a model.CreateResponseAttachment) string { return a.Type }},
+	}
+	var rows []table.Row
+	for i, att := range attachments {
+		prefix := "attachment"
+		if len(attachments) > 1 {
+			prefix = fmt.Sprintf("attachments[%d]", i)
+		}
+		for _, f := range fields {
+			val := f.value(att)
+			if val == "" {
+				continue
+			}
+			rows = append(rows, table.Row{fmt.Sprintf("%s.%s", prefix, f.key), val})
+		}
+	}
+	return rows
 }
