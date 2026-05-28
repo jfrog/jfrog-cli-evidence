@@ -1,6 +1,7 @@
 package resolvers
 
 import (
+	"encoding/json"
 	"fmt"
 	"strings"
 
@@ -17,9 +18,14 @@ type AqlSubjectResolver struct {
 	client artifactory.ArtifactoryServicesManager
 }
 
-const aqlEmptyPathQueryTemplate = "items.find({\"repo\": \"%s\",\"sha256\": \"%s\"})"
-const aqlWithPathQueryTemplate = "items.find({\"repo\": \"%s\", \"path\": {\"$match\" : \"%s*\"},\"sha256\": \"%s\"})"
+const aqlEmptyPathQueryTemplate = "items.find({\"repo\": %s,\"sha256\": %s})"
+const aqlWithPathQueryTemplate = "items.find({\"repo\": %s, \"path\": {\"$match\" : %s},\"sha256\": %s})"
 const subjectRepoPath = "%s/%s/%s"
+
+func aqlString(s string) string {
+	b, _ := json.Marshal(s)
+	return string(b)
+}
 
 func (r *AqlSubjectResolver) Resolve(repoName, path, checksum string) ([]string, error) {
 	if repoName == "" || checksum == "" {
@@ -28,21 +34,20 @@ func (r *AqlSubjectResolver) Resolve(repoName, path, checksum string) ([]string,
 	var aqlQuery string
 	if path == "" {
 		log.Info("Resolving subject by repository "+repoName+" and checksum", checksum)
-		aqlQuery = fmt.Sprintf(aqlEmptyPathQueryTemplate, repoName, checksum)
+		aqlQuery = fmt.Sprintf(aqlEmptyPathQueryTemplate, aqlString(repoName), aqlString(checksum))
 	} else {
 		log.Info("Resolving subject by repository "+repoName+", path", path, "and checksum", checksum)
 		normalizedPath := strings.TrimPrefix(path, repoName+"/")
+		matchPattern := normalizedPath + "*"
 		if len(normalizedPath) < len(path) {
-			pathWildcard := "*" + normalizedPath
 			// repoKey could potentially be part of the path, so we add a wildcard to match any prefix
 			// e.g., repoKey could be "myapp" and path could contain a folder with same name "myapp/some/path/file.txt",
 			// so the full repoPath would be "myapp/myapp/some/path/file.txt", but the repoKey is hidden under the sub-domain: "myapp.docker.io/myapp/myimg:tag"
 			// In this case, we want to match "*some/path/file.txt"
-			log.Debug("AQL path contains repository name, adding wildcard to match any prefix:", pathWildcard)
-			aqlQuery = fmt.Sprintf(aqlWithPathQueryTemplate, repoName, pathWildcard, checksum)
-		} else {
-			aqlQuery = fmt.Sprintf(aqlWithPathQueryTemplate, repoName, normalizedPath, checksum)
+			matchPattern = "*" + matchPattern
+			log.Debug("AQL path contains repository name, adding wildcard to match any prefix:", matchPattern)
 		}
+		aqlQuery = fmt.Sprintf(aqlWithPathQueryTemplate, aqlString(repoName), aqlString(matchPattern), aqlString(checksum))
 	}
 	log.Debug("Executing aql query", aqlQuery)
 	results, err := utils.ExecuteAqlQuery(aqlQuery, &r.client)

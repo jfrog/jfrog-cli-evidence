@@ -488,3 +488,82 @@ func TestAqlSubjectResolver_Resolve_PathNormalization(t *testing.T) {
 func TestAqlSubjectResolver_ImplementsInterface(t *testing.T) {
 	var _ AqlResolver = (*AqlSubjectResolver)(nil)
 }
+
+func TestAqlSubjectResolver_Resolve_RepoName_QuoteIsEscaped(t *testing.T) {
+	mockClient := &MockArtifactoryServicesManager{}
+	resolver := NewAqlSubjectResolver(mockClient)
+
+	maliciousRepo := `evil","type":"any`
+	expectedQuery := `items.find({"repo": "evil\",\"type\":\"any","sha256": "sha256:abc"})`
+
+	mockClient.On("Aql", expectedQuery).Return(nil, errors.New("aql error"))
+
+	subjects, err := resolver.Resolve(maliciousRepo, "", "sha256:abc")
+
+	assert.Error(t, err)
+	assert.Nil(t, subjects)
+	mockClient.AssertExpectations(t)
+}
+
+func TestAqlSubjectResolver_Resolve_Checksum_QuoteIsEscaped(t *testing.T) {
+	mockClient := &MockArtifactoryServicesManager{}
+	resolver := NewAqlSubjectResolver(mockClient)
+
+	maliciousChecksum := `abc","extra":"x`
+	expectedQuery := `items.find({"repo": "test-repo","sha256": "abc\",\"extra\":\"x"})`
+
+	mockClient.On("Aql", expectedQuery).Return(nil, errors.New("aql error"))
+
+	subjects, err := resolver.Resolve("test-repo", "", maliciousChecksum)
+
+	assert.Error(t, err)
+	assert.Nil(t, subjects)
+	mockClient.AssertExpectations(t)
+}
+
+func TestAqlSubjectResolver_Resolve_Path_QuoteIsEscaped(t *testing.T) {
+	mockClient := &MockArtifactoryServicesManager{}
+	resolver := NewAqlSubjectResolver(mockClient)
+
+	maliciousPath := `some/"evil"/path`
+	expectedQuery := `items.find({"repo": "test-repo", "path": {"$match" : "some/\"evil\"/path*"},"sha256": "sha256:abc"})`
+
+	mockClient.On("Aql", expectedQuery).Return(nil, errors.New("aql error"))
+
+	subjects, err := resolver.Resolve("test-repo", maliciousPath, "sha256:abc")
+
+	assert.Error(t, err)
+	assert.Nil(t, subjects)
+	mockClient.AssertExpectations(t)
+}
+
+func TestAqlSubjectResolver_Resolve_Path_BackslashIsEscaped(t *testing.T) {
+	mockClient := &MockArtifactoryServicesManager{}
+	resolver := NewAqlSubjectResolver(mockClient)
+
+	maliciousPath := `some\path`
+	expectedQuery := `items.find({"repo": "test-repo", "path": {"$match" : "some\\path*"},"sha256": "sha256:abc"})`
+
+	mockClient.On("Aql", expectedQuery).Return(nil, errors.New("aql error"))
+
+	subjects, err := resolver.Resolve("test-repo", maliciousPath, "sha256:abc")
+
+	assert.Error(t, err)
+	assert.Nil(t, subjects)
+	mockClient.AssertExpectations(t)
+}
+
+func TestAqlSubjectResolver_Resolve_NewlineInRepoName_IsEscaped(t *testing.T) {
+	mockClient := &MockArtifactoryServicesManager{}
+	resolver := NewAqlSubjectResolver(mockClient)
+
+	expectedQuery := `items.find({"repo": "test\nrepo","sha256": "sha256:abc"})`
+
+	mockClient.On("Aql", expectedQuery).Return(nil, errors.New("aql error"))
+
+	subjects, err := resolver.Resolve("test\nrepo", "", "sha256:abc")
+
+	assert.Error(t, err)
+	assert.Nil(t, subjects)
+	mockClient.AssertExpectations(t)
+}
