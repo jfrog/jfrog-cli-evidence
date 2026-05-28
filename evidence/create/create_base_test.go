@@ -477,6 +477,59 @@ func TestUploadEvidence_Error(t *testing.T) {
 	assert.Error(t, err)
 }
 
+type uploaderReturningServerAttachments struct {
+	last evdservices.EvidenceDetails
+}
+
+func (u *uploaderReturningServerAttachments) UploadEvidence(d evdservices.EvidenceDetails) ([]byte, error) {
+	u.last = d
+	resp := model.CreateResponse{
+		Verified: true,
+		Attachments: []model.CreateResponseAttachment{{
+			Name:         "scan.txt",
+			Sha256:       "server-sha",
+			Type:         "text/plain",
+			DownloadPath: "subject-repo/.evidence/xyz/scan.txt",
+		}},
+	}
+	return json.Marshal(resp)
+}
+
+func TestUploadEvidence_UsesServerAttachmentsWhenPresent(t *testing.T) {
+	upl := &uploaderReturningServerAttachments{}
+	c := &createEvidenceBase{uploader: upl}
+
+	att := &statementAttachment{
+		Repository: "attachments-repo",
+		Path:       "reports/scan.txt",
+		Sha256:     "local-sha",
+		Name:       "scan.txt",
+		Type:       "text/plain",
+	}
+
+	wrappedPayload, err := c.wrapCreatePayloadWithAttachments([]byte(`{"payloadType":"x","payload":"y","signatures":[]}`), att)
+	assert.NoError(t, err)
+	resp, err := c.uploadEvidence(wrappedPayload, "r/p", att)
+	assert.NoError(t, err)
+	assert.Len(t, resp.Attachments, 1)
+	assert.Equal(t, "scan.txt", resp.Attachments[0].Name)
+	assert.Equal(t, "server-sha", resp.Attachments[0].Sha256)
+	assert.Equal(t, "text/plain", resp.Attachments[0].Type)
+	assert.Equal(t, "subject-repo/.evidence/xyz/scan.txt", resp.Attachments[0].DownloadPath)
+	assert.Len(t, upl.last.Attachments, 1)
+	assert.Equal(t, "attachments-repo", upl.last.Attachments[0].Repository)
+	assert.Equal(t, "reports/scan.txt", upl.last.Attachments[0].Path)
+}
+
+func TestUploadEvidence_NoAttachmentLeavesAttachmentsNil(t *testing.T) {
+	upl := &captureUploader{}
+	c := &createEvidenceBase{uploader: upl}
+	resp, err := c.uploadEvidence([]byte(`{"payloadType":"x","payload":"y","signatures":[]}`), "r/p", nil)
+	assert.NoError(t, err)
+	assert.Nil(t, resp.Attachments)
+	assert.Empty(t, upl.last.Attachments)
+}
+
 func TestUploadEvidence_InvalidJSON(t *testing.T) {
 	u := &invalidJSONUploader{}
 	c := &createEvidenceBase{uploader: u}

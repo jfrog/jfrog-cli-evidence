@@ -1014,3 +1014,123 @@ func TestPrintCreateEvidenceResponse_UnsupportedFormat(t *testing.T) {
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "unsupported format")
 }
+
+func TestPrintCreateEvidenceResponse_JSON_WithAttachment(t *testing.T) {
+	var buf bytes.Buffer
+	r := sampleResponse()
+	r.Attachments = []model.CreateResponseAttachment{{
+		Name:         "scan.txt",
+		Sha256:       "att-sha-1",
+		Type:         "text/plain",
+		DownloadPath: "my-repo/.evidence/abc/scan.txt",
+	}}
+
+	err := printCreateEvidenceResponse(&buf, format.Json, []*model.CreateResponse{r})
+	assert.NoError(t, err)
+
+	expected := `{
+		"repository": "my-repo",
+		"path": "com/example",
+		"name": "artifact-1.0.jar",
+		"uri": "https://example.jfrog.io/my-repo/com/example/artifact-1.0.jar",
+		"sha256": "abc123def456",
+		"predicate_category": "SPDX",
+		"predicate_type": "https://in-toto.io/attestation/vulns",
+		"predicate_slug": "vulns",
+		"created_at": "2024-01-15T10:30:00Z",
+		"created_by": "ci-user",
+		"verified": true,
+		"provider_id": "jfrog",
+		"attachments": [
+			{
+				"name": "scan.txt",
+				"sha256": "att-sha-1",
+				"type": "text/plain",
+				"download_path": "my-repo/.evidence/abc/scan.txt"
+			}
+		]
+	}`
+	assert.JSONEq(t, expected, buf.String())
+}
+
+func TestPrintCreateEvidenceResponse_JSON_AttachmentsOmittedWhenEmpty(t *testing.T) {
+	var buf bytes.Buffer
+	r := sampleResponse()
+
+	err := printCreateEvidenceResponse(&buf, format.Json, []*model.CreateResponse{r})
+	assert.NoError(t, err)
+	assert.NotContains(t, buf.String(), "attachments")
+}
+
+func TestPrintCreateEvidenceResponse_Table_SingleAttachment(t *testing.T) {
+	var buf bytes.Buffer
+	r := sampleResponse()
+	r.Attachments = []model.CreateResponseAttachment{{
+		Name:         "scan.txt",
+		Sha256:       "att-sha-1",
+		Type:         "text/plain",
+		DownloadPath: "my-repo/.evidence/abc/scan.txt",
+	}}
+
+	err := printCreateEvidenceResponse(&buf, format.Table, []*model.CreateResponse{r})
+	assert.NoError(t, err)
+
+	out := buf.String()
+	assert.Contains(t, out, "attachment.name")
+	assert.Contains(t, out, "scan.txt")
+	assert.Contains(t, out, "attachment.sha256")
+	assert.Contains(t, out, "att-sha-1")
+	assert.Contains(t, out, "attachment.type")
+	assert.Contains(t, out, "text/plain")
+	// download_path is JSON-only; it must not appear in the table output.
+	assert.NotContains(t, out, "download_path")
+	assert.NotContains(t, out, "my-repo/.evidence/abc/scan.txt")
+}
+
+func TestPrintCreateEvidenceResponse_Table_SingleAttachment_OmitsEmptyFields(t *testing.T) {
+	var buf bytes.Buffer
+	r := sampleResponse()
+	r.Attachments = []model.CreateResponseAttachment{{
+		Name:   "scan.txt",
+		Sha256: "att-sha-1",
+	}}
+
+	err := printCreateEvidenceResponse(&buf, format.Table, []*model.CreateResponse{r})
+	assert.NoError(t, err)
+
+	out := buf.String()
+	assert.Contains(t, out, "attachment.name")
+	assert.Contains(t, out, "attachment.sha256")
+	assert.NotContains(t, out, "attachment.type")
+}
+
+func TestPrintCreateEvidenceResponse_Table_MultipleAttachments(t *testing.T) {
+	var buf bytes.Buffer
+	r := sampleResponse()
+	r.Attachments = []model.CreateResponseAttachment{
+		{Name: "a.txt", Sha256: "sha-a"},
+		{Name: "b.txt", Sha256: "sha-b"},
+	}
+
+	err := printCreateEvidenceResponse(&buf, format.Table, []*model.CreateResponse{r})
+	assert.NoError(t, err)
+
+	out := buf.String()
+	assert.Contains(t, out, "attachments[0].name")
+	assert.Contains(t, out, "sha-a")
+	assert.Contains(t, out, "attachments[1].name")
+	assert.Contains(t, out, "sha-b")
+	assert.NotContains(t, out, "attachment.name")
+}
+
+func TestPrintCreateEvidenceResponse_Table_NoAttachmentRowsWhenAbsent(t *testing.T) {
+	var buf bytes.Buffer
+	r := sampleResponse()
+
+	err := printCreateEvidenceResponse(&buf, format.Table, []*model.CreateResponse{r})
+	assert.NoError(t, err)
+
+	out := buf.String()
+	assert.NotContains(t, out, "attachment.")
+	assert.NotContains(t, out, "attachments[")
+}
