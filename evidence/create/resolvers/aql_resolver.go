@@ -23,7 +23,10 @@ const aqlWithPathQueryTemplate = "items.find({\"repo\": %s, \"path\": {\"$match\
 const subjectRepoPath = "%s/%s/%s"
 
 func aqlString(s string) string {
-	b, _ := json.Marshal(s)
+	b, err := json.Marshal(s)
+	if err != nil {
+		panic(err)
+	}
 	return string(b)
 }
 
