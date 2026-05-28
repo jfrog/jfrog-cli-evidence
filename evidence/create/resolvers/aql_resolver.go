@@ -21,27 +21,18 @@ const aqlEmptyPathQueryTemplate = "items.find({\"repo\": \"%s\",\"sha256\": \"%s
 const aqlWithPathQueryTemplate = "items.find({\"repo\": \"%s\", \"path\": {\"$match\" : \"%s*\"},\"sha256\": \"%s\"})"
 const subjectRepoPath = "%s/%s/%s"
 
-func sanitizeAqlValue(s string) string {
-	return strings.Map(func(r rune) rune {
-		if r == '"' || r == '\\' || r < 0x20 {
-			return -1
-		}
-		return r
-	}, s)
-}
-
 func (r *AqlSubjectResolver) Resolve(repoName, path, checksum string) ([]string, error) {
 	if repoName == "" || checksum == "" {
 		return nil, fmt.Errorf("repository name and checksum must be provided")
 	}
-	repoName = sanitizeAqlValue(repoName)
-	checksum = sanitizeAqlValue(checksum)
+	repoName = utils.EscapeAqlValue(repoName)
+	checksum = utils.EscapeAqlValue(checksum)
 	var aqlQuery string
 	if path == "" {
 		log.Info("Resolving subject by repository "+repoName+" and checksum", checksum)
 		aqlQuery = fmt.Sprintf(aqlEmptyPathQueryTemplate, repoName, checksum)
 	} else {
-		path = sanitizeAqlValue(path)
+		path = utils.EscapeAqlValue(path)
 		log.Info("Resolving subject by repository "+repoName+", path", path, "and checksum", checksum)
 		normalizedPath := strings.TrimPrefix(path, repoName+"/")
 		if len(normalizedPath) < len(path) {
