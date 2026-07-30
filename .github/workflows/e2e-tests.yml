@@ -38,15 +38,17 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     # Run on:
-    #   - push to any branch
+    #   - push to any branch (except Dependabot)
     #   - manual workflow_dispatch
-    #   - pull_request from the same repo (internal PR)
+    #   - pull_request from the same repo (internal PR; Dependabot skipped —
+    #     use the `safe to test` label instead)
     #   - pull_request_target only when the `safe to test` label is being applied
     if: >
-      github.event_name == 'push' ||
+      (github.event_name == 'push' && github.actor != 'dependabot[bot]') ||
       github.event_name == 'workflow_dispatch' ||
       (github.event_name == 'pull_request' &&
-        github.event.pull_request.head.repo.full_name == github.repository) ||
+        github.event.pull_request.head.repo.full_name == github.repository &&
+        github.actor != 'dependabot[bot]') ||
       (github.event_name == 'pull_request_target' &&
         github.event.action == 'labeled' &&
         github.event.label.name == 'safe to test')
