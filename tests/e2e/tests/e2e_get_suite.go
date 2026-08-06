@@ -36,6 +36,9 @@ func (r *EvidenceE2ETestsRunner) RunGetEvidenceSuite(t *testing.T) {
 	t.Run("ForReleaseBundle", func(t *testing.T) {
 		r.RunGetEvidenceForReleaseBundle(t)
 	})
+	t.Run("ForEntity", func(t *testing.T) {
+		r.RunGetEvidenceForEntity(t)
+	})
 	t.Run("WithAttachment", func(t *testing.T) {
 		r.RunGetEvidenceWithAttachment(t)
 	})
@@ -82,7 +85,7 @@ func (r *EvidenceE2ETestsRunner) RunGetEvidenceForArtifact(t *testing.T) {
 
 	// Step 3: Create evidence for artifact using Admin CLI
 	t.Log("Step 3: Creating evidence for artifact using Admin CLI...")
-	createOutput := r.EvidenceAdminCLI.RunCliCmdWithOutput(t,
+	createOutput := RunCliCmdWithStdOutputAndErrOutput(t, r.EvidenceAdminCLI,
 		"create",
 		"--predicate", predicatePath,
 		"--predicate-type", "https://slsa.dev/provenance/v1",
@@ -96,7 +99,7 @@ func (r *EvidenceE2ETestsRunner) RunGetEvidenceForArtifact(t *testing.T) {
 
 	// Step 4: Get evidence for artifact using User CLI
 	t.Log("Step 4: Getting evidence for artifact using User CLI...")
-	getOutput := r.EvidenceUserCLI.RunCliCmdWithOutput(t,
+	getOutput := RunCliCmdWithStdOutputAndErrOutput(t, r.EvidenceUserCLI,
 		"get",
 		"--subject-repo-path", repoPath,
 	)
@@ -148,7 +151,7 @@ func (r *EvidenceE2ETestsRunner) RunGetEvidenceForArtifactWithFormat(t *testing.
 
 	// Step 3: Create evidence for artifact using Admin CLI
 	t.Log("Step 3: Creating evidence for artifact using Admin CLI...")
-	createOutput := r.EvidenceAdminCLI.RunCliCmdWithOutput(t,
+	createOutput := RunCliCmdWithStdOutputAndErrOutput(t, r.EvidenceAdminCLI,
 		"create",
 		"--predicate", predicatePath,
 		"--predicate-type", "https://slsa.dev/provenance/v1",
@@ -220,7 +223,7 @@ func (r *EvidenceE2ETestsRunner) RunGetEvidenceForArtifactWithIncludePredicate(t
 
 	// Step 3: Create evidence for artifact using Admin CLI
 	t.Log("Step 3: Creating evidence for artifact using Admin CLI...")
-	createOutput := r.EvidenceAdminCLI.RunCliCmdWithOutput(t,
+	createOutput := RunCliCmdWithStdOutputAndErrOutput(t, r.EvidenceAdminCLI,
 		"create",
 		"--predicate", predicatePath,
 		"--predicate-type", "https://slsa.dev/provenance/v1",
@@ -234,7 +237,7 @@ func (r *EvidenceE2ETestsRunner) RunGetEvidenceForArtifactWithIncludePredicate(t
 
 	// Step 4: Get evidence with include-predicate flag using User CLI
 	t.Log("Step 4: Getting evidence with include-predicate flag using User CLI...")
-	getOutput := r.EvidenceUserCLI.RunCliCmdWithOutput(t,
+	getOutput := RunCliCmdWithStdOutputAndErrOutput(t, r.EvidenceUserCLI,
 		"get",
 		"--subject-repo-path", repoPath,
 		"--include-predicate",
@@ -289,7 +292,7 @@ func (r *EvidenceE2ETestsRunner) RunGetEvidenceWithOutputFile(t *testing.T) {
 
 	// Step 3: Create evidence for artifact using Admin CLI
 	t.Log("Step 3: Creating evidence for artifact using Admin CLI...")
-	createOutput := r.EvidenceAdminCLI.RunCliCmdWithOutput(t,
+	createOutput := RunCliCmdWithStdOutputAndErrOutput(t, r.EvidenceAdminCLI,
 		"create",
 		"--predicate", predicatePath,
 		"--predicate-type", "https://slsa.dev/provenance/v1",
@@ -304,7 +307,7 @@ func (r *EvidenceE2ETestsRunner) RunGetEvidenceWithOutputFile(t *testing.T) {
 	// Step 4: Get evidence and save to output file using User CLI
 	t.Log("Step 4: Getting evidence and saving to output file using User CLI...")
 	outputFile := filepath.Join(tempDir, "evidence-output.json")
-	getOutput := r.EvidenceUserCLI.RunCliCmdWithOutput(t,
+	getOutput := RunCliCmdWithStdOutputAndErrOutput(t, r.EvidenceUserCLI,
 		"get",
 		"--subject-repo-path", repoPath,
 		"--output", outputFile,
@@ -364,7 +367,7 @@ func (r *EvidenceE2ETestsRunner) RunGetEvidenceWithArtifactsLimit(t *testing.T) 
 
 	// Step 3: Create evidence for artifact using Admin CLI
 	t.Log("Step 3: Creating evidence for artifact using Admin CLI...")
-	createOutput := r.EvidenceAdminCLI.RunCliCmdWithOutput(t,
+	createOutput := RunCliCmdWithStdOutputAndErrOutput(t, r.EvidenceAdminCLI,
 		"create",
 		"--predicate", predicatePath,
 		"--predicate-type", "https://slsa.dev/provenance/v1",
@@ -378,7 +381,7 @@ func (r *EvidenceE2ETestsRunner) RunGetEvidenceWithArtifactsLimit(t *testing.T) 
 
 	// Step 4: Get evidence with artifacts limit using User CLI
 	t.Log("Step 4: Getting evidence with artifacts limit using User CLI...")
-	getOutput := r.EvidenceUserCLI.RunCliCmdWithOutput(t,
+	getOutput := RunCliCmdWithStdOutputAndErrOutput(t, r.EvidenceUserCLI,
 		"get",
 		"--subject-repo-path", repoPath,
 		"--artifacts-limit", "10",
@@ -433,7 +436,7 @@ func (r *EvidenceE2ETestsRunner) RunGetEvidenceForArtifactWithProject(t *testing
 
 	// Step 3: Create evidence for artifact with project using Admin CLI
 	t.Log("Step 3: Creating evidence for artifact with project using Admin CLI...")
-	createOutput := r.EvidenceAdminCLI.RunCliCmdWithOutput(t,
+	createOutput := RunCliCmdWithStdOutputAndErrOutput(t, r.EvidenceAdminCLI,
 		"create",
 		"--predicate", predicatePath,
 		"--predicate-type", "https://slsa.dev/provenance/v1",
@@ -448,7 +451,7 @@ func (r *EvidenceE2ETestsRunner) RunGetEvidenceForArtifactWithProject(t *testing
 
 	// Step 4: Get evidence for artifact with project using Project CLI
 	t.Log("Step 4: Getting evidence for artifact with project using Project CLI...")
-	getOutput := r.EvidenceProjectCLI.RunCliCmdWithOutput(t,
+	getOutput := RunCliCmdWithStdOutputAndErrOutput(t, r.EvidenceProjectCLI,
 		"get",
 		"--subject-repo-path", repoPath,
 		"--project", e2e.ProjectKey,
@@ -498,7 +501,7 @@ func (r *EvidenceE2ETestsRunner) RunGetEvidenceForReleaseBundle(t *testing.T) {
 
 	// Step 3: Create evidence for release bundle using Admin CLI
 	t.Log("Step 3: Creating evidence for release bundle using Admin CLI...")
-	createOutput := r.EvidenceAdminCLI.RunCliCmdWithOutput(t,
+	createOutput := RunCliCmdWithStdOutputAndErrOutput(t, r.EvidenceAdminCLI,
 		"create",
 		"--predicate", predicatePath,
 		"--predicate-type", "https://slsa.dev/provenance/v1",
@@ -513,7 +516,7 @@ func (r *EvidenceE2ETestsRunner) RunGetEvidenceForReleaseBundle(t *testing.T) {
 
 	// Step 4: Get evidence for release bundle using User CLI
 	t.Log("Step 4: Getting evidence for release bundle using User CLI...")
-	getOutput := r.EvidenceUserCLI.RunCliCmdWithOutput(t,
+	getOutput := RunCliCmdWithStdOutputAndErrOutput(t, r.EvidenceUserCLI,
 		"get",
 		"--release-bundle", releaseBundleName,
 		"--release-bundle-version", releaseBundleVersion,
@@ -536,7 +539,7 @@ func (r *EvidenceE2ETestsRunner) RunGetEvidenceWithAttachment(t *testing.T) {
 
 	fixture := prepareAttachmentEvidenceFixture(t, r, "get-attachments")
 
-	createOutput := r.EvidenceAdminCLI.RunCliCmdWithOutput(t,
+	createOutput := RunCliCmdWithStdOutputAndErrOutput(t, r.EvidenceAdminCLI,
 		"create",
 		"--predicate", fixture.PredicatePath,
 		"--predicate-type", "https://slsa.dev/provenance/v1",

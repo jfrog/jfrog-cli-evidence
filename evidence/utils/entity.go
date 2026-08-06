@@ -5,10 +5,6 @@ import (
 	"strings"
 )
 
-// EmptySubjectSha256 is the SHA-256 of an empty payload used as the placeholder
-// subject checksum for entity evidence subjects.
-const EmptySubjectSha256 = "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
-
 // BuildGraphQLEntityHasSubjectWith builds the GraphQL hasSubjectWith fields for an entity subject.
 // Exactly one of entityRepo, projectKey, and applicationKey may be set (or none).
 func BuildGraphQLEntityHasSubjectWith(entityType, entityID, entityRepo, projectKey, applicationKey string) string {

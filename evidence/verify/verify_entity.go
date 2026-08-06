@@ -52,8 +52,11 @@ func (v *verifyEvidenceEntity) Run() error {
 		return err
 	}
 
+	// Entity subjects have no content checksum. They are verified through the entity digest
+	// carried in the signed in-toto statement.
+	expectedSubject := model.SubjectDigest{Type: v.entityType, Value: v.entityID}
 	subjectPath := fmt.Sprintf("%s/%s", v.entityType, v.entityID)
-	return v.verifyEvidence(client, metadata, evidenceutils.EmptySubjectSha256, subjectPath)
+	return v.verifyEvidence(client, metadata, expectedSubject, subjectPath)
 }
 
 func (v *verifyEvidenceEntity) resolveApplicationEntityProject() error {

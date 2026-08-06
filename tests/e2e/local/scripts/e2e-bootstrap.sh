@@ -160,6 +160,21 @@ else
     log_info "Response: ${project_token_response}"
 fi
 
+# ========================================
+# Entity evidence repositories
+# ========================================
+# Entity evidence is stored in Artifactory local repos named:
+#   {type}-entity                         (default scope)
+#   {project}-{type}-entity               (project scope)
+#   {application}-{type}-entity           (application scope)
+# Bare --application-key resolves via AppTrust to project scope, so
+# evidencee2e-application-entity is required for that shorthand path.
+log_info ""
+log_info "=== Setting up entity evidence repositories ==="
+create_generic_local_repo "gitCommit-entity" "${ADMIN_TOKEN}"
+create_generic_local_repo "${PROJECT_KEY}-gitCommit-entity" "${ADMIN_TOKEN}" "${PROJECT_KEY}"
+create_generic_local_repo "${PROJECT_KEY}-application-entity" "${ADMIN_TOKEN}" "${PROJECT_KEY}"
+
 log_success "=========================================="
 log_success "Bootstrap completed successfully!"
 log_success "=========================================="
@@ -176,10 +191,17 @@ log_info "  Project Key: ${PROJECT_KEY}"
 log_info "  User Role: Developer"
 log_info "  Project Token: $([ -f "${PROJECT_TOKEN_FILE}" ] && echo "✓ Created" || echo "✗ Not created")"
 log_info ""
+log_info "Entity Repositories:"
+log_info "  gitCommit-entity"
+log_info "  ${PROJECT_KEY}-gitCommit-entity"
+log_info "  ${PROJECT_KEY}-application-entity"
+log_info ""
 log_info "Note: For SaaS environments:"
 log_info "  1. Create project 'evidencee2e' manually"
 log_info "  2. Assign user with Developer role"
 log_info "  3. Create project-scoped token and save to .project_token"
+log_info "  4. Create entity repos: gitCommit-entity, evidencee2e-gitCommit-entity,"
+log_info "     evidencee2e-application-entity (generic local)"
 log_info ""
 log_info "You can now run E2E tests with:"
 log_info "  make test-e2e"

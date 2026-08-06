@@ -9,7 +9,7 @@ import (
 )
 
 type EvidenceVerifierInterface interface {
-	Verify(subjectSha256 string, evidenceMetadata *[]model.SearchEvidenceEdge, subjectPath string) (*model.VerificationResponse, error)
+	Verify(expectedSubject model.SubjectDigest, evidenceMetadata *[]model.SearchEvidenceEdge, subjectPath string) (*model.VerificationResponse, error)
 }
 
 type evidenceVerifier struct {
@@ -32,7 +32,7 @@ func NewEvidenceVerifier(keys []string, useArtifactoryKeys bool, client *artifac
 	}
 }
 
-func (v *evidenceVerifier) Verify(subjectSha256 string, evidenceMetadata *[]model.SearchEvidenceEdge, subjectPath string) (*model.VerificationResponse, error) {
+func (v *evidenceVerifier) Verify(expectedSubject model.SubjectDigest, evidenceMetadata *[]model.SearchEvidenceEdge, subjectPath string) (*model.VerificationResponse, error) {
 	if evidenceMetadata == nil || len(*evidenceMetadata) == 0 {
 		return nil, fmt.Errorf("no evidence metadata provided")
 	}
@@ -41,18 +41,19 @@ func (v *evidenceVerifier) Verify(subjectSha256 string, evidenceMetadata *[]mode
 		v.progressMgr.InitProgressReaders()
 		v.progressMgr.IncGeneralProgressTotalBy(int64(evidenceNumber))
 	}
+	subject := model.Subject{Path: subjectPath}
+	if expectedSubject.IsSha256() {
+		subject.Sha256 = expectedSubject.Value
+	}
 	verificationResponse := &model.VerificationResponse{
-		SchemaVersion: model.SchemaVersion,
-		Subject: model.Subject{
-			Path:   subjectPath,
-			Sha256: subjectSha256,
-		},
+		SchemaVersion:             model.SchemaVersion,
+		Subject:                   subject,
 		OverallVerificationStatus: model.Success,
 	}
 	evidenceVerifications := make([]model.EvidenceVerification, 0, evidenceNumber)
 	for i := range *evidenceMetadata {
 		evidence := &(*evidenceMetadata)[i]
-		verification, err := v.verifyEvidence(evidence, subjectSha256)
+		verification, err := v.verifyEvidence(evidence, expectedSubject)
 		if err != nil {
 			return nil, err
 		}
@@ -65,21 +66,26 @@ func (v *evidenceVerifier) Verify(subjectSha256 string, evidenceMetadata *[]mode
 	return verificationResponse, nil
 }
 
-func (v *evidenceVerifier) verifyEvidence(evidence *model.SearchEvidenceEdge, subjectSha256 string) (*model.EvidenceVerification, error) {
+func (v *evidenceVerifier) verifyEvidence(evidence *model.SearchEvidenceEdge, expectedSubject model.SubjectDigest) (*model.EvidenceVerification, error) {
 	if evidence == nil {
 		return nil, fmt.Errorf("nil evidence provided")
 	}
 	evidenceVerification := &model.EvidenceVerification{
 		DownloadPath:       evidence.Node.DownloadPath,
-		SubjectChecksum:    evidence.Node.Subject.Sha256,
 		PredicateType:      evidence.Node.PredicateType,
 		CreatedBy:          evidence.Node.CreatedBy,
 		CreatedAt:          evidence.Node.CreatedAt,
 		VerificationResult: model.EvidenceVerificationResult{},
 	}
-	evidenceVerification.VerificationResult.Sha256VerificationStatus = verifyChecksum(subjectSha256, evidence.Node.Subject.Sha256)
+	if expectedSubject.IsSha256() {
+		evidenceVerification.SubjectChecksum = evidence.Node.Subject.Sha256
+		evidenceVerification.VerificationResult.Sha256VerificationStatus = verifyChecksum(expectedSubject.Value, evidence.Node.Subject.Sha256)
+	}
 	if err := v.parser.parseEvidence(evidence, evidenceVerification); err != nil {
 		return nil, fmt.Errorf("failed to read envelope: %w", err)
+	}
+	if !expectedSubject.IsSha256() {
+		verifySignedSubjectDigest(expectedSubject, evidenceVerification)
 	}
 	if err := v.performVerification(evidence, evidenceVerification); err != nil {
 		return nil, err
@@ -101,6 +107,7 @@ func (v *evidenceVerifier) performVerification(evidence *model.SearchEvidenceEdg
 func shouldFailOverall(verification *model.EvidenceVerification) bool {
 	return verification.VerificationResult.SignaturesVerificationStatus == model.Failed ||
 		verification.VerificationResult.Sha256VerificationStatus == model.Failed ||
+		verification.VerificationResult.SubjectDigestVerificationStatus == model.Failed ||
 		verification.VerificationResult.SigstoreBundleVerificationStatus == model.Failed ||
 		verification.VerificationResult.AttachmentsVerificationStatus == model.Failed
 }

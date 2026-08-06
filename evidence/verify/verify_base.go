@@ -74,13 +74,13 @@ func (v *verifyEvidenceBase) printVerifyResult(result *model.VerificationRespons
 	}
 }
 
-// verifyEvidence runs the verification process for the given evidence metadata and subject sha256.
-func (v *verifyEvidenceBase) verifyEvidence(client *artifactory.ArtifactoryServicesManager, evidenceMetadata *[]model.SearchEvidenceEdge, sha256, subjectPath string) error {
+// verifyEvidence runs the verification process for the given evidence metadata and expected subject.
+func (v *verifyEvidenceBase) verifyEvidence(client *artifactory.ArtifactoryServicesManager, evidenceMetadata *[]model.SearchEvidenceEdge, expectedSubject model.SubjectDigest, subjectPath string) error {
 	if v.verifier == nil {
 		v.setHeadline("Verifying evidence")
 		v.verifier = verifiers.NewEvidenceVerifier(v.keys, v.useArtifactoryKeys, client, v.progressMgr)
 	}
-	verify, err := v.verifier.Verify(sha256, evidenceMetadata, subjectPath)
+	verify, err := v.verifier.Verify(expectedSubject, evidenceMetadata, subjectPath)
 	if err != nil {
 		return err
 	}

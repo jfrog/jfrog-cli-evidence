@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/jfrog/jfrog-cli-evidence/evidence"
+	"github.com/jfrog/jfrog-cli-evidence/evidence/model"
 	"github.com/jfrog/jfrog-cli-evidence/evidence/utils"
 
 	"github.com/jfrog/jfrog-cli-core/v2/utils/config"
@@ -66,5 +67,5 @@ func (c *verifyEvidenceReleaseBundle) Run() error {
 	}
 	subjectPath := fmt.Sprintf("%s/%s/%s", repoKey, path, "release-bundle.json.evd")
 	releaseBundleSha256 := result.Results[0].Sha256
-	return c.verifyEvidence(artifactoryClient, metadata, releaseBundleSha256, subjectPath)
+	return c.verifyEvidence(artifactoryClient, metadata, model.SubjectDigest{Type: model.Sha256DigestType, Value: releaseBundleSha256}, subjectPath)
 }

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -15,6 +16,10 @@ import (
 	"github.com/jfrog/jfrog-client-go/utils/errorutils"
 	"github.com/stretchr/testify/require"
 )
+
+// applicationCounter keeps application keys unique for tests that run within the
+// same second, since applications holding versions cannot be deleted and reused.
+var applicationCounter atomic.Uint64
 
 // CreateApplicationRequest represents the request to create an application
 type CreateApplicationRequest struct {
@@ -59,8 +64,9 @@ type ApplicationVersionResponse struct {
 func CreateTestApplication(t *testing.T, artifactoryManager artifactory.ArtifactoryServicesManager, projectKey string) (string, string) {
 	// Generate unique application name with timestamp
 	timestamp := time.Now().Unix()
-	applicationKey := fmt.Sprintf("test-app-%d", timestamp)
-	applicationName := fmt.Sprintf("Test Application %d", timestamp)
+	suffix := applicationCounter.Add(1)
+	applicationKey := fmt.Sprintf("test-app-%d-%d", timestamp, suffix)
+	applicationName := fmt.Sprintf("Test Application %d %d", timestamp, suffix)
 
 	t.Logf("Creating test application via AppTrust API: %s in project: %s", applicationKey, projectKey)
 

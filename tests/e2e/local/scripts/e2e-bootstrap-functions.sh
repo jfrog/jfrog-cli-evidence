@@ -482,6 +482,87 @@ delete_project() {
     fi
 }
 
+# Create a generic local repository for entity evidence.
+# Usage: create_generic_local_repo <repo_key> <admin_token> [project_key]
+create_generic_local_repo() {
+    local repo_key="$1"
+    local admin_token="$2"
+    local project_key="${3:-}"
+
+    log_info "Creating entity repository: ${repo_key}..."
+
+    local repo_json
+    if [[ -n "${project_key}" ]]; then
+        repo_json='{
+  "key": "'"${repo_key}"'",
+  "rclass": "local",
+  "packageType": "generic",
+  "repoLayoutRef": "simple-default",
+  "projectKey": "'"${project_key}"'",
+  "description": "Entity evidence repository for E2E tests"
+}'
+    else
+        repo_json='{
+  "key": "'"${repo_key}"'",
+  "rclass": "local",
+  "packageType": "generic",
+  "repoLayoutRef": "simple-default",
+  "description": "Entity evidence repository for E2E tests"
+}'
+    fi
+
+    local response
+    response=$(curl -s -w "\n%{http_code}" \
+        -X PUT "${JFROG_URL}/artifactory/api/repositories/${repo_key}" \
+        -H "Authorization: Bearer ${admin_token}" \
+        -H "Content-Type: application/json" \
+        -d "${repo_json}")
+
+    local http_code
+    http_code=$(echo "$response" | tail -n1)
+    local body
+    body=$(echo "$response" | sed '$d')
+
+    if [[ "$http_code" == "200" ]] || [[ "$http_code" == "201" ]]; then
+        log_success "Repository created: ${repo_key}"
+        return 0
+    elif [[ "$http_code" == "400" ]] || [[ "$http_code" == "409" ]]; then
+        # Artifactory returns 400 when the repository key already exists.
+        log_info "Repository ${repo_key} already exists (continuing)"
+        return 0
+    else
+        log_error "Failed to create repository ${repo_key}. HTTP ${http_code}"
+        if [[ -n "$body" ]]; then
+            log_error "Response: ${body}"
+        fi
+        return 1
+    fi
+}
+
+# Delete a repository by key (ignores missing repos).
+delete_repository() {
+    local repo_key="$1"
+    local admin_token="$2"
+
+    log_info "Deleting repository: ${repo_key}..."
+
+    local response
+    response=$(curl -s -w "\n%{http_code}" \
+        -X DELETE "${JFROG_URL}/artifactory/api/repositories/${repo_key}" \
+        -H "Authorization: Bearer ${admin_token}")
+
+    local http_code
+    http_code=$(echo "$response" | tail -n1)
+
+    if [[ "$http_code" == "200" ]] || [[ "$http_code" == "204" ]] || [[ "$http_code" == "404" ]]; then
+        log_success "Repository deleted: ${repo_key}"
+        return 0
+    else
+        log_warning "Failed to delete repository ${repo_key}. HTTP ${http_code}"
+        return 0
+    fi
+}
+
 # Generate admin access token for testing
 generate_admin_token() {
     log_info "Generating admin access token with applied-permissions/admin scope..." >&2

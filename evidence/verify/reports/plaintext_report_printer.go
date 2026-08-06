@@ -22,7 +22,9 @@ func (p *plaintextReportPrinter) Print(result *model.VerificationResponse) error
 	if err != nil {
 		return err
 	}
-	fmt.Printf("Subject sha256:        %s\n", result.Subject.Sha256)
+	if result.Subject.Sha256 != "" {
+		fmt.Printf("Subject sha256:        %s\n", result.Subject.Sha256)
+	}
 	fmt.Printf("Subject:               %s\n", result.Subject.Path)
 	evidenceNumber := len(*result.EvidenceVerifications)
 	fmt.Printf("Loaded %d evidence\n", evidenceNumber)
@@ -54,14 +56,24 @@ func (p *plaintextReportPrinter) printVerificationResult(verification *model.Evi
 	fmt.Printf("- Evidence %d:\n", index+1)
 	fmt.Printf("    - Media type:                      %s\n", verification.MediaType)
 	fmt.Printf("    - Predicate type:                  %s\n", verification.PredicateType)
-	fmt.Printf("    - Evidence subject sha256:         %s\n", verification.SubjectChecksum)
+	if verification.SubjectChecksum != "" {
+		fmt.Printf("    - Evidence subject sha256:         %s\n", verification.SubjectChecksum)
+	}
+	for _, digest := range formatSignedSubjectDigests(verification.SignedSubjectDigest) {
+		fmt.Printf("    - Signed subject digest:           %s\n", digest)
+	}
 	if verification.VerificationResult.KeySource != "" {
 		fmt.Printf("    - Key source:                      %s\n", verification.VerificationResult.KeySource)
 	}
 	if verification.VerificationResult.KeyFingerprint != "" {
 		fmt.Printf("    - Key fingerprint:                 %s\n", verification.VerificationResult.KeyFingerprint)
 	}
-	fmt.Printf("    - Sha256 verification status:      %s\n", p.getColoredStatus(verification.VerificationResult.Sha256VerificationStatus))
+	if verification.VerificationResult.Sha256VerificationStatus != "" {
+		fmt.Printf("    - Sha256 verification status:      %s\n", p.getColoredStatus(verification.VerificationResult.Sha256VerificationStatus))
+	}
+	if verification.VerificationResult.SubjectDigestVerificationStatus != "" {
+		fmt.Printf("    - Subject digest verification:     %s\n", p.getColoredStatus(verification.VerificationResult.SubjectDigestVerificationStatus))
+	}
 	if verification.MediaType == model.SimpleDSSE {
 		fmt.Printf("    - Signatures verification status:  %s\n", p.getColoredStatus(verification.VerificationResult.SignaturesVerificationStatus))
 	}

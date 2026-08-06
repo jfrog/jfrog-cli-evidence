@@ -139,6 +139,7 @@ services:
       # AppTrust specific configuration
       JF_APPTRUST_ENABLED: "true"
       JF_APPTRUST_NAVIGATION_ENABLED: "true"
+      JF_APPTRUST_JFCONNECT_BYPASSENTITLEMENTCHECK: "true"
     network_mode: service:artifactory
     restart: on-failure
     depends_on:
@@ -176,6 +177,7 @@ services:
       # Unified Policy specific configuration
       JF_UNIFIED_POLICY_ENABLED: "true"
       JF_UNIFIED_POLICY_NAVIGATION_ENABLED: "true"
+      JF_UNIFIEDPOLICY_JFCONNECT_ENTITLEMENTENABLED: "false"
     network_mode: service:artifactory
     restart: on-failure
     depends_on:

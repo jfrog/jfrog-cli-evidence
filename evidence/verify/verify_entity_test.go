@@ -5,7 +5,6 @@ import (
 
 	"github.com/jfrog/jfrog-cli-core/v2/utils/config"
 	"github.com/jfrog/jfrog-cli-evidence/evidence/model"
-	evidenceutils "github.com/jfrog/jfrog-cli-evidence/evidence/utils"
 	"github.com/jfrog/jfrog-client-go/artifactory"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -26,14 +25,14 @@ func (m *mockOneModelManagerEntity) GraphqlQuery(query []byte) ([]byte, error) {
 }
 
 type mockVerifierEntity struct {
-	lastSha256      string
-	lastSubjectPath string
-	response        *model.VerificationResponse
-	err             error
+	lastExpectedSubject model.SubjectDigest
+	lastSubjectPath     string
+	response            *model.VerificationResponse
+	err                 error
 }
 
-func (m *mockVerifierEntity) Verify(subjectSha256 string, _ *[]model.SearchEvidenceEdge, subjectPath string) (*model.VerificationResponse, error) {
-	m.lastSha256 = subjectSha256
+func (m *mockVerifierEntity) Verify(expectedSubject model.SubjectDigest, _ *[]model.SearchEvidenceEdge, subjectPath string) (*model.VerificationResponse, error) {
+	m.lastExpectedSubject = expectedSubject
 	m.lastSubjectPath = subjectPath
 	if m.err != nil {
 		return nil, m.err
@@ -68,7 +67,8 @@ func TestVerifyEvidenceEntity_Run(t *testing.T) {
 	require.NoError(t, err)
 	assert.Contains(t, string(mockOneModel.lastQuery), `entityType: \"gitCommit\"`)
 	assert.Contains(t, string(mockOneModel.lastQuery), `projectKey: \"proj\"`)
-	assert.Equal(t, evidenceutils.EmptySubjectSha256, mockVerifier.lastSha256)
+	// Entity subjects are verified through the entity digest in the signed statement, not a checksum.
+	assert.Equal(t, model.SubjectDigest{Type: "gitCommit", Value: "abc123"}, mockVerifier.lastExpectedSubject)
 	assert.Equal(t, "gitCommit/abc123", mockVerifier.lastSubjectPath)
 }
 

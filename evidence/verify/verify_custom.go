@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/jfrog/jfrog-cli-evidence/evidence"
+	"github.com/jfrog/jfrog-cli-evidence/evidence/model"
 	"github.com/jfrog/jfrog-cli-evidence/evidence/utils"
 
 	"github.com/jfrog/jfrog-cli-core/v2/utils/config"
@@ -53,7 +54,7 @@ func (v *verifyEvidenceCustom) Run() error {
 		return err
 	}
 	subjectSha256 := result.Results[0].Sha256
-	return v.verifyEvidence(client, metadata, subjectSha256, v.subjectRepoPath)
+	return v.verifyEvidence(client, metadata, model.SubjectDigest{Type: model.Sha256DigestType, Value: subjectSha256}, v.subjectRepoPath)
 }
 
 func extractSubjectRepoPathName(v *verifyEvidenceCustom) (string, string, string, error) {

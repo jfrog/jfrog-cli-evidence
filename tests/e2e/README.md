@@ -140,8 +140,9 @@ func (r *EvidenceE2ETestsRunner) RunYourNewTest(t *testing.T) {
     // Create test resources (auto-cleanup with t.Cleanup)
     repoName := utils.CreateTestRepository(t, r.ServicesManager, "generic")
     
-    // Run your test
-    output := r.EvidenceUserCLI.RunCliCmdWithOutput(t,
+    // Run your test. Use RunCliCmdWithStdOutputAndErrOutput when asserting on
+    // plain text (create/verify logs). Keep RunCliCmdWithOutput when parsing JSON.
+    output := RunCliCmdWithStdOutputAndErrOutput(t, r.EvidenceUserCLI,
         "create",
         "--predicate", predicatePath,
         "--subject-repo-path", repoPath,
