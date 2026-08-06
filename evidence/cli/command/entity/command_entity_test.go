@@ -72,7 +72,8 @@ func TestValidateEvidenceEntityContext(t *testing.T) {
 			ctx, err := components.ConvertContext(cliCtx, tt.flags...)
 			require.NoError(t, err)
 
-			cmd := NewEvidenceEntityCommand(ctx, nil).(*evidenceEntityCommand)
+			cmd, ok := NewEvidenceEntityCommand(ctx, nil).(*evidenceEntityCommand)
+			require.True(t, ok)
 			err = cmd.validateEvidenceEntityContext(ctx)
 			if tt.errorContains == "" {
 				assert.NoError(t, err)

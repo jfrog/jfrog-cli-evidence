@@ -150,19 +150,20 @@ func writeEvidenceJsonl(data []byte, file *os.File) error {
 
 	log.Debug("Processing evidence with type:", typeField)
 
-	if typeField == ReleaseBundleType {
+	switch typeField {
+	case ReleaseBundleType:
 		var releaseBundleOutput ReleaseBundleOutput
 		if err := json.Unmarshal(data, &releaseBundleOutput); err != nil {
 			return fmt.Errorf("failed to parse release bundle output: %w", err)
 		}
 		return writeReleaseBundleJsonlFromStruct(schemaVersion, typeField, releaseBundleOutput.Result, file)
-	} else if typeField == EntityType {
+	case EntityType:
 		var entityEvidenceOutput EntityEvidenceOutput
 		if err := json.Unmarshal(data, &entityEvidenceOutput); err != nil {
 			return fmt.Errorf("failed to parse entity evidence output: %w", err)
 		}
 		return writeEntityEvidenceJsonl(schemaVersion, typeField, entityEvidenceOutput.Result, file)
-	} else {
+	default:
 		var customEvidenceOutput CustomEvidenceOutput
 		if err := json.Unmarshal(data, &customEvidenceOutput); err != nil {
 			return fmt.Errorf("failed to parse custom evidence output: %w", err)

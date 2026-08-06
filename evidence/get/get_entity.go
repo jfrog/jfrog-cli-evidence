@@ -99,23 +99,14 @@ func (g *getEvidenceEntity) resolveApplicationEntityProject() error {
 }
 
 func (g *getEvidenceEntity) getEvidence(onemodelClient onemodel.Manager) ([]byte, error) {
-	query, err := g.buildGraphqlQuery(true)
+	evidenceBytes, err := onemodelClient.GraphqlQuery(g.buildGraphqlQuery(true))
 	if err != nil {
-		return nil, err
-	}
-	evidenceBytes, err := onemodelClient.GraphqlQuery(query)
-	if err != nil {
-		if evidenceutils.IsAttachmentsFieldNotFound(err) {
-			log.Debug("GraphQL schema does not support attachments field. Falling back to query without attachments.")
-			queryWithoutAttachments, qErr := g.buildGraphqlQuery(false)
-			if qErr != nil {
-				return nil, qErr
-			}
-			evidenceBytes, err = onemodelClient.GraphqlQuery(queryWithoutAttachments)
-			if err != nil {
-				return nil, err
-			}
-		} else {
+		if !evidenceutils.IsAttachmentsFieldNotFound(err) {
+			return nil, err
+		}
+		log.Debug("GraphQL schema does not support attachments field. Falling back to query without attachments.")
+		evidenceBytes, err = onemodelClient.GraphqlQuery(g.buildGraphqlQuery(false))
+		if err != nil {
 			return nil, err
 		}
 	}
@@ -177,7 +168,7 @@ func (g *getEvidenceEntity) transformGraphQLOutput(rawEvidence []byte) ([]byte, 
 	return transformed, nil
 }
 
-func (g *getEvidenceEntity) buildGraphqlQuery(includeAttachments bool) ([]byte, error) {
+func (g *getEvidenceEntity) buildGraphqlQuery(includeAttachments bool) []byte {
 	nodeFields := evidenceutils.NewNodeFieldsBuilder(
 		evidenceutils.FieldPredicateSlug,
 		evidenceutils.FieldPredicateType,
@@ -195,5 +186,5 @@ func (g *getEvidenceEntity) buildGraphqlQuery(includeAttachments bool) ([]byte, 
 	queryTemplate := evidenceutils.BuildQuery(getEntityEvidenceQueryTemplate, nodeFields)
 	graphqlQuery := fmt.Sprintf(queryTemplate, whereClause)
 	log.Debug("GraphQL query: ", graphqlQuery)
-	return []byte(graphqlQuery), nil
+	return []byte(graphqlQuery)
 }
