@@ -1,6 +1,7 @@
 package resolvers
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 
@@ -55,7 +56,10 @@ func (r *AqlSubjectResolver) Resolve(repoName, path, checksum string) ([]string,
 		subjects = append(subjects, fmt.Sprintf(subjectRepoPath, item.Repo, item.Path, item.Name))
 	}
 	if len(subjects) == 0 {
-		return nil, fmt.Errorf("no subject found for repository %s and checksum %s and path %s", repoName, checksum, path)
+		// The repository, path and checksum are logged above; keeping them out of the returned
+		// error keeps caller-supplied values from propagating through the error value.
+		log.Debug("No subject found for repository", repoName, "path", path, "and checksum", checksum)
+		return nil, errors.New("no subject found for the provided repository, path and checksum")
 	}
 
 	return subjects, nil

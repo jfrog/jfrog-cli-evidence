@@ -229,7 +229,7 @@ func TestAqlSubjectResolver_Resolve_NoResults(t *testing.T) {
 
 	assert.Error(t, err)
 	assert.Nil(t, subjects)
-	assert.Contains(t, err.Error(), "no subject found for repository test-repo and checksum sha256:1234567890abcdef and path ")
+	assert.Contains(t, err.Error(), "no subject found for the provided repository, path and checksum")
 
 	mockClient.AssertExpectations(t)
 	mockStream.AssertExpectations(t)
