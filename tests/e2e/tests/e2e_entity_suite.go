@@ -61,14 +61,46 @@ func requireSharedKeys(t *testing.T) {
 	t.Logf("Using shared key pair: %s (alias: %s)", SharedPrivateKeyPath, SharedKeyAlias)
 }
 
+func ensureDefaultGitCommitEntityRepo(t *testing.T, r *EvidenceE2ETestsRunner) string {
+	t.Helper()
+	repoKey := utils.DefaultEntityRepoKey(entityTypeGitCommit)
+	utils.EnsureEntityRepository(t, r.ServicesManager, repoKey, "")
+	return repoKey
+}
+
+func ensureProjectGitCommitEntityRepo(t *testing.T, r *EvidenceE2ETestsRunner) string {
+	t.Helper()
+	require.NotEmpty(t, e2e.ProjectKey, "Project key must be available from bootstrap")
+	repoKey := utils.ProjectEntityRepoKey(e2e.ProjectKey, entityTypeGitCommit)
+	utils.EnsureEntityRepository(t, r.ServicesManager, repoKey, e2e.ProjectKey)
+	return repoKey
+}
+
+func ensureProjectApplicationEntityRepo(t *testing.T, r *EvidenceE2ETestsRunner) string {
+	t.Helper()
+	require.NotEmpty(t, e2e.ProjectKey, "Project key must be available from bootstrap")
+	repoKey := utils.ProjectEntityRepoKey(e2e.ProjectKey, entityTypeApplication)
+	utils.EnsureEntityRepository(t, r.ServicesManager, repoKey, e2e.ProjectKey)
+	return repoKey
+}
+
+func registerEntityEvidenceCleanup(t *testing.T, r *EvidenceE2ETestsRunner, repoKey, entityType, entityID string) {
+	t.Helper()
+	t.Cleanup(func() {
+		utils.CleanupEntityEvidence(t, r.ServicesManager, repoKey, entityType, entityID)
+	})
+}
+
 // RunCreateEvidenceForEntity creates evidence for a gitCommit entity in the default
-// gitCommit-entity repository created by bootstrap.
+// gitCommit-entity repository (created if missing, left in place).
 func (r *EvidenceE2ETestsRunner) RunCreateEvidenceForEntity(t *testing.T) {
 	t.Log("=== Create Evidence - Entity (default scope) ===")
 	requireSharedKeys(t)
 
+	repoKey := ensureDefaultGitCommitEntityRepo(t, r)
 	tempDir := t.TempDir()
 	entityID := newGitCommitEntityID("e2e-git-commit")
+	registerEntityEvidenceCleanup(t, r, repoKey, entityTypeGitCommit, entityID)
 
 	t.Log("Step 1: Creating predicate...")
 	predicatePath := writeEntityPredicate(t, tempDir, map[string]interface{}{
@@ -110,14 +142,15 @@ func (r *EvidenceE2ETestsRunner) RunCreateEvidenceForEntity(t *testing.T) {
 }
 
 // RunCreateEvidenceForEntityWithProject creates evidence for a gitCommit entity
-// scoped to the bootstrap project (evidencee2e-gitCommit-entity).
+// scoped to the shared e2e project ({project}-gitCommit-entity).
 func (r *EvidenceE2ETestsRunner) RunCreateEvidenceForEntityWithProject(t *testing.T) {
 	t.Log("=== Create Evidence - Entity with Project ===")
 	requireSharedKeys(t)
-	require.NotEmpty(t, e2e.ProjectKey, "Project key must be available from bootstrap")
 
+	repoKey := ensureProjectGitCommitEntityRepo(t, r)
 	tempDir := t.TempDir()
 	entityID := newGitCommitEntityID("e2e-project-git-commit")
+	registerEntityEvidenceCleanup(t, r, repoKey, entityTypeGitCommit, entityID)
 
 	t.Logf("Using project: %s", e2e.ProjectKey)
 	t.Log("Step 1: Creating predicate...")
@@ -167,12 +200,13 @@ func (r *EvidenceE2ETestsRunner) RunCreateEvidenceForEntityWithProject(t *testin
 func (r *EvidenceE2ETestsRunner) RunCreateEvidenceForApplicationEntity(t *testing.T) {
 	t.Log("=== Create Evidence - Application Entity (--application-key shorthand) ===")
 	requireSharedKeys(t)
-	require.NotEmpty(t, e2e.ProjectKey, "Project key must be available from bootstrap")
 
+	repoKey := ensureProjectApplicationEntityRepo(t, r)
 	tempDir := t.TempDir()
 	var applicationKey string
 	t.Cleanup(func() {
 		if applicationKey != "" {
+			utils.CleanupEntityEvidence(t, r.ServicesManager, repoKey, entityTypeApplication, applicationKey)
 			utils.CleanupTestApplication(t, r.ServicesManager, applicationKey, e2e.ProjectKey)
 		}
 	})
@@ -236,8 +270,10 @@ func (r *EvidenceE2ETestsRunner) RunGetEvidenceForEntity(t *testing.T) {
 	t.Log("=== Get Evidence - Entity ===")
 	requireSharedKeys(t)
 
+	repoKey := ensureDefaultGitCommitEntityRepo(t, r)
 	tempDir := t.TempDir()
 	entityID := newGitCommitEntityID("e2e-get-git-commit")
+	registerEntityEvidenceCleanup(t, r, repoKey, entityTypeGitCommit, entityID)
 
 	t.Log("Step 1: Creating predicate...")
 	predicatePath := writeEntityPredicate(t, tempDir, map[string]interface{}{
@@ -284,9 +320,11 @@ func (r *EvidenceE2ETestsRunner) RunVerifyEvidenceForEntity(t *testing.T) {
 	t.Log("=== Verify Evidence - Entity ===")
 	requireSharedKeys(t)
 
+	repoKey := ensureDefaultGitCommitEntityRepo(t, r)
 	tempDir := t.TempDir()
 	entityID := newGitCommitEntityID("e2e-verify-git-commit")
 	subjectPath := fmt.Sprintf("%s/%s", entityTypeGitCommit, entityID)
+	registerEntityEvidenceCleanup(t, r, repoKey, entityTypeGitCommit, entityID)
 
 	t.Log("Step 1: Creating predicate...")
 	predicatePath := writeEntityPredicate(t, tempDir, map[string]interface{}{

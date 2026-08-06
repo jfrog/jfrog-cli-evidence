@@ -33,14 +33,6 @@ fi
 export ADMIN_TOKEN
 log_success "Admin token generated"
 
-PROJECT_KEY="evidencee2e"
-
-# Delete entity evidence repositories first (before project deletion)
-log_info "Cleaning up entity repositories..."
-delete_repository "gitCommit-entity" "${ADMIN_TOKEN}"
-delete_repository "${PROJECT_KEY}-gitCommit-entity" "${ADMIN_TOKEN}"
-delete_repository "${PROJECT_KEY}-application-entity" "${ADMIN_TOKEN}"
-
 # Delete permission
 log_info "Cleaning up permission..."
 delete_permission "${PERMISSION_NAME}" "${ADMIN_TOKEN}"

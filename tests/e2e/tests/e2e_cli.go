@@ -1,6 +1,7 @@
 package tests
 
 import (
+	"bytes"
 	"io"
 	"os"
 	"testing"
@@ -18,6 +19,10 @@ import (
 // NotContains). Prefer (*JfrogCli).RunCliCmdWithOutput when the returned string
 // must remain structured stdout only (for example JSON Unmarshal), because log
 // lines written to stderr would pollute the parse.
+//
+// Captured bytes are also teed to the real stderr while the command runs, so a
+// fatal os.Exit inside the CLI (via PluginMain/ExitOnErr) cannot hide the error
+// from CI logs.
 func RunCliCmdWithStdOutputAndErrOutput(t *testing.T, cli *coreTests.JfrogCli, args ...string) string {
 	t.Helper()
 
@@ -35,15 +40,16 @@ func RunCliCmdWithStdOutputAndErrOutput(t *testing.T, cli *coreTests.JfrogCli, a
 	os.Stderr = writer
 	log.SetLogger(log.NewLogger(corelog.GetCliLogLevel(), nil))
 
-	errCh := make(chan error, 1)
+	var buf bytes.Buffer
+	readDone := make(chan error, 1)
 	go func() {
-		errCh <- cli.Exec(args...)
-		// Closing the writer unblocks the reader after the command finishes.
-		assert.NoError(t, writer.Close())
+		_, copyErr := io.Copy(io.MultiWriter(&buf, previousStderr), reader)
+		readDone <- copyErr
 	}()
 
-	content, readErr := io.ReadAll(reader)
-	cmdErr := <-errCh
+	cmdErr := cli.Exec(args...)
+	assert.NoError(t, writer.Close())
+	readErr := <-readDone
 
 	os.Stdout = previousStdout
 	os.Stderr = previousStderr
@@ -51,7 +57,7 @@ func RunCliCmdWithStdOutputAndErrOutput(t *testing.T, cli *coreTests.JfrogCli, a
 	assert.NoError(t, reader.Close())
 	assert.NoError(t, readErr)
 
-	output := string(content)
+	output := buf.String()
 	log.Debug(output)
 	assert.NoError(t, cmdErr)
 	return output
