@@ -270,10 +270,13 @@ func (c *createEvidenceBase) uploadEvidence(evidencePayload []byte, repoPath str
 	if err != nil {
 		return nil, err
 	}
+	return c.collectCreateResponse(body)
+}
 
+// collectCreateResponse unmarshals an Evidence create response and records it for --format output.
+func (c *createEvidenceBase) collectCreateResponse(body []byte) (*model.CreateResponse, error) {
 	createResponse := &model.CreateResponse{}
-	err = json.Unmarshal(body, createResponse)
-	if err != nil {
+	if err := json.Unmarshal(body, createResponse); err != nil {
 		return nil, err
 	}
 	if createResponse.Verified {

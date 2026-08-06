@@ -596,6 +596,95 @@ func TestGetAndValidateSubject_SigstoreBundle(t *testing.T) {
 	}
 }
 
+func TestGetAndValidateSubject_Entity(t *testing.T) {
+	app := cli.NewApp()
+	app.Commands = []cli.Command{{Name: "create"}}
+	ctx := cli.NewContext(app, &flag.FlagSet{}, nil)
+
+	tests := []struct {
+		name             string
+		flags            []components.Flag
+		expectError      bool
+		errorContains    string
+		expectedSubject  []string
+		expectEntityType string
+		expectEntityID   string
+		clearedAppKey    bool
+	}{
+		{
+			name: "EntityType_WithEntityId",
+			flags: []components.Flag{
+				test.SetDefaultValue(flags.EntityType, "gitCommit"),
+				test.SetDefaultValue(flags.EntityId, "abc123"),
+			},
+			expectedSubject:  []string{flags.EntityType},
+			expectEntityType: "gitCommit",
+			expectEntityID:   "abc123",
+		},
+		{
+			name: "EntityType_MissingEntityId",
+			flags: []components.Flag{
+				test.SetDefaultValue(flags.EntityType, "gitCommit"),
+			},
+			expectError:   true,
+			errorContains: "--entity-id is required",
+		},
+		{
+			name: "EntityType_WithArtifactSubject",
+			flags: []components.Flag{
+				test.SetDefaultValue(flags.EntityType, "gitCommit"),
+				test.SetDefaultValue(flags.EntityId, "abc123"),
+				test.SetDefaultValue(flags.SubjectRepoPath, "repo/path"),
+			},
+			expectError:   true,
+			errorContains: "multiple subjects",
+		},
+		{
+			name: "BareApplicationKey_MapsToEntity",
+			flags: []components.Flag{
+				test.SetDefaultValue(flags.ApplicationKey, "my-app"),
+			},
+			expectedSubject:  []string{flags.EntityType},
+			expectEntityType: "application",
+			expectEntityID:   "my-app",
+			clearedAppKey:    true,
+		},
+		{
+			name: "ApplicationKeyWithVersion_RemainsApplicationSubject",
+			flags: []components.Flag{
+				test.SetDefaultValue(flags.ApplicationKey, "my-app"),
+				test.SetDefaultValue(flags.ApplicationVersion, "1.0.0"),
+			},
+			expectedSubject: []string{flags.ApplicationKey},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			context, err := components.ConvertContext(ctx, tt.flags...)
+			assert.NoError(t, err)
+
+			subjects, err := getAndValidateSubject(context)
+			if tt.expectError {
+				assert.Error(t, err)
+				if tt.errorContains != "" {
+					assert.Contains(t, err.Error(), tt.errorContains)
+				}
+				return
+			}
+			assert.NoError(t, err)
+			assert.Equal(t, tt.expectedSubject, subjects)
+			if tt.expectEntityType != "" {
+				assert.Equal(t, tt.expectEntityType, context.GetStringFlagValue(flags.EntityType))
+				assert.Equal(t, tt.expectEntityID, context.GetStringFlagValue(flags.EntityId))
+			}
+			if tt.clearedAppKey {
+				assert.Empty(t, context.GetStringFlagValue(flags.ApplicationKey))
+			}
+		})
+	}
+}
+
 func TestValidateSigstoreBundleConflicts(t *testing.T) {
 	app := cli.NewApp()
 	app.Commands = []cli.Command{

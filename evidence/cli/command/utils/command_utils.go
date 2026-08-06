@@ -14,6 +14,7 @@ func Exec(command commands.Command) error {
 }
 
 var SubjectTypes = []string{
+	flags.EntityType,
 	flags.SubjectRepoPath,
 	flags.ReleaseBundle,
 	flags.BuildName,

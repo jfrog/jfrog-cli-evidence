@@ -90,17 +90,11 @@ func (c *createEvidenceApplication) Run() error {
 }
 
 func (c *createEvidenceApplication) fetchProjectKey() error {
-	apptrustServiceManager, err := artifactoryUtils.CreateApptrustServiceManager(c.serverDetails, false)
+	var err error
+	c.projectKey, err = utils.ResolveApplicationProjectKey(c.serverDetails, c.applicationKey)
 	if err != nil {
-		return fmt.Errorf("failed to create apptrust service manager: %w", err)
+		return err
 	}
-
-	applicationDetails, err := apptrustServiceManager.GetApplicationDetails(c.applicationKey)
-	if err != nil {
-		return fmt.Errorf("failed to get application details for %s: %w", c.applicationKey, err)
-	}
-
-	c.projectKey = applicationDetails.ProjectKey
 	log.Debug("Retrieved project key from application:", c.projectKey)
 	return nil
 }

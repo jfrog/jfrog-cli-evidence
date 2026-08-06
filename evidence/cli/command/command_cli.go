@@ -14,6 +14,7 @@ import (
 	"github.com/jfrog/jfrog-cli-evidence/evidence/cli/command/application"
 	"github.com/jfrog/jfrog-cli-evidence/evidence/cli/command/artifacts"
 	"github.com/jfrog/jfrog-cli-evidence/evidence/cli/command/build"
+	"github.com/jfrog/jfrog-cli-evidence/evidence/cli/command/entity"
 	"github.com/jfrog/jfrog-cli-evidence/evidence/cli/command/flags"
 	"github.com/jfrog/jfrog-cli-evidence/evidence/cli/command/github"
 	_interface "github.com/jfrog/jfrog-cli-evidence/evidence/cli/command/interface"
@@ -137,6 +138,7 @@ func createEvidence(ctx *components.Context) error {
 			flags.BuildName:       build.NewEvidenceBuildCommand,
 			flags.PackageName:     _package.NewEvidencePackageCommand,
 			flags.ApplicationKey:  application.NewEvidenceApplicationCommand,
+			flags.EntityType:      entity.NewEvidenceEntityCommand,
 		}
 
 		if commandFunc, exists := evidenceCommands[evidenceType[0]]; exists {
@@ -174,6 +176,7 @@ func getEvidence(ctx *components.Context) error {
 	evidenceCommands := map[string]func(*components.Context, commandUtils.ExecCommandFunc) _interface.EvidenceCommands{
 		flags.SubjectRepoPath: artifacts.NewEvidenceCustomCommand,
 		flags.ReleaseBundle:   releasebundle.NewEvidenceReleaseBundleCommand,
+		flags.EntityType:      entity.NewEvidenceEntityCommand,
 	}
 
 	if commandFunc, exists := evidenceCommands[evidenceType[0]]; exists {
@@ -214,6 +217,7 @@ func verifyEvidence(ctx *components.Context) error {
 		flags.ReleaseBundle:   releasebundle.NewEvidenceReleaseBundleCommand,
 		flags.BuildName:       build.NewEvidenceBuildCommand,
 		flags.PackageName:     _package.NewEvidencePackageCommand,
+		flags.EntityType:      entity.NewEvidenceEntityCommand,
 	}
 	if commandFunc, exists := evidenceCommands[subjectType[0]]; exists {
 		err = commandFunc(ctx, execFunc).VerifyEvidence(ctx, serverDetails)
@@ -391,8 +395,30 @@ func setKeyAliasIfProvided(ctx *components.Context, keyAlias string) {
 }
 
 func getAndValidateSubject(ctx *components.Context) ([]string, error) {
+	if err := applyApplicationEntityShorthand(ctx); err != nil {
+		return nil, err
+	}
+
+	if ctx.GetStringFlagValue(flags.EntityType) != "" {
+		if ctx.GetStringFlagValue(flags.EntityId) == "" {
+			return nil, errorutils.CheckErrorf("--%s is required when --%s is set", flags.EntityId, flags.EntityType)
+		}
+		for _, key := range []string{flags.SubjectRepoPath, flags.ReleaseBundle, flags.BuildName, flags.PackageName, flags.TypeFlag} {
+			if ctx.GetStringFlagValue(key) != "" {
+				return nil, errorutils.CheckErrorf("multiple subjects found: [%s, %s]", flags.EntityType, key)
+			}
+		}
+		if ctx.GetStringFlagValue(flags.ApplicationVersion) != "" {
+			return nil, errorutils.CheckErrorf("--%s cannot be combined with --%s", flags.ApplicationVersion, flags.EntityType)
+		}
+		return []string{flags.EntityType}, nil
+	}
+
 	var foundSubjects []string
 	for _, key := range commandUtils.SubjectTypes {
+		if key == flags.EntityType {
+			continue
+		}
 		if ctx.GetStringFlagValue(key) != "" {
 			foundSubjects = append(foundSubjects, key)
 		}
@@ -414,6 +440,28 @@ func getAndValidateSubject(ctx *components.Context) ([]string, error) {
 	}
 
 	return foundSubjects, nil
+}
+
+// applyApplicationEntityShorthand maps bare --application-key (without --application-version)
+// to entity evidence on subject_type=application.
+func applyApplicationEntityShorthand(ctx *components.Context) error {
+	if ctx.GetStringFlagValue(flags.EntityType) != "" {
+		return nil
+	}
+	applicationKey := ctx.GetStringFlagValue(flags.ApplicationKey)
+	applicationVersion := ctx.GetStringFlagValue(flags.ApplicationVersion)
+	if applicationKey == "" || applicationVersion != "" {
+		return nil
+	}
+	for _, key := range []string{flags.SubjectRepoPath, flags.ReleaseBundle, flags.BuildName, flags.PackageName, flags.TypeFlag} {
+		if ctx.GetStringFlagValue(key) != "" {
+			return errorutils.CheckErrorf("multiple subjects found: [%s, %s]", flags.ApplicationKey, key)
+		}
+	}
+	ctx.AddStringFlag(flags.EntityType, "application")
+	ctx.AddStringFlag(flags.EntityId, applicationKey)
+	ctx.SetStringFlagValue(flags.ApplicationKey, "")
+	return nil
 }
 
 func attemptSetBuildNameAndNumber(ctx *components.Context) bool {

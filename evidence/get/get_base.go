@@ -17,6 +17,7 @@ const (
 	ArtifactType      SubjectType = "artifact"
 	BuildType         SubjectType = "build"
 	ReleaseBundleType SubjectType = "release-bundle"
+	EntityType        SubjectType = "entity"
 )
 
 type getEvidenceBase struct {
@@ -155,6 +156,12 @@ func writeEvidenceJsonl(data []byte, file *os.File) error {
 			return fmt.Errorf("failed to parse release bundle output: %w", err)
 		}
 		return writeReleaseBundleJsonlFromStruct(schemaVersion, typeField, releaseBundleOutput.Result, file)
+	} else if typeField == EntityType {
+		var entityEvidenceOutput EntityEvidenceOutput
+		if err := json.Unmarshal(data, &entityEvidenceOutput); err != nil {
+			return fmt.Errorf("failed to parse entity evidence output: %w", err)
+		}
+		return writeEntityEvidenceJsonl(schemaVersion, typeField, entityEvidenceOutput.Result, file)
 	} else {
 		var customEvidenceOutput CustomEvidenceOutput
 		if err := json.Unmarshal(data, &customEvidenceOutput); err != nil {
@@ -162,6 +169,28 @@ func writeEvidenceJsonl(data []byte, file *os.File) error {
 		}
 		return writeCustomEvidenceJsonl(schemaVersion, typeField, customEvidenceOutput.Result, file)
 	}
+}
+
+func writeEntityEvidenceJsonl(schemaVersion string, typeField SubjectType, result EntityEvidenceResult, file *os.File) error {
+	for _, evidence := range result.Evidence {
+		lineWithMetadata := JsonlLine{
+			SchemaVersion: schemaVersion,
+			Type:          typeField,
+			Result:        evidence,
+		}
+		jsonLine, err := json.Marshal(lineWithMetadata)
+		if err != nil {
+			return fmt.Errorf("failed to marshal entity evidence line: %w", err)
+		}
+		if _, err := file.Write(append(jsonLine, '\n')); err != nil {
+			return fmt.Errorf("failed to write evidence line: %w", err)
+		}
+	}
+
+	if file != os.Stdout {
+		log.Info("Evidence successfully exported to file name: ", file.Name())
+	}
+	return nil
 }
 
 func writeCustomEvidenceJsonl(schemaVersion string, typeField SubjectType, result CustomEvidenceResult, file *os.File) error {
