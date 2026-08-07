@@ -650,6 +650,48 @@ func TestGetAndValidateSubject_Entity(t *testing.T) {
 			clearedAppKey:    true,
 		},
 		{
+			name: "ApplicationKey_WithMatchingEntityId",
+			flags: []components.Flag{
+				test.SetDefaultValue(flags.ApplicationKey, "my-app"),
+				test.SetDefaultValue(flags.EntityId, "my-app"),
+			},
+			expectedSubject:  []string{flags.EntityType},
+			expectEntityType: "application",
+			expectEntityID:   "my-app",
+			clearedAppKey:    true,
+		},
+		{
+			name: "ApplicationKey_WithApplicationEntityType",
+			flags: []components.Flag{
+				test.SetDefaultValue(flags.ApplicationKey, "my-app"),
+				test.SetDefaultValue(flags.EntityType, "application"),
+			},
+			expectedSubject:  []string{flags.EntityType},
+			expectEntityType: "application",
+			expectEntityID:   "my-app",
+			clearedAppKey:    true,
+		},
+		{
+			name: "ApplicationKey_WithConflictingEntityId",
+			flags: []components.Flag{
+				test.SetDefaultValue(flags.ApplicationKey, "my-app"),
+				test.SetDefaultValue(flags.EntityId, "other-id"),
+			},
+			expectError:   true,
+			errorContains: "--entity-id must be empty or equal to --application-key",
+		},
+		{
+			name: "ApplicationKey_AsScopeForGitCommitEntity",
+			flags: []components.Flag{
+				test.SetDefaultValue(flags.EntityType, "gitCommit"),
+				test.SetDefaultValue(flags.EntityId, "abc123"),
+				test.SetDefaultValue(flags.ApplicationKey, "my-app"),
+			},
+			expectedSubject:  []string{flags.EntityType},
+			expectEntityType: "gitCommit",
+			expectEntityID:   "abc123",
+		},
+		{
 			name: "ApplicationKeyWithVersion_RemainsApplicationSubject",
 			flags: []components.Flag{
 				test.SetDefaultValue(flags.ApplicationKey, "my-app"),

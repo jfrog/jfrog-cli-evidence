@@ -8,7 +8,7 @@ import (
 	"github.com/sigstore/sigstore-go/pkg/verify"
 )
 
-const SchemaVersion = "1.3"
+const SchemaVersion = "1.4"
 
 // Sha256DigestType is the digest type used for subjects identified by the sha256 of their content.
 const Sha256DigestType = "sha256"
@@ -43,9 +43,14 @@ type EvidenceVerification struct {
 	MediaType       MediaType `json:"mediaType"`
 	DownloadPath    string    `json:"downloadPath"`
 	SubjectChecksum string    `json:"evidenceSubjectSha256,omitempty"`
-	// SignedSubjectDigest is the subject digest found in the signed statement. It is reported
-	// for subjects that are not identified by a content checksum, such as entity subjects.
-	SignedSubjectDigest     map[string]string          `json:"signedSubjectDigest,omitempty"`
+	// SignedSubjectDigest contains the matched digest on success. On failure it retains the
+	// legacy 1.3 representation for backward compatibility; use AvailableSubjectDigests for
+	// the complete, non-lossy list.
+	SignedSubjectDigest map[string]string `json:"signedSubjectDigest,omitempty"`
+	// AvailableSubjectDigests lists every subject digest found in the signed statement when
+	// subject-digest verification fails. Preserving the per-subject maps avoids collapsing
+	// colliding digest types across subjects.
+	AvailableSubjectDigests []map[string]string        `json:"availableSubjectDigests,omitempty"`
 	PredicateType           string                     `json:"predicateType"`
 	CreatedBy               string                     `json:"createdBy"`
 	CreatedAt               string                     `json:"createdAt"`

@@ -59,8 +59,14 @@ func (p *plaintextReportPrinter) printVerificationResult(verification *model.Evi
 	if verification.SubjectChecksum != "" {
 		fmt.Printf("    - Evidence subject sha256:         %s\n", verification.SubjectChecksum)
 	}
-	for _, digest := range formatSignedSubjectDigests(verification.SignedSubjectDigest) {
-		fmt.Printf("    - Signed subject digest:           %s\n", digest)
+	if len(verification.AvailableSubjectDigests) > 0 {
+		for _, digest := range formatAvailableSubjectDigests(verification.AvailableSubjectDigests) {
+			fmt.Printf("    - Available subject digest:        %s\n", digest)
+		}
+	} else {
+		for _, digest := range formatSignedSubjectDigests(verification.SignedSubjectDigest) {
+			fmt.Printf("    - Signed subject digest:           %s\n", digest)
+		}
 	}
 	if verification.VerificationResult.KeySource != "" {
 		fmt.Printf("    - Key source:                      %s\n", verification.VerificationResult.KeySource)

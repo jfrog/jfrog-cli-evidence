@@ -32,7 +32,7 @@ func (p *markdownReportPrinter) Print(result *model.VerificationResponse) error 
 	if result.Subject.Sha256 != "" {
 		fmt.Printf("Subject sha256: `%s`  \n", result.Subject.Sha256)
 	}
-	for _, digest := range signedSubjectDigestsFromVerifications(result.EvidenceVerifications) {
+	for _, digest := range subjectDigestsFromVerifications(result.EvidenceVerifications) {
 		fmt.Printf("Signed subject digest: `%s`  \n", digest)
 	}
 	fmt.Println()

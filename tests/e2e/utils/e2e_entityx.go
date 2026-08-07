@@ -1,9 +1,7 @@
 package utils
 
 import (
-	"crypto/sha256"
-	"encoding/hex"
-	"fmt"
+	"encoding/json"
 	"testing"
 	"time"
 
@@ -13,12 +11,6 @@ import (
 )
 
 const (
-	// entityRoot is the Artifactory path prefix under which entity subjects are stored.
-	entityRoot = ".entities"
-	// emptySubjectSha256 is the sha256 of an empty payload used as the subject checksum
-	// for entity evidence storage paths.
-	emptySubjectSha256 = "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
-
 	repositoryWaitAttempts = 10
 	repositoryWaitInterval = time.Second
 )
@@ -94,23 +86,55 @@ func waitForRepository(t *testing.T, servicesManager artifactory.ArtifactoryServ
 	return false
 }
 
-// CleanupEntityEvidence deletes the Artifactory subject placeholder and evidence files
-// created for the given entity. Warnings only — cleanup must not fail the test.
-func CleanupEntityEvidence(t *testing.T, servicesManager artifactory.ArtifactoryServicesManager, repoKey, entityType, entityID string) {
+type entityGetOutput struct {
+	Result struct {
+		Evidence []struct {
+			Subject map[string]any `json:"subject"`
+		} `json:"evidence"`
+	} `json:"result"`
+}
+
+// CleanupEntityEvidenceFromGetOutput deletes the entity subjects reported by a successful
+// entity get, identified by subject.fullPath. Artifactory and the Evidence service remove the
+// evidence attached to a subject along with it. Warnings only — cleanup must not fail the test.
+func CleanupEntityEvidenceFromGetOutput(t *testing.T, servicesManager artifactory.ArtifactoryServicesManager, getOutput string) {
 	t.Helper()
 
-	shard := entityID
-	if len(entityID) >= 4 {
-		shard = entityID[:4]
+	if getOutput == "" {
+		t.Log("Warning: no get output available for entity cleanup")
+		return
 	}
-	relativeSubjectPath := fmt.Sprintf("%s/%s/%s/%s", entityRoot, entityType, shard, entityID)
-	subjectDigest := sha256Hex(relativeSubjectPath)
-	evidenceDir := fmt.Sprintf("%s/.evidence/%s/%s", repoKey, subjectDigest, emptySubjectSha256)
-	subjectPath := fmt.Sprintf("%s/%s", repoKey, relativeSubjectPath)
 
-	t.Logf("Cleaning up entity evidence under %s and %s", subjectPath, evidenceDir)
-	deleteArtifactoryPath(t, servicesManager, evidenceDir)
-	deleteArtifactoryPath(t, servicesManager, subjectPath)
+	var parsed entityGetOutput
+	if err := json.Unmarshal([]byte(getOutput), &parsed); err != nil {
+		t.Logf("Warning: Failed to parse get output for entity cleanup: %v", err)
+		return
+	}
+	if len(parsed.Result.Evidence) == 0 {
+		t.Log("Warning: get output contained no evidence entries to clean up")
+		return
+	}
+
+	seenSubjects := map[string]bool{}
+	for _, entry := range parsed.Result.Evidence {
+		subjectPath := subjectFullPath(entry.Subject)
+		if subjectPath == "" || seenSubjects[subjectPath] {
+			continue
+		}
+		seenSubjects[subjectPath] = true
+		t.Logf("Cleaning up entity subject under %s", subjectPath)
+		deleteArtifactoryPath(t, servicesManager, subjectPath)
+	}
+}
+
+func subjectFullPath(subject map[string]any) string {
+	if subject == nil {
+		return ""
+	}
+	if fullPath, ok := subject["fullPath"].(string); ok {
+		return fullPath
+	}
+	return ""
 }
 
 func deleteArtifactoryPath(t *testing.T, servicesManager artifactory.ArtifactoryServicesManager, pattern string) {
@@ -135,9 +159,4 @@ func deleteArtifactoryPath(t *testing.T, servicesManager artifactory.Artifactory
 		return
 	}
 	t.Logf("✓ Cleaned up: %s", pattern)
-}
-
-func sha256Hex(value string) string {
-	sum := sha256.Sum256([]byte(value))
-	return hex.EncodeToString(sum[:])
 }

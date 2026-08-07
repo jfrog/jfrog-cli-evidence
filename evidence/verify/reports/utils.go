@@ -25,6 +25,18 @@ func formatSignedSubjectDigests(digest map[string]string) []string {
 	return formatted
 }
 
+// formatAvailableSubjectDigests renders every subject digest map from a failed verification.
+func formatAvailableSubjectDigests(digests []map[string]string) []string {
+	if len(digests) == 0 {
+		return nil
+	}
+	formatted := make([]string, 0, len(digests))
+	for _, digest := range digests {
+		formatted = append(formatted, formatSignedSubjectDigests(digest)...)
+	}
+	return formatted
+}
+
 func verifyNotEmptyResponse(result *model.VerificationResponse) error {
 	if result == nil {
 		return fmt.Errorf("verification response is empty")
@@ -32,16 +44,20 @@ func verifyNotEmptyResponse(result *model.VerificationResponse) error {
 	return nil
 }
 
-// signedSubjectDigestsFromVerifications collects the distinct signed subject digests reported
-// by the given verifications.
-func signedSubjectDigestsFromVerifications(verifications *[]model.EvidenceVerification) []string {
+// subjectDigestsFromVerifications collects distinct subject digests reported by the given
+// verifications. The complete 1.4 failure list takes precedence over its legacy 1.3 projection.
+func subjectDigestsFromVerifications(verifications *[]model.EvidenceVerification) []string {
 	if verifications == nil {
 		return nil
 	}
 	seen := map[string]bool{}
 	var digests []string
 	for _, verification := range *verifications {
-		for _, digest := range formatSignedSubjectDigests(verification.SignedSubjectDigest) {
+		entries := formatAvailableSubjectDigests(verification.AvailableSubjectDigests)
+		if len(entries) == 0 {
+			entries = formatSignedSubjectDigests(verification.SignedSubjectDigest)
+		}
+		for _, digest := range entries {
 			if !seen[digest] {
 				seen[digest] = true
 				digests = append(digests, digest)

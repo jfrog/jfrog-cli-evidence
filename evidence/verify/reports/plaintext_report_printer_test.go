@@ -215,6 +215,9 @@ func entityVerificationResponse(status model.VerificationStatus, failureReason s
 	}
 	if status == model.Success {
 		verification.SignedSubjectDigest = map[string]string{"gitCommit": "c1712d8f3dddb5c3bd6eb8edf85fa9279cdc14b7"}
+	} else {
+		verification.SignedSubjectDigest = map[string]string{"gitTag": "tag-1"}
+		verification.AvailableSubjectDigests = []map[string]string{{"gitTag": "tag-1"}}
 	}
 	return &model.VerificationResponse{
 		Subject:                   model.Subject{Path: "gitCommit/c1712d8f3dddb5c3bd6eb8edf85fa9279cdc14b7"},
@@ -245,5 +248,9 @@ func TestPlaintext_Print_EntitySubjectDigestMismatchFails(t *testing.T) {
 
 	assert.Contains(t, out, "Verification passed for 0 out of 1 evidence")
 	assert.Contains(t, out, failureReason)
+	assert.Contains(t, out, "Available subject digest:        gitTag: tag-1")
+	assert.NotContains(t, out, "Signed subject digest:")
+	assert.Contains(t, out, "Available subject digest:        gitTag: tag-1")
+	assert.NotContains(t, out, "Signed subject digest:")
 	assert.NotContains(t, out, "Sha256 verification status")
 }

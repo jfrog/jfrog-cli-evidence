@@ -35,7 +35,7 @@ type createEvidenceEntity struct {
 }
 
 func NewCreateEvidenceEntity(serverDetails *config.ServerDetails, predicateFilePath, predicateType, markdownFilePath, key, keyId,
-	entityType, entityID, entityRepo, projectKey, applicationKey, providerId, integration, sigstoreBundlePath,
+	entityType, entityID, entityRepo, projectKey, applicationKey, providerId, sigstoreBundlePath,
 	attachLocalPath, attachArtifactoryTempPath, attachArtifactoryPath string) evidence.Command {
 	return &createEvidenceEntity{
 		createEvidenceBase: createEvidenceBase{
@@ -46,7 +46,6 @@ func NewCreateEvidenceEntity(serverDetails *config.ServerDetails, predicateFileP
 			key:                       key,
 			keyId:                     keyId,
 			providerId:                providerId,
-			integration:               integration,
 			sigstoreBundlePath:        sigstoreBundlePath,
 			attachLocalPath:           attachLocalPath,
 			attachArtifactoryTempPath: attachArtifactoryTempPath,
@@ -165,7 +164,7 @@ func (c *createEvidenceEntity) buildEntityPostURL() string {
 
 func (c *createEvidenceEntity) resolveApplicationEntityProject() error {
 	// Bare --application-key shorthand uses entity-type=application and resolves project scope via AppTrust.
-	if !strings.EqualFold(c.entityType, "application") || c.projectKey != "" || c.entityRepo != "" || c.applicationKey != "" {
+	if c.entityType != "application" || c.projectKey != "" || c.entityRepo != "" || c.applicationKey != "" {
 		return nil
 	}
 	var err error
@@ -271,8 +270,10 @@ func (c *createEvidenceEntity) recordSummary(response *model.CreateResponse) {
 		return
 	}
 	applicationKey := c.applicationKey
-	if strings.EqualFold(c.entityType, "application") {
+	subjectType := commandsummary.SubjectTypeArtifact
+	if c.entityType == "application" {
 		applicationKey = c.entityID
+		subjectType = commandsummary.SubjectTypeApplication
 	}
 	err := c.recordEvidenceSummary(commandsummary.EvidenceSummaryData{
 		Subject:        fmt.Sprintf("%s/%s", c.entityType, c.entityID),
@@ -280,7 +281,7 @@ func (c *createEvidenceEntity) recordSummary(response *model.CreateResponse) {
 		PredicateSlug:  response.PredicateSlug,
 		Verified:       response.Verified,
 		DisplayName:    fmt.Sprintf("%s %s", c.entityType, c.entityID),
-		SubjectType:    commandsummary.SubjectTypeArtifact,
+		SubjectType:    subjectType,
 		RepoKey:        c.entityRepo,
 		ApplicationKey: applicationKey,
 	})

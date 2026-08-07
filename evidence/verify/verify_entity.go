@@ -3,7 +3,6 @@ package verify
 import (
 	"encoding/json"
 	"fmt"
-	"strings"
 
 	"github.com/jfrog/jfrog-cli-core/v2/utils/config"
 	"github.com/jfrog/jfrog-cli-evidence/evidence"
@@ -60,7 +59,7 @@ func (v *verifyEvidenceEntity) Run() error {
 }
 
 func (v *verifyEvidenceEntity) resolveApplicationEntityProject() error {
-	if !strings.EqualFold(v.entityType, "application") || v.projectKey != "" || v.entityRepo != "" || v.applicationKey != "" {
+	if v.entityType != "application" || v.projectKey != "" || v.entityRepo != "" || v.applicationKey != "" {
 		return nil
 	}
 	projectKey, err := evidenceutils.ResolveApplicationProjectKey(v.serverDetails, v.entityID)

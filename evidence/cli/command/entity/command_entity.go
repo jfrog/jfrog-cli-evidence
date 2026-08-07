@@ -48,7 +48,6 @@ func (eec *evidenceEntityCommand) CreateEvidence(ctx *components.Context, server
 		eec.ctx.GetStringFlagValue(flags.Project),
 		eec.ctx.GetStringFlagValue(flags.ApplicationKey),
 		eec.ctx.GetStringFlagValue(flags.ProviderId),
-		eec.ctx.GetStringFlagValue(flags.Integration),
 		eec.ctx.GetStringFlagValue(flags.SigstoreBundle),
 		eec.ctx.GetStringFlagValue(flags.AttachLocal),
 		eec.ctx.GetStringFlagValue(flags.AttachArtifactoryTempPath),
@@ -107,6 +106,9 @@ func (eec *evidenceEntityCommand) validateEvidenceEntityContext(ctx *components.
 	}
 	if utils.AssertValueProvided(ctx, flags.EntityId) != nil {
 		return errorutils.CheckErrorf("--%s is a mandatory field for entity evidence", flags.EntityId)
+	}
+	if strings.TrimSpace(ctx.GetStringFlagValue(flags.Integration)) != "" {
+		return errorutils.CheckErrorf("--%s is not supported for entity evidence", flags.Integration)
 	}
 	if ctx.IsFlagSet(flags.ApplicationVersion) && ctx.GetStringFlagValue(flags.ApplicationVersion) != "" {
 		return errorutils.CheckErrorf("--%s cannot be combined with --%s; use --%s/--%s for AppTrust application version subjects",

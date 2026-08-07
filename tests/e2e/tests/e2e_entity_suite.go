@@ -53,6 +53,19 @@ func requireEntityDigestReported(t *testing.T, verifyOutput, entityType, entityI
 		"Verification must not report the sha256 of an empty payload as the subject checksum")
 }
 
+// requireEntityVerificationPassed asserts that all loaded evidence verified successfully.
+// The plaintext report always contains the substring "Verification passed", including for
+// "0 out of N", so the count must be checked explicitly.
+func requireEntityVerificationPassed(t *testing.T, verifyOutput string) {
+	t.Helper()
+	require.Contains(t, verifyOutput, "Verification passed for 1 out of 1 evidence",
+		"Verification should pass for the single uploaded evidence")
+	require.Contains(t, verifyOutput, "Subject digest verification:",
+		"Verification should report subject digest status")
+	require.NotContains(t, verifyOutput, "Failure reason",
+		"Successful verification should not report a failure reason")
+}
+
 func requireSharedKeys(t *testing.T) {
 	t.Helper()
 	if SharedPrivateKeyPath == "" || SharedPublicKeyPath == "" {
@@ -61,33 +74,32 @@ func requireSharedKeys(t *testing.T) {
 	t.Logf("Using shared key pair: %s (alias: %s)", SharedPrivateKeyPath, SharedKeyAlias)
 }
 
-func ensureDefaultGitCommitEntityRepo(t *testing.T, r *EvidenceE2ETestsRunner) string {
+func ensureDefaultGitCommitEntityRepo(t *testing.T, r *EvidenceE2ETestsRunner) {
 	t.Helper()
-	repoKey := utils.DefaultEntityRepoKey(entityTypeGitCommit)
-	utils.EnsureEntityRepository(t, r.ServicesManager, repoKey, "")
-	return repoKey
+	utils.EnsureEntityRepository(t, r.ServicesManager, utils.DefaultEntityRepoKey(entityTypeGitCommit), "")
 }
 
-func ensureProjectGitCommitEntityRepo(t *testing.T, r *EvidenceE2ETestsRunner) string {
+func ensureProjectGitCommitEntityRepo(t *testing.T, r *EvidenceE2ETestsRunner) {
 	t.Helper()
 	require.NotEmpty(t, e2e.ProjectKey, "Project key must be available from bootstrap")
-	repoKey := utils.ProjectEntityRepoKey(e2e.ProjectKey, entityTypeGitCommit)
-	utils.EnsureEntityRepository(t, r.ServicesManager, repoKey, e2e.ProjectKey)
-	return repoKey
+	utils.EnsureEntityRepository(t, r.ServicesManager, utils.ProjectEntityRepoKey(e2e.ProjectKey, entityTypeGitCommit), e2e.ProjectKey)
 }
 
-func ensureProjectApplicationEntityRepo(t *testing.T, r *EvidenceE2ETestsRunner) string {
+func ensureProjectApplicationEntityRepo(t *testing.T, r *EvidenceE2ETestsRunner) {
 	t.Helper()
 	require.NotEmpty(t, e2e.ProjectKey, "Project key must be available from bootstrap")
-	repoKey := utils.ProjectEntityRepoKey(e2e.ProjectKey, entityTypeApplication)
-	utils.EnsureEntityRepository(t, r.ServicesManager, repoKey, e2e.ProjectKey)
-	return repoKey
+	utils.EnsureEntityRepository(t, r.ServicesManager, utils.ProjectEntityRepoKey(e2e.ProjectKey, entityTypeApplication), e2e.ProjectKey)
 }
 
-func registerEntityEvidenceCleanup(t *testing.T, r *EvidenceE2ETestsRunner, repoKey, entityType, entityID string) {
+// registerEntityEvidenceCleanup deletes the entity subjects discovered from get output.
+// Tests must assign getJSON before the test ends.
+func registerEntityEvidenceCleanup(t *testing.T, r *EvidenceE2ETestsRunner, getJSON *string) {
 	t.Helper()
 	t.Cleanup(func() {
-		utils.CleanupEntityEvidence(t, r.ServicesManager, repoKey, entityType, entityID)
+		if getJSON == nil {
+			return
+		}
+		utils.CleanupEntityEvidenceFromGetOutput(t, r.ServicesManager, *getJSON)
 	})
 }
 
@@ -97,10 +109,11 @@ func (r *EvidenceE2ETestsRunner) RunCreateEvidenceForEntity(t *testing.T) {
 	t.Log("=== Create Evidence - Entity (default scope) ===")
 	requireSharedKeys(t)
 
-	repoKey := ensureDefaultGitCommitEntityRepo(t, r)
+	ensureDefaultGitCommitEntityRepo(t, r)
 	tempDir := t.TempDir()
 	entityID := newGitCommitEntityID("e2e-git-commit")
-	registerEntityEvidenceCleanup(t, r, repoKey, entityTypeGitCommit, entityID)
+	var getOutput string
+	registerEntityEvidenceCleanup(t, r, &getOutput)
 
 	t.Log("Step 1: Creating predicate...")
 	predicatePath := writeEntityPredicate(t, tempDir, map[string]interface{}{
@@ -128,7 +141,7 @@ func (r *EvidenceE2ETestsRunner) RunCreateEvidenceForEntity(t *testing.T) {
 	t.Log("✓ Evidence created successfully")
 
 	t.Log("Step 3: Getting evidence to validate creation...")
-	getOutput := RunCliCmdWithStdOutputAndErrOutput(t, r.EvidenceAdminCLI,
+	getOutput = r.EvidenceAdminCLI.RunCliCmdWithOutput(t,
 		"get",
 		"--entity-type", entityTypeGitCommit,
 		"--entity-id", entityID,
@@ -136,6 +149,7 @@ func (r *EvidenceE2ETestsRunner) RunCreateEvidenceForEntity(t *testing.T) {
 	t.Logf("Evidence get output: %s", getOutput)
 	require.Contains(t, getOutput, entityTypeGitCommit, "Output should include entity type")
 	require.Contains(t, getOutput, entityID, "Output should include entity id")
+	require.Contains(t, getOutput, "fullPath", "Output should include subject fullPath for cleanup")
 	t.Log("✓ Evidence retrieved successfully")
 
 	t.Log("=== ✅ Create Evidence for Entity Test Completed Successfully! ===")
@@ -147,10 +161,11 @@ func (r *EvidenceE2ETestsRunner) RunCreateEvidenceForEntityWithProject(t *testin
 	t.Log("=== Create Evidence - Entity with Project ===")
 	requireSharedKeys(t)
 
-	repoKey := ensureProjectGitCommitEntityRepo(t, r)
+	ensureProjectGitCommitEntityRepo(t, r)
 	tempDir := t.TempDir()
 	entityID := newGitCommitEntityID("e2e-project-git-commit")
-	registerEntityEvidenceCleanup(t, r, repoKey, entityTypeGitCommit, entityID)
+	var getOutput string
+	registerEntityEvidenceCleanup(t, r, &getOutput)
 
 	t.Logf("Using project: %s", e2e.ProjectKey)
 	t.Log("Step 1: Creating predicate...")
@@ -181,7 +196,7 @@ func (r *EvidenceE2ETestsRunner) RunCreateEvidenceForEntityWithProject(t *testin
 	t.Log("✓ Evidence created successfully")
 
 	t.Log("Step 3: Getting evidence to validate creation...")
-	getOutput := RunCliCmdWithStdOutputAndErrOutput(t, r.EvidenceAdminCLI,
+	getOutput = r.EvidenceAdminCLI.RunCliCmdWithOutput(t,
 		"get",
 		"--entity-type", entityTypeGitCommit,
 		"--entity-id", entityID,
@@ -201,8 +216,9 @@ func (r *EvidenceE2ETestsRunner) RunCreateEvidenceForApplicationEntity(t *testin
 	t.Log("=== Create Evidence - Application Entity (--application-key shorthand) ===")
 	requireSharedKeys(t)
 
-	repoKey := ensureProjectApplicationEntityRepo(t, r)
+	ensureProjectApplicationEntityRepo(t, r)
 	tempDir := t.TempDir()
+	var getOutput string
 
 	t.Log("Step 1: Creating AppTrust application...")
 	applicationKey, applicationName := utils.CreateTestApplication(t, r.ServicesManager, e2e.ProjectKey)
@@ -211,7 +227,7 @@ func (r *EvidenceE2ETestsRunner) RunCreateEvidenceForApplicationEntity(t *testin
 	t.Cleanup(func() {
 		utils.CleanupTestApplication(t, r.ServicesManager, applicationKey, e2e.ProjectKey)
 	})
-	registerEntityEvidenceCleanup(t, r, repoKey, entityTypeApplication, applicationKey)
+	registerEntityEvidenceCleanup(t, r, &getOutput)
 	t.Logf("✓ Application created: %s (%s)", applicationKey, applicationName)
 
 	t.Log("Step 2: Creating predicate...")
@@ -239,7 +255,7 @@ func (r *EvidenceE2ETestsRunner) RunCreateEvidenceForApplicationEntity(t *testin
 	t.Log("✓ Evidence created successfully")
 
 	t.Log("Step 4: Getting evidence with bare --application-key...")
-	getOutput := RunCliCmdWithStdOutputAndErrOutput(t, r.EvidenceUserCLI,
+	getOutput = r.EvidenceUserCLI.RunCliCmdWithOutput(t,
 		"get",
 		"--application-key", applicationKey,
 	)
@@ -256,7 +272,7 @@ func (r *EvidenceE2ETestsRunner) RunCreateEvidenceForApplicationEntity(t *testin
 	)
 	t.Logf("Verification output: %s", verifyOutput)
 	require.Contains(t, verifyOutput, applicationKey, "Verification should reference the application entity")
-	require.Contains(t, verifyOutput, "Verification passed", "Verification should pass")
+	requireEntityVerificationPassed(t, verifyOutput)
 	requireEntityDigestReported(t, verifyOutput, entityTypeApplication, applicationKey)
 	t.Log("✅ Evidence verified with application-key shorthand")
 
@@ -268,10 +284,11 @@ func (r *EvidenceE2ETestsRunner) RunGetEvidenceForEntity(t *testing.T) {
 	t.Log("=== Get Evidence - Entity ===")
 	requireSharedKeys(t)
 
-	repoKey := ensureDefaultGitCommitEntityRepo(t, r)
+	ensureDefaultGitCommitEntityRepo(t, r)
 	tempDir := t.TempDir()
 	entityID := newGitCommitEntityID("e2e-get-git-commit")
-	registerEntityEvidenceCleanup(t, r, repoKey, entityTypeGitCommit, entityID)
+	var getOutput string
+	registerEntityEvidenceCleanup(t, r, &getOutput)
 
 	t.Log("Step 1: Creating predicate...")
 	predicatePath := writeEntityPredicate(t, tempDir, map[string]interface{}{
@@ -299,7 +316,7 @@ func (r *EvidenceE2ETestsRunner) RunGetEvidenceForEntity(t *testing.T) {
 	t.Log("✓ Evidence created successfully")
 
 	t.Log("Step 3: Getting evidence using User CLI...")
-	getOutput := RunCliCmdWithStdOutputAndErrOutput(t, r.EvidenceUserCLI,
+	getOutput = r.EvidenceUserCLI.RunCliCmdWithOutput(t,
 		"get",
 		"--entity-type", entityTypeGitCommit,
 		"--entity-id", entityID,
@@ -308,6 +325,7 @@ func (r *EvidenceE2ETestsRunner) RunGetEvidenceForEntity(t *testing.T) {
 	require.Contains(t, getOutput, `"type": "entity"`, "Output should be entity evidence")
 	require.Contains(t, getOutput, entityTypeGitCommit, "Output should include entity type")
 	require.Contains(t, getOutput, entityID, "Output should include entity id")
+	require.Contains(t, getOutput, "fullPath", "Output should include subject fullPath")
 	t.Log("✅ User successfully retrieved entity evidence!")
 
 	t.Log("=== ✅ Get Evidence for Entity Test Completed Successfully! ===")
@@ -318,11 +336,12 @@ func (r *EvidenceE2ETestsRunner) RunVerifyEvidenceForEntity(t *testing.T) {
 	t.Log("=== Verify Evidence - Entity ===")
 	requireSharedKeys(t)
 
-	repoKey := ensureDefaultGitCommitEntityRepo(t, r)
+	ensureDefaultGitCommitEntityRepo(t, r)
 	tempDir := t.TempDir()
 	entityID := newGitCommitEntityID("e2e-verify-git-commit")
 	subjectPath := fmt.Sprintf("%s/%s", entityTypeGitCommit, entityID)
-	registerEntityEvidenceCleanup(t, r, repoKey, entityTypeGitCommit, entityID)
+	var getOutput string
+	registerEntityEvidenceCleanup(t, r, &getOutput)
 
 	t.Log("Step 1: Creating predicate...")
 	predicatePath := writeEntityPredicate(t, tempDir, map[string]interface{}{
@@ -349,7 +368,15 @@ func (r *EvidenceE2ETestsRunner) RunVerifyEvidenceForEntity(t *testing.T) {
 	require.NotContains(t, createOutput, "Failed", "Evidence creation should not fail")
 	t.Log("✓ Evidence created successfully")
 
-	t.Log("Step 3: Verifying evidence using User CLI...")
+	t.Log("Step 3: Getting evidence for cleanup metadata...")
+	getOutput = r.EvidenceAdminCLI.RunCliCmdWithOutput(t,
+		"get",
+		"--entity-type", entityTypeGitCommit,
+		"--entity-id", entityID,
+	)
+	require.Contains(t, getOutput, entityID, "Get should return the created entity evidence")
+
+	t.Log("Step 4: Verifying evidence using User CLI...")
 	verifyOutput := RunCliCmdWithStdOutputAndErrOutput(t, r.EvidenceUserCLI,
 		"verify",
 		"--entity-type", entityTypeGitCommit,
@@ -358,7 +385,7 @@ func (r *EvidenceE2ETestsRunner) RunVerifyEvidenceForEntity(t *testing.T) {
 	)
 	t.Logf("Verification output: %s", verifyOutput)
 	require.Contains(t, verifyOutput, subjectPath, "Verification should reference the entity subject path")
-	require.Contains(t, verifyOutput, "Verification passed", "Verification should pass")
+	requireEntityVerificationPassed(t, verifyOutput)
 	requireEntityDigestReported(t, verifyOutput, entityTypeGitCommit, entityID)
 	t.Log("✅ User successfully verified entity evidence!")
 

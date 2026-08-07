@@ -53,6 +53,15 @@ func TestValidateEvidenceEntityContext(t *testing.T) {
 			errorContains: "--application-version cannot be combined",
 		},
 		{
+			name: "integration not supported",
+			flags: []components.Flag{
+				test.SetDefaultValue(flags.EntityType, "gitCommit"),
+				test.SetDefaultValue(flags.EntityId, "abc123"),
+				test.SetDefaultValue(flags.Integration, "sonar"),
+			},
+			errorContains: "--integration is not supported for entity evidence",
+		},
+		{
 			name: "sigstore bundle allowed",
 			flags: []components.Flag{
 				test.SetDefaultValue(flags.EntityType, "gitCommit"),

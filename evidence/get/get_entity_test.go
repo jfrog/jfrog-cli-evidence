@@ -17,7 +17,7 @@ type mockOnemodelManagerEntitySuccess struct {
 
 func (m *mockOnemodelManagerEntitySuccess) GraphqlQuery(query []byte) ([]byte, error) {
 	m.lastQuery = append([]byte{}, query...)
-	response := `{"data":{"evidence":{"searchEvidence":{"totalCount":1,"edges":[{"cursor":"1","node":{"predicateSlug":"test-slug","downloadPath":"test/path","verified":true,"signingKey":{"alias":"test-alias"},"subject":{"sha256":"e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"},"createdBy":"test-user","createdAt":"2024-01-01T00:00:00Z"}}]}}}}`
+	response := `{"data":{"evidence":{"searchEvidence":{"totalCount":1,"edges":[{"cursor":"1","node":{"predicateSlug":"test-slug","downloadPath":"gitCommit-entity/.evidence/abc/e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855/evd.json","verified":true,"signingKey":{"alias":"test-alias"},"subject":{"sha256":"e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855","fullPath":"gitCommit-entity/.entities/gitCommit/abc1/abc123","path":".entities/gitCommit/abc1","name":"abc123","repositoryKey":"gitCommit-entity"},"createdBy":"test-user","createdAt":"2024-01-01T00:00:00Z"}}]}}}}`
 	return []byte(response), nil
 }
 
@@ -40,6 +40,7 @@ func TestGetEvidenceEntity_Transform(t *testing.T) {
 	assert.Contains(t, string(mock.lastQuery), `entityType: \"gitCommit\"`)
 	assert.Contains(t, string(mock.lastQuery), `entityId: \"abc123\"`)
 	assert.Contains(t, string(mock.lastQuery), `projectKey: \"proj\"`)
+	assert.Contains(t, string(mock.lastQuery), "fullPath")
 
 	var parsed EntityEvidenceOutput
 	require.NoError(t, json.Unmarshal(out, &parsed))
@@ -50,6 +51,7 @@ func TestGetEvidenceEntity_Transform(t *testing.T) {
 	assert.Equal(t, "proj", parsed.Result.Project)
 	require.Len(t, parsed.Result.Evidence, 1)
 	assert.Equal(t, "test-slug", parsed.Result.Evidence[0].PredicateSlug)
+	assert.Equal(t, "gitCommit-entity/.entities/gitCommit/abc1/abc123", parsed.Result.Evidence[0].Subject["fullPath"])
 }
 
 func TestGetEvidenceEntity_QueryError(t *testing.T) {

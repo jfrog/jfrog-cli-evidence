@@ -3,7 +3,6 @@ package get
 import (
 	"encoding/json"
 	"fmt"
-	"strings"
 
 	"github.com/jfrog/gofrog/log"
 	"github.com/jfrog/jfrog-cli-core/v2/artifactory/utils"
@@ -86,7 +85,7 @@ func (g *getEvidenceEntity) Run() error {
 }
 
 func (g *getEvidenceEntity) resolveApplicationEntityProject() error {
-	if !strings.EqualFold(g.entityType, "application") || g.projectKey != "" || g.entityRepo != "" || g.applicationKey != "" {
+	if g.entityType != "application" || g.projectKey != "" || g.entityRepo != "" || g.applicationKey != "" {
 		return nil
 	}
 	projectKey, err := evidenceutils.ResolveApplicationProjectKey(g.serverDetails, g.entityID)
@@ -177,7 +176,7 @@ func (g *getEvidenceEntity) buildGraphqlQuery(includeAttachments bool) []byte {
 		evidenceutils.FieldSigningKeyAlias,
 		evidenceutils.FieldCreatedBy,
 		evidenceutils.FieldCreatedAt,
-		evidenceutils.FieldSubjectSha256,
+		evidenceutils.FieldSubjectWithPath,
 	).
 		WithIf(includeAttachments, evidenceutils.AttachmentsFragment).
 		WithIf(g.includePredicate, evidenceutils.FieldPredicate).
