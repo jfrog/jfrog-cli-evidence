@@ -203,17 +203,15 @@ func (r *EvidenceE2ETestsRunner) RunCreateEvidenceForApplicationEntity(t *testin
 
 	repoKey := ensureProjectApplicationEntityRepo(t, r)
 	tempDir := t.TempDir()
-	var applicationKey string
-	t.Cleanup(func() {
-		if applicationKey != "" {
-			utils.CleanupEntityEvidence(t, r.ServicesManager, repoKey, entityTypeApplication, applicationKey)
-			utils.CleanupTestApplication(t, r.ServicesManager, applicationKey, e2e.ProjectKey)
-		}
-	})
 
 	t.Log("Step 1: Creating AppTrust application...")
-	var applicationName string
-	applicationKey, applicationName = utils.CreateTestApplication(t, r.ServicesManager, e2e.ProjectKey)
+	applicationKey, applicationName := utils.CreateTestApplication(t, r.ServicesManager, e2e.ProjectKey)
+	// Cleanups run in reverse order of registration, so the evidence is removed before the
+	// application that owns it.
+	t.Cleanup(func() {
+		utils.CleanupTestApplication(t, r.ServicesManager, applicationKey, e2e.ProjectKey)
+	})
+	registerEntityEvidenceCleanup(t, r, repoKey, entityTypeApplication, applicationKey)
 	t.Logf("✓ Application created: %s (%s)", applicationKey, applicationName)
 
 	t.Log("Step 2: Creating predicate...")
