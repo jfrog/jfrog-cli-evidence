@@ -60,6 +60,7 @@ func GetCommands() []components.Command {
 			Description:      create.GetDescription(),
 			AIDescription:    create.GetAIDescription(),
 			Arguments:        create.GetArguments(),
+			UsageOptions:     &components.UsageOptions{Usage: create.GetUsageExamples()},
 			Action:           createEvidence,
 			SupportedFormats: []format.OutputFormat{format.Json, format.Table},
 		},
@@ -70,6 +71,7 @@ func GetCommands() []components.Command {
 			Description:   get.GetDescription(),
 			AIDescription: get.GetAIDescription(),
 			Arguments:     get.GetArguments(),
+			UsageOptions:  &components.UsageOptions{Usage: get.GetUsageExamples()},
 			Action:        getEvidence,
 		},
 		{
@@ -79,6 +81,7 @@ func GetCommands() []components.Command {
 			Description:   verify.GetDescription(),
 			AIDescription: verify.GetAIDescription(),
 			Arguments:     verify.GetArguments(),
+			UsageOptions:  &components.UsageOptions{Usage: verify.GetUsageExamples()},
 			Action:        verifyEvidence,
 		},
 		{

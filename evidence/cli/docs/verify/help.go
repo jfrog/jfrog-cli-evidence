@@ -44,3 +44,12 @@ Related: jf evd create, jf evd get, jf evd gen-keys`
 func GetArguments() []components.Argument {
 	return []components.Argument{}
 }
+
+// GetUsageExamples returns entity-focused verify usage lines shown under the command's Usage help.
+func GetUsageExamples() []string {
+	return []string{
+		"evd verify --entity-type gitCommit --entity-id 57bb812f3733b80e270272ba063274e52c34bd23 --project my-proj --public-keys ./evidence.pub",
+		"evd verify --application-key my-app --public-keys ./evidence.pub",
+		"evd verify --entity-type gitCommit --entity-id 57bb812f3733b80e270272ba063274e52c34bd23 --project my-proj --use-artifactory-keys --format json",
+	}
+}

@@ -17,3 +17,9 @@ func TestGetArguments(t *testing.T) {
 	assert.NotNil(t, args)
 	assert.Empty(t, args) // Currently returns empty slice
 }
+
+func TestGetUsageExamples(t *testing.T) {
+	examples := GetUsageExamples()
+	assert.NotEmpty(t, examples)
+	assert.Contains(t, examples[0], "evd create --entity-type")
+}

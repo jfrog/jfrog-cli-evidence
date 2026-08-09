@@ -49,3 +49,12 @@ Related: jf evd verify, jf evd get, jf evd gen-keys`
 func GetArguments() []components.Argument {
 	return []components.Argument{}
 }
+
+// GetUsageExamples returns entity-focused create usage lines shown under the command's Usage help.
+func GetUsageExamples() []string {
+	return []string{
+		"evd create --entity-type gitCommit --entity-id 57bb812f3733b80e270272ba063274e52c34bd23 --project my-proj --predicate ./approval.json --predicate-type https://jfrog.com/evidence/commit-approval/v1 --key ./evidence.key",
+		"evd create --entity-type gitCommit --entity-id 57bb812f3733b80e270272ba063274e52c34bd23 --project my-proj --sigstore-bundle ./commit.sigstore.json",
+		"evd create --application-key my-app --predicate ./app.json --predicate-type https://example.com/app/v1 --key ./evidence.key",
+	}
+}

@@ -44,3 +44,12 @@ Related: jf evd create, jf evd verify`
 func GetArguments() []components.Argument {
 	return []components.Argument{}
 }
+
+// GetUsageExamples returns entity-focused get usage lines shown under the command's Usage help.
+func GetUsageExamples() []string {
+	return []string{
+		"evd get --entity-type gitCommit --entity-id 57bb812f3733b80e270272ba063274e52c34bd23 --project my-proj",
+		"evd get --application-key my-app",
+		"evd get --entity-type gitCommit --entity-id 57bb812f3733b80e270272ba063274e52c34bd23 --project my-proj --include-predicate --format json",
+	}
+}
