@@ -622,14 +622,6 @@ func TestGetAndValidateSubject_Entity(t *testing.T) {
 			expectEntityID:   "abc123",
 		},
 		{
-			name: "EntityType_MissingEntityId",
-			flags: []components.Flag{
-				test.SetDefaultValue(flags.EntityType, "gitCommit"),
-			},
-			expectError:   true,
-			errorContains: "--entity-id is required",
-		},
-		{
 			name: "EntityType_WithArtifactSubject",
 			flags: []components.Flag{
 				test.SetDefaultValue(flags.EntityType, "gitCommit"),

@@ -399,26 +399,8 @@ func getAndValidateSubject(ctx *components.Context) ([]string, error) {
 		return nil, err
 	}
 
-	if ctx.GetStringFlagValue(flags.EntityType) != "" {
-		if ctx.GetStringFlagValue(flags.EntityId) == "" {
-			return nil, errorutils.CheckErrorf("--%s is required when --%s is set", flags.EntityId, flags.EntityType)
-		}
-		for _, key := range []string{flags.SubjectRepoPath, flags.ReleaseBundle, flags.BuildName, flags.PackageName, flags.TypeFlag} {
-			if ctx.GetStringFlagValue(key) != "" {
-				return nil, errorutils.CheckErrorf("multiple subjects found: [%s, %s]", flags.EntityType, key)
-			}
-		}
-		if ctx.GetStringFlagValue(flags.ApplicationVersion) != "" {
-			return nil, errorutils.CheckErrorf("--%s cannot be combined with --%s", flags.ApplicationVersion, flags.EntityType)
-		}
-		return []string{flags.EntityType}, nil
-	}
-
 	var foundSubjects []string
 	for _, key := range commandUtils.SubjectTypes {
-		if key == flags.EntityType {
-			continue
-		}
 		if ctx.GetStringFlagValue(key) != "" {
 			foundSubjects = append(foundSubjects, key)
 		}
@@ -437,6 +419,11 @@ func getAndValidateSubject(ctx *components.Context) ([]string, error) {
 
 	if err := validateFoundSubjects(ctx, foundSubjects); err != nil {
 		return nil, err
+	}
+
+	// --entity-type is allowed to come together with --application-key
+	if slices.Contains(foundSubjects, flags.EntityType) {
+		return []string{flags.EntityType}, nil
 	}
 
 	return foundSubjects, nil
@@ -518,6 +505,17 @@ func validateFoundSubjects(ctx *components.Context, foundSubjects []string) erro
 	}
 
 	if slices.Contains(foundSubjects, flags.TypeFlag) && attemptSetBuildNameAndNumber(ctx) {
+		return nil
+	}
+
+	if slices.Contains(foundSubjects, flags.EntityType) {
+		// --entity-type can be alone or with --application-key
+		if len(foundSubjects) == 1 {
+			return nil
+		}
+		if len(foundSubjects) > 2 || !slices.Contains(foundSubjects, flags.ApplicationKey) {
+			return errorutils.CheckErrorf("multiple subjects found: [%s]", strings.Join(foundSubjects, ", "))
+		}
 		return nil
 	}
 
