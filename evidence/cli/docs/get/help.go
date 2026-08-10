@@ -48,8 +48,10 @@ func GetArguments() []components.Argument {
 // GetUsageExamples returns entity-focused get usage lines shown under the command's Usage help.
 func GetUsageExamples() []string {
 	return []string{
-		"evd get --entity-type gitCommit --entity-id 57bb812f3733b80e270272ba063274e52c34bd23 --project my-proj",
-		"evd get --application-key my-app",
-		"evd get --entity-type gitCommit --entity-id 57bb812f3733b80e270272ba063274e52c34bd23 --project my-proj --include-predicate --format json",
+		"jf evd get --application-key my-app",
+		"jf evd get --release-bundle my-rb --release-bundle-version 1.0.0 --artifacts-limit 5000",
+		"jf evd get --subject-repo-path generic-local/app.tgz",
+		"jf evd get --entity-type gitCommit --entity-id 57bb812f3733b80e270272ba063274e52c34bd23 --project my-proj",
+		"jf evd get --entity-type gitCommit --entity-id 57bb812f3733b80e270272ba063274e52c34bd23 --project my-proj --include-predicate --format json",
 	}
 }

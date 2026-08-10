@@ -48,8 +48,12 @@ func GetArguments() []components.Argument {
 // GetUsageExamples returns entity-focused verify usage lines shown under the command's Usage help.
 func GetUsageExamples() []string {
 	return []string{
-		"evd verify --entity-type gitCommit --entity-id 57bb812f3733b80e270272ba063274e52c34bd23 --project my-proj --public-keys ./evidence.pub",
-		"evd verify --application-key my-app --public-keys ./evidence.pub",
-		"evd verify --entity-type gitCommit --entity-id 57bb812f3733b80e270272ba063274e52c34bd23 --project my-proj --use-artifactory-keys --format json",
+		"jf evd verify --application-key my-app --public-keys ./evidence.pub",
+		"jf evd verify --build-name my-build --build-number 42 --public-keys ./key1.pub;./key2.pub",
+		"jf evd verify --package-name my-npm-pkg --package-version 1.2.3 --package-repo-name npm-local --use-artifactory-keys",
+		"jf evd verify --release-bundle my-rb --release-bundle-version 1.0.0 --public-keys ./evidence.pub",
+		"jf evd verify --subject-repo-path generic-local/app.tgz --public-keys ./evidence.pub",
+		"jf evd verify --entity-type gitCommit --entity-id 57bb812f3733b80e270272ba063274e52c34bd23 --project my-proj --public-keys ./evidence.pub",
+		"jf evd verify --entity-type gitCommit --entity-id 57bb812f3733b80e270272ba063274e52c34bd23 --project my-proj --use-artifactory-keys --format json",
 	}
 }
