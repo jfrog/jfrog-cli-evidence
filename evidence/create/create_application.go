@@ -54,10 +54,12 @@ func (c *createEvidenceApplication) ServerDetails() (*config.ServerDetails, erro
 
 func (c *createEvidenceApplication) Run() error {
 	// Get project key from application details
-	err := c.fetchProjectKey()
+	var err error
+	c.projectKey, err = utils.ResolveApplicationProjectKey(c.serverDetails, c.applicationKey)
 	if err != nil {
 		return err
 	}
+	log.Debug("Retrieved project key from application:", c.projectKey)
 
 	artifactoryClient, err := c.createArtifactoryClient()
 	if err != nil {
@@ -86,16 +88,6 @@ func (c *createEvidenceApplication) Run() error {
 	}
 	c.recordSummary(response, subject, sha256)
 
-	return nil
-}
-
-func (c *createEvidenceApplication) fetchProjectKey() error {
-	var err error
-	c.projectKey, err = utils.ResolveApplicationProjectKey(c.serverDetails, c.applicationKey)
-	if err != nil {
-		return err
-	}
-	log.Debug("Retrieved project key from application:", c.projectKey)
 	return nil
 }
 

@@ -123,11 +123,11 @@ func TestCreateEvidenceEntity_Run_SigstoreBundle(t *testing.T) {
 			serverDetails:      &config.ServerDetails{Url: "https://example.jfrog.io/"},
 			sigstoreBundlePath: bundlePath,
 			providerId:         "ci",
+			prepareClient:      prepareClient,
 		},
-		entityType:    "gitCommit",
-		entityID:      "abc123",
-		projectKey:    "proj",
-		prepareClient: prepareClient,
+		entityType: "gitCommit",
+		entityID:   "abc123",
+		projectKey: "proj",
 	}
 
 	require.NoError(t, cmd.Run())
@@ -163,11 +163,11 @@ func TestCreateEvidenceEntity_Run_PrepareSignUpload(t *testing.T) {
 			predicateType:     "https://example.com/v1",
 			providerId:        "ci",
 			key:               "not-a-real-key",
+			prepareClient:     prepareClient,
 		},
-		entityType:    "gitCommit",
-		entityID:      "abc123",
-		projectKey:    "proj",
-		prepareClient: prepareClient,
+		entityType: "gitCommit",
+		entityID:   "abc123",
+		projectKey: "proj",
 	}
 
 	err := cmd.Run()
@@ -201,8 +201,7 @@ func TestUploadPreparedEvidence_CollectsResponse(t *testing.T) {
 		uploadResp: []byte(`{"verified":false,"predicate_slug":"slug"}`),
 	}
 	cmd := &createEvidenceEntity{
-		createEvidenceBase: createEvidenceBase{},
-		prepareClient:      prepareClient,
+		createEvidenceBase: createEvidenceBase{prepareClient: prepareClient},
 	}
 	resp, err := cmd.uploadPreparedEvidence("/evidence/api/v1/entity/gitCommit/abc", []byte(`{"payload":"x"}`))
 	require.NoError(t, err)
@@ -229,11 +228,11 @@ func TestPrepareSignedStatement_ReadsMarkdown(t *testing.T) {
 			predicateFilePath: predicatePath,
 			predicateType:     "https://example.com/v1",
 			markdownFilePath:  markdownPath,
+			prepareClient:     prepareClient,
 		},
-		entityType:    "languageModel",
-		entityID:      "model-1",
-		entityRepo:    "models-entity",
-		prepareClient: prepareClient,
+		entityType: "languageModel",
+		entityID:   "model-1",
+		entityRepo: "models-entity",
 	}
 	_, err := cmd.prepareSignedStatement(nil)
 	require.NoError(t, err)

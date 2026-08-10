@@ -22,6 +22,7 @@ import (
 
 	"github.com/jfrog/jfrog-cli-core/v2/artifactory/utils"
 	"github.com/jfrog/jfrog-cli-core/v2/utils/config"
+	"github.com/jfrog/jfrog-cli-evidence/evidence/client"
 	"github.com/jfrog/jfrog-client-go/artifactory"
 	evidenceService "github.com/jfrog/jfrog-client-go/evidence/services"
 	"github.com/jfrog/jfrog-client-go/utils/log"
@@ -29,6 +30,13 @@ import (
 
 type evidenceUploader interface {
 	UploadEvidence(evidenceService.EvidenceDetails) ([]byte, error)
+}
+
+// prepareEvidenceClient is the Evidence prepare/upload API used by subject types that create
+// evidence via prepare → sign → POST to the returned post_url (currently entity; more later).
+type prepareEvidenceClient interface {
+	PrepareEvidence(request client.PrepareEvidenceRequest, includePAE bool) (*client.PrepareEvidenceResponse, error)
+	UploadPreparedSignedEvidence(postURL string, signedEnvelope []byte) ([]byte, error)
 }
 
 const sonarProviderId = "sonar"
@@ -52,6 +60,7 @@ type createEvidenceBase struct {
 	attachArtifactoryPath     string
 	artifactoryClient         artifactory.ArtifactoryServicesManager
 	uploader                  evidenceUploader
+	prepareClient             prepareEvidenceClient
 	stmtResolver              sonar.StatementResolver
 	collectedResponses        []*model.CreateResponse
 }
@@ -267,6 +276,25 @@ func (c *createEvidenceBase) uploadEvidence(evidencePayload []byte, repoPath str
 	}
 	log.Debug("Uploading evidence for subject:", repoPath)
 	body, err := c.uploader.UploadEvidence(evidenceDetails)
+	if err != nil {
+		return nil, err
+	}
+	return c.collectCreateResponse(body)
+}
+
+// uploadPreparedEvidence uploads a signed DSSE envelope to a prepare-flow post URL and records
+// the create response for --format output.
+func (c *createEvidenceBase) uploadPreparedEvidence(postURL string, envelopeBytes []byte) (*model.CreateResponse, error) {
+	if c.prepareClient == nil {
+		prepareClient, err := client.NewEvidenceClient(c.serverDetails)
+		if err != nil {
+			return nil, err
+		}
+		c.prepareClient = prepareClient
+	}
+
+	log.Debug("Uploading prepared evidence to:", postURL)
+	body, err := c.prepareClient.UploadPreparedSignedEvidence(postURL, envelopeBytes)
 	if err != nil {
 		return nil, err
 	}

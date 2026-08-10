@@ -19,11 +19,6 @@ import (
 	"github.com/jfrog/jfrog-client-go/utils/log"
 )
 
-type prepareEvidenceClient interface {
-	PrepareEvidence(request client.PrepareEvidenceRequest, includePAE bool) (*client.PrepareEvidenceResponse, error)
-	UploadPreparedSignedEvidence(postURL string, signedEnvelope []byte) ([]byte, error)
-}
-
 type createEvidenceEntity struct {
 	createEvidenceBase
 	entityType     string
@@ -31,7 +26,6 @@ type createEvidenceEntity struct {
 	entityRepo     string
 	projectKey     string
 	applicationKey string
-	prepareClient  prepareEvidenceClient
 }
 
 func NewCreateEvidenceEntity(serverDetails *config.ServerDetails, predicateFilePath, predicateType, markdownFilePath, key, keyId,
@@ -246,23 +240,6 @@ func toAttachmentRefs(attachments []client.PrepareEvidenceAttachment) []attachme
 		})
 	}
 	return refs
-}
-
-func (c *createEvidenceEntity) uploadPreparedEvidence(postURL string, envelopeBytes []byte) (*model.CreateResponse, error) {
-	if c.prepareClient == nil {
-		prepareClient, err := client.NewEvidenceClient(c.serverDetails)
-		if err != nil {
-			return nil, err
-		}
-		c.prepareClient = prepareClient
-	}
-
-	log.Debug("Uploading entity evidence to:", postURL)
-	body, err := c.prepareClient.UploadPreparedSignedEvidence(postURL, envelopeBytes)
-	if err != nil {
-		return nil, err
-	}
-	return c.collectCreateResponse(body)
 }
 
 func (c *createEvidenceEntity) recordSummary(response *model.CreateResponse) {
