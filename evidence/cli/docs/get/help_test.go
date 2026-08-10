@@ -1,6 +1,7 @@
 package get
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -21,5 +22,6 @@ func TestGetArguments(t *testing.T) {
 func TestGetUsageExamples(t *testing.T) {
 	examples := GetUsageExamples()
 	assert.NotEmpty(t, examples)
-	assert.Contains(t, examples[0], "evd get --entity-type")
+	assert.True(t, strings.HasPrefix(examples[0], "jf evd get"))
+	assert.Contains(t, strings.Join(examples, "\n"), "jf evd get --entity-type")
 }
