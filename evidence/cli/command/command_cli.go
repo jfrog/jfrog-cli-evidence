@@ -91,6 +91,7 @@ func GetCommands() []components.Command {
 			Description:   generate.GetDescription(),
 			AIDescription: generate.GetAIDescription(),
 			Arguments:     generate.GetArguments(),
+			UsageOptions:  &components.UsageOptions{Usage: generate.GetUsageExamples()},
 			Action:        generateKeyPair,
 		},
 	}

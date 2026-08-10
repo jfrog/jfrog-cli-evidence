@@ -36,3 +36,12 @@ Related: jf evd create, jf evd verify`
 func GetArguments() []components.Argument {
 	return []components.Argument{}
 }
+
+// GetUsageExamples returns gen-keys usage lines shown under the command's Usage help.
+func GetUsageExamples() []string {
+	return []string{
+		"jf evd gen-keys --key-alias my-signer",
+		"jf evd gen-keys --key-alias my-signer --key-file-path ./keys --key-file-name release-signer",
+		"jf evd gen-keys --upload-public-key=false --key-file-path ./local-keys",
+	}
+}

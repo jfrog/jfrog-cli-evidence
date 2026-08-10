@@ -53,8 +53,12 @@ func GetArguments() []components.Argument {
 // GetUsageExamples returns entity-focused create usage lines shown under the command's Usage help.
 func GetUsageExamples() []string {
 	return []string{
-		"evd create --entity-type gitCommit --entity-id 57bb812f3733b80e270272ba063274e52c34bd23 --project my-proj --predicate ./approval.json --predicate-type https://jfrog.com/evidence/commit-approval/v1 --key ./evidence.key",
-		"evd create --entity-type gitCommit --entity-id 57bb812f3733b80e270272ba063274e52c34bd23 --project my-proj --sigstore-bundle ./commit.sigstore.json",
-		"evd create --application-key my-app --predicate ./app.json --predicate-type https://example.com/app/v1 --key ./evidence.key",
+		"jf evd create --application-key my-app --predicate ./app.json --predicate-type https://example.com/app/v1 --key ./evidence.key",
+		"jf evd create --build-name my-build --build-number 42 --predicate ./sbom.json --predicate-type https://cyclonedx.org/bom --key-alias my-signer",
+		"jf evd create --package-name my-npm-pkg --package-version 1.2.3 --package-repo-name npm-local --predicate ./scan.json --predicate-type https://example.com/scan/v1",
+		"jf evd create --release-bundle my-rb --release-bundle-version 1.0.0 --predicate ./attest.json --predicate-type https://example.com/attest/v1",
+		"jf evd create --subject-repo-path generic-local/app.tgz --predicate ./provenance.json --predicate-type https://slsa.dev/provenance/v1 --key ./evidence.key --key-alias my-signer",
+		"jf evd create --entity-type gitCommit --entity-id 57bb812f3733b80e270272ba063274e52c34bd23 --project my-proj --predicate ./approval.json --predicate-type https://jfrog.com/evidence/commit-approval/v1 --key ./evidence.key",
+		"jf evd create --entity-type gitCommit --entity-id 57bb812f3733b80e270272ba063274e52c34bd23 --project my-proj --sigstore-bundle ./commit.sigstore.json",
 	}
 }
