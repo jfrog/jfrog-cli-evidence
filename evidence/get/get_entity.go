@@ -94,14 +94,6 @@ func (g *getEvidenceEntity) getEvidence(onemodelClient onemodel.Manager) ([]byte
 	return g.marshalEvidence(evidenceArray)
 }
 
-func (g *getEvidenceEntity) transformGraphQLOutput(rawEvidence []byte) ([]byte, error) {
-	evidenceArray, err := evidenceEntriesFromSearchResponse(rawEvidence, g.includePredicate)
-	if err != nil {
-		return nil, g.entitySearchError(err)
-	}
-	return g.marshalEvidence(evidenceArray)
-}
-
 func (g *getEvidenceEntity) entitySearchError(err error) error {
 	if errors.Is(err, errSearchEvidenceMissing) || errors.Is(err, errSearchEvidenceEdgesMissing) {
 		return fmt.Errorf("no evidence found for entity %s/%s", g.EntityType, g.EntityID)

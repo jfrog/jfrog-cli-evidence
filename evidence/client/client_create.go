@@ -81,7 +81,7 @@ func (c *EvidenceClient) resolveEvidencePostURL(postURL string) (string, error) 
 		return "", errorutils.CheckError(err)
 	}
 	if postURL == "" || post.IsAbs() || post.Host != "" || post.Path == "" || post.Path[0] != '/' {
-		return "", fmt.Errorf("Evidence post URL must be a non-empty root-relative URL")
+		return "", fmt.Errorf("evidence post URL must be a non-empty root-relative URL")
 	}
 
 	base, err := url.Parse(c.details.GetUrl())
