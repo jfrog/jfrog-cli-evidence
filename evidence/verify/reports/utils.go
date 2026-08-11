@@ -45,7 +45,7 @@ func verifyNotEmptyResponse(result *model.VerificationResponse) error {
 }
 
 // subjectDigestsFromVerifications collects distinct subject digests reported by the given
-// verifications. The complete 1.4 failure list takes precedence over its legacy 1.3 projection.
+// verifications. AvailableSubjectDigests takes precedence over the collapsed SignedSubjectDigest.
 func subjectDigestsFromVerifications(verifications *[]model.EvidenceVerification) []string {
 	if verifications == nil {
 		return nil
@@ -69,10 +69,13 @@ func subjectDigestsFromVerifications(verifications *[]model.EvidenceVerification
 
 func IsVerificationSucceed(v model.EvidenceVerification) bool {
 	attachmentsStatusOk := v.VerificationResult.AttachmentsVerificationStatus == "" || v.VerificationResult.AttachmentsVerificationStatus == model.Success
-	// The subject must be verified either by its content checksum or by the digest carried in the
-	// signed statement. Evidence whose subject was not verified is never reported as verified.
-	subjectStatusOk := v.VerificationResult.Sha256VerificationStatus == model.Success ||
-		v.VerificationResult.SubjectDigestVerificationStatus == model.Success
+	// SubjectDigestVerificationStatus is always set from the signed statement. Sha256VerificationStatus
+	// is additionally set for content subjects. Evidence whose subject was not verified is never
+	// reported as verified.
+	subjectStatusOk := (v.VerificationResult.Sha256VerificationStatus == model.Success ||
+		v.VerificationResult.SubjectDigestVerificationStatus == model.Success) &&
+		v.VerificationResult.Sha256VerificationStatus != model.Failed &&
+		v.VerificationResult.SubjectDigestVerificationStatus != model.Failed
 	return subjectStatusOk &&
 		attachmentsStatusOk &&
 		(v.VerificationResult.SignaturesVerificationStatus == model.Success ||

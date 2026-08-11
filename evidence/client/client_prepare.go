@@ -2,15 +2,8 @@ package client
 
 import (
 	"encoding/json"
-	"fmt"
 	"net/http"
-	"net/url"
 
-	"github.com/jfrog/jfrog-cli-core/v2/utils/config"
-	"github.com/jfrog/jfrog-cli-core/v2/utils/coreutils"
-	"github.com/jfrog/jfrog-client-go/auth"
-	clientConfig "github.com/jfrog/jfrog-client-go/config"
-	"github.com/jfrog/jfrog-client-go/http/jfroghttpclient"
 	clientutils "github.com/jfrog/jfrog-client-go/utils"
 	"github.com/jfrog/jfrog-client-go/utils/errorutils"
 	"github.com/jfrog/jfrog-client-go/utils/log"
@@ -84,51 +77,6 @@ type PrepareEvidenceResponse struct {
 	Attachments               []PrepareEvidenceAttachment `json:"attachments,omitempty"`
 }
 
-// EvidenceClient talks to Evidence REST APIs that are not yet available in jfrog-client-go.
-type EvidenceClient struct {
-	httpClient *jfroghttpclient.JfrogHttpClient
-	details    auth.ServiceDetails
-}
-
-// NewEvidenceClient builds a client using the same Evidence URL/auth as CreateEvidenceServiceManager.
-func NewEvidenceClient(serverDetails *config.ServerDetails) (*EvidenceClient, error) {
-	certsPath, err := coreutils.GetJfrogCertsDir()
-	if err != nil {
-		return nil, err
-	}
-	evdAuth, err := serverDetails.CreateEvidenceAuthConfig()
-	if err != nil {
-		return nil, err
-	}
-	serviceConfig, err := clientConfig.NewConfigBuilder().
-		SetServiceDetails(evdAuth).
-		SetCertificatesPath(certsPath).
-		SetInsecureTls(serverDetails.InsecureTls).
-		Build()
-	if err != nil {
-		return nil, err
-	}
-	httpClient, err := jfroghttpclient.JfrogClientBuilder().
-		SetCertificatesPath(serviceConfig.GetCertificatesPath()).
-		SetInsecureTls(serviceConfig.IsInsecureTls()).
-		SetClientCertPath(evdAuth.GetClientCertPath()).
-		SetClientCertKeyPath(evdAuth.GetClientCertKeyPath()).
-		AppendPreRequestInterceptor(evdAuth.RunPreRequestFunctions).
-		SetContext(serviceConfig.GetContext()).
-		SetDialTimeout(serviceConfig.GetDialTimeout()).
-		SetOverallRequestTimeout(serviceConfig.GetOverallRequestTimeout()).
-		SetRetries(serviceConfig.GetHttpRetries()).
-		SetRetryWaitMilliSecs(serviceConfig.GetHttpRetryWaitMilliSecs()).
-		Build()
-	if err != nil {
-		return nil, err
-	}
-	return &EvidenceClient{
-		httpClient: httpClient,
-		details:    evdAuth,
-	}, nil
-}
-
 // PrepareEvidence asks Evidence to generate an in-toto statement for external signing.
 func (c *EvidenceClient) PrepareEvidence(request PrepareEvidenceRequest, includePAE bool) (*PrepareEvidenceResponse, error) {
 	requestBody, err := json.Marshal(request)
@@ -162,46 +110,4 @@ func (c *EvidenceClient) PrepareEvidence(request PrepareEvidenceRequest, include
 		return nil, errorutils.CheckError(err)
 	}
 	return &response, nil
-}
-
-// UploadPreparedSignedEvidence uploads a signed DSSE envelope to the root-relative
-// post URL returned by PrepareEvidence.
-func (c *EvidenceClient) UploadPreparedSignedEvidence(postURL string, signedEnvelope []byte) ([]byte, error) {
-	requestURL, err := c.resolvePreparedEvidencePostURL(postURL)
-	if err != nil {
-		return nil, err
-	}
-
-	httpClientDetails := c.details.CreateHttpClientDetails()
-	httpClientDetails.SetContentTypeApplicationJson()
-
-	log.Debug("Uploading prepared signed Evidence")
-	resp, body, err := c.httpClient.SendPost(requestURL, signedEnvelope, &httpClientDetails)
-	if err != nil {
-		return nil, err
-	}
-	return body, errorutils.CheckResponseStatusWithBody(resp, body, http.StatusOK, http.StatusCreated)
-}
-
-func (c *EvidenceClient) resolvePreparedEvidencePostURL(postURL string) (string, error) {
-	post, err := url.Parse(postURL)
-	if err != nil {
-		return "", errorutils.CheckError(err)
-	}
-	if postURL == "" || post.IsAbs() || post.Host != "" || post.Path == "" || post.Path[0] != '/' {
-		return "", fmt.Errorf("prepared Evidence post URL must be a non-empty root-relative URL")
-	}
-
-	base, err := url.Parse(c.details.GetUrl())
-	if err != nil {
-		return "", errorutils.CheckError(err)
-	}
-	if base.Scheme == "" || base.Host == "" {
-		return "", fmt.Errorf("evidence URL must include a scheme and host")
-	}
-
-	post.Scheme = base.Scheme
-	post.Host = base.Host
-	post.User = base.User
-	return post.String(), nil
 }

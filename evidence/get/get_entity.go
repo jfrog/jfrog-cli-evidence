@@ -1,13 +1,14 @@
 package get
 
 import (
-	"encoding/json"
+	"errors"
 	"fmt"
 
 	"github.com/jfrog/gofrog/log"
 	"github.com/jfrog/jfrog-cli-core/v2/artifactory/utils"
 	"github.com/jfrog/jfrog-cli-core/v2/utils/config"
 	"github.com/jfrog/jfrog-cli-evidence/evidence"
+	"github.com/jfrog/jfrog-cli-evidence/evidence/model"
 	evidenceutils "github.com/jfrog/jfrog-cli-evidence/evidence/utils"
 	"github.com/jfrog/jfrog-client-go/onemodel"
 )
@@ -16,11 +17,7 @@ const getEntityEvidenceQueryTemplate = `{"query":"{ evidence { searchEvidence( w
 
 type getEvidenceEntity struct {
 	getEvidenceBase
-	entityType     string
-	entityID       string
-	entityRepo     string
-	projectKey     string
-	applicationKey string
+	model.EntitySubject
 }
 
 // EntityEvidenceOutput is the structured get output for entity subjects.
@@ -48,11 +45,13 @@ func NewGetEvidenceEntity(serverDetails *config.ServerDetails, entityType, entit
 			outputFileName:   outputFileName,
 			includePredicate: includePredicate,
 		},
-		entityType:     entityType,
-		entityID:       entityID,
-		entityRepo:     entityRepo,
-		projectKey:     projectKey,
-		applicationKey: applicationKey,
+		EntitySubject: model.EntitySubject{
+			EntityType:     entityType,
+			EntityID:       entityID,
+			EntityRepo:     entityRepo,
+			ProjectKey:     projectKey,
+			ApplicationKey: applicationKey,
+		},
 	}
 }
 
@@ -65,7 +64,7 @@ func (g *getEvidenceEntity) ServerDetails() (*config.ServerDetails, error) {
 }
 
 func (g *getEvidenceEntity) Run() error {
-	if err := g.resolveApplicationEntityProject(); err != nil {
+	if err := evidenceutils.ResolveApplicationEntityProjectKey(g.serverDetails, &g.EntitySubject); err != nil {
 		return err
 	}
 
@@ -84,104 +83,46 @@ func (g *getEvidenceEntity) Run() error {
 	return g.exportEvidenceToFile(evidenceBytes, g.outputFileName, g.format)
 }
 
-func (g *getEvidenceEntity) resolveApplicationEntityProject() error {
-	if g.entityType != "application" || g.projectKey != "" || g.entityRepo != "" || g.applicationKey != "" {
-		return nil
-	}
-	projectKey, err := evidenceutils.ResolveApplicationProjectKey(g.serverDetails, g.entityID)
-	if err != nil {
-		return err
-	}
-	g.projectKey = projectKey
-	log.Debug("Resolved project key for application entity:", g.projectKey)
-	return nil
-}
-
 func (g *getEvidenceEntity) getEvidence(onemodelClient onemodel.Manager) ([]byte, error) {
-	evidenceBytes, err := onemodelClient.GraphqlQuery(g.buildGraphqlQuery(true))
+	evidenceArray, err := g.searchEvidence(onemodelClient, searchEvidenceQueries{
+		withAttachments:    g.buildGraphqlQuery(true),
+		withoutAttachments: g.buildGraphqlQuery(false),
+	})
 	if err != nil {
-		if !evidenceutils.IsAttachmentsFieldNotFound(err) {
-			return nil, err
-		}
-		log.Debug("GraphQL schema does not support attachments field. Falling back to query without attachments.")
-		evidenceBytes, err = onemodelClient.GraphqlQuery(g.buildGraphqlQuery(false))
-		if err != nil {
-			return nil, err
-		}
+		return nil, g.entitySearchError(err)
 	}
-	return g.transformGraphQLOutput(evidenceBytes)
+	return g.marshalEvidence(evidenceArray)
 }
 
 func (g *getEvidenceEntity) transformGraphQLOutput(rawEvidence []byte) ([]byte, error) {
-	var graphqlResponse map[string]any
-	if err := json.Unmarshal(rawEvidence, &graphqlResponse); err != nil {
-		return nil, fmt.Errorf("failed to unmarshal GraphQL response: %w", err)
-	}
-
-	evidenceData, ok := graphqlResponse["data"].(map[string]any)
-	if !ok {
-		return nil, fmt.Errorf("invalid GraphQL response structure: missing data field")
-	}
-
-	searchEvidence, ok := evidenceData["evidence"].(map[string]any)
-	if !ok {
-		return nil, fmt.Errorf("invalid GraphQL response structure: missing evidence field")
-	}
-
-	searchEvidenceData, ok := searchEvidence["searchEvidence"].(map[string]any)
-	if !ok {
-		return nil, fmt.Errorf("no evidence found for entity %s/%s", g.entityType, g.entityID)
-	}
-
-	edges, ok := searchEvidenceData["edges"].([]any)
-	if !ok {
-		return nil, fmt.Errorf("no evidence found for entity %s/%s", g.entityType, g.entityID)
-	}
-
-	evidenceArray := make([]EvidenceEntry, 0, len(edges))
-	for _, edge := range edges {
-		if edgeMap, ok := edge.(map[string]any); ok {
-			if node, ok := edgeMap["node"].(map[string]any); ok {
-				evidenceArray = append(evidenceArray, createOrderedEvidenceEntry(node, g.includePredicate))
-			}
-		}
-	}
-
-	output := EntityEvidenceOutput{
-		SchemaVersion: SchemaVersion,
-		Type:          EntityType,
-		Result: EntityEvidenceResult{
-			EntityType:     g.entityType,
-			EntityId:       g.entityID,
-			Project:        g.projectKey,
-			ApplicationKey: g.applicationKey,
-			EntityRepo:     g.entityRepo,
-			Evidence:       evidenceArray,
-		},
-	}
-
-	transformed, err := json.MarshalIndent(output, "", "  ")
+	evidenceArray, err := evidenceEntriesFromSearchResponse(rawEvidence, g.includePredicate)
 	if err != nil {
-		return nil, fmt.Errorf("failed to marshal transformed response: %w", err)
+		return nil, g.entitySearchError(err)
 	}
-	return transformed, nil
+	return g.marshalEvidence(evidenceArray)
+}
+
+func (g *getEvidenceEntity) entitySearchError(err error) error {
+	if errors.Is(err, errSearchEvidenceMissing) || errors.Is(err, errSearchEvidenceEdgesMissing) {
+		return fmt.Errorf("no evidence found for entity %s/%s", g.EntityType, g.EntityID)
+	}
+	return err
+}
+
+func (g *getEvidenceEntity) marshalEvidence(evidenceArray []EvidenceEntry) ([]byte, error) {
+	return marshalSearchEvidenceOutput(EntityType, EntityEvidenceResult{
+		EntityType:     g.EntityType,
+		EntityId:       g.EntityID,
+		Project:        g.ProjectKey,
+		ApplicationKey: g.ApplicationKey,
+		EntityRepo:     g.EntityRepo,
+		Evidence:       evidenceArray,
+	})
 }
 
 func (g *getEvidenceEntity) buildGraphqlQuery(includeAttachments bool) []byte {
-	nodeFields := evidenceutils.NewNodeFieldsBuilder(
-		evidenceutils.FieldPredicateSlug,
-		evidenceutils.FieldPredicateType,
-		evidenceutils.FieldDownloadPath,
-		evidenceutils.FieldVerified,
-		evidenceutils.FieldSigningKeyAlias,
-		evidenceutils.FieldCreatedBy,
-		evidenceutils.FieldCreatedAt,
-		evidenceutils.FieldSubjectWithPath,
-	).
-		WithIf(includeAttachments, evidenceutils.AttachmentsFragment).
-		WithIf(g.includePredicate, evidenceutils.FieldPredicate).
-		Build()
-	whereClause := evidenceutils.BuildGraphQLEntityHasSubjectWith(g.entityType, g.entityID, g.entityRepo, g.projectKey, g.applicationKey)
+	nodeFields := g.buildSearchEvidenceNodeFields(evidenceutils.FieldSubjectWithPath, includeAttachments)
+	whereClause := evidenceutils.BuildGraphQLEntityHasSubjectWith(g.EntitySubject)
 	queryTemplate := evidenceutils.BuildQuery(getEntityEvidenceQueryTemplate, nodeFields)
 	graphqlQuery := fmt.Sprintf(queryTemplate, whereClause)
 	log.Debug("GraphQL query: ", graphqlQuery)

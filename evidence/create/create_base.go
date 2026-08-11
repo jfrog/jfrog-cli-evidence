@@ -32,11 +32,12 @@ type evidenceUploader interface {
 	UploadEvidence(evidenceService.EvidenceDetails) ([]byte, error)
 }
 
-// prepareEvidenceClient is the Evidence prepare/upload API used by subject types that create
-// evidence via prepare → sign → POST to the returned post_url (currently entity; more later).
-type prepareEvidenceClient interface {
+// evidenceServiceClient is the Evidence service HTTP API used by subject types that create
+// evidence via prepare → sign → POST, or via direct create (e.g. Sigstore bundle).
+type evidenceServiceClient interface {
 	PrepareEvidence(request client.PrepareEvidenceRequest, includePAE bool) (*client.PrepareEvidenceResponse, error)
 	UploadPreparedSignedEvidence(postURL string, signedEnvelope []byte) ([]byte, error)
+	CreateEntityEvidence(request client.CreateEntityEvidenceRequest, payload []byte) ([]byte, error)
 }
 
 const sonarProviderId = "sonar"
@@ -60,7 +61,7 @@ type createEvidenceBase struct {
 	attachArtifactoryPath     string
 	artifactoryClient         artifactory.ArtifactoryServicesManager
 	uploader                  evidenceUploader
-	prepareClient             prepareEvidenceClient
+	evidenceServiceClient     evidenceServiceClient
 	stmtResolver              sonar.StatementResolver
 	collectedResponses        []*model.CreateResponse
 }
@@ -285,16 +286,16 @@ func (c *createEvidenceBase) uploadEvidence(evidencePayload []byte, repoPath str
 // uploadPreparedEvidence uploads a signed DSSE envelope to a prepare-flow post URL and records
 // the create response for --format output.
 func (c *createEvidenceBase) uploadPreparedEvidence(postURL string, envelopeBytes []byte) (*model.CreateResponse, error) {
-	if c.prepareClient == nil {
-		prepareClient, err := client.NewEvidenceClient(c.serverDetails)
+	if c.evidenceServiceClient == nil {
+		evidenceServiceClient, err := client.NewEvidenceClient(c.serverDetails)
 		if err != nil {
 			return nil, err
 		}
-		c.prepareClient = prepareClient
+		c.evidenceServiceClient = evidenceServiceClient
 	}
 
 	log.Debug("Uploading prepared evidence to:", postURL)
-	body, err := c.prepareClient.UploadPreparedSignedEvidence(postURL, envelopeBytes)
+	body, err := c.evidenceServiceClient.UploadPreparedSignedEvidence(postURL, envelopeBytes)
 	if err != nil {
 		return nil, err
 	}

@@ -172,19 +172,6 @@ func TestVerify_OverallStatus(t *testing.T) {
 	}
 }
 
-func TestVerifyChecksum_Success(t *testing.T) {
-	sha256 := createTestSHA256()
-	result := verifyChecksum(sha256, sha256)
-	assert.Equal(t, model.Success, result)
-}
-
-func TestVerifyChecksum_Failed(t *testing.T) {
-	sha256a := createTestSHA256()
-	sha256b := "1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef"
-	result := verifyChecksum(sha256a, sha256b)
-	assert.Equal(t, model.Failed, result)
-}
-
 func TestVerify_ChecksumVerificationFailure(t *testing.T) {
 	subjectSha256 := createTestSHA256()
 	differentSha256 := "1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef"
@@ -220,12 +207,10 @@ func TestVerify_ChecksumVerificationFailure(t *testing.T) {
 
 	verification := (*result.EvidenceVerifications)[0]
 
-	// Verify that checksum verification was performed and failed
+	// Metadata checksum is reported for display, but verification status comes from the signed statement.
 	assert.Equal(t, differentSha256, verification.SubjectChecksum)
-	assert.Equal(t, model.Failed, verification.VerificationResult.Sha256VerificationStatus)
-
-	// Overall status should be failed due to checksum mismatch
-	assert.Equal(t, model.Failed, result.OverallVerificationStatus)
+	assert.Equal(t, model.Success, verification.VerificationResult.Sha256VerificationStatus)
+	assert.Equal(t, model.Success, verification.VerificationResult.SubjectDigestVerificationStatus)
 }
 
 func TestVerify_ChecksumVerificationAlwaysCalled(t *testing.T) {
@@ -257,13 +242,9 @@ func TestVerify_ChecksumVerificationAlwaysCalled(t *testing.T) {
 
 	_, err := verifier.Verify(model.SubjectDigest{Type: model.Sha256DigestType, Value: subjectSha256}, evidence, "/path/to/file")
 
-	// Should get an error due to invalid data, but checksum verification should still be called
+	// Should get an error due to invalid data before subject-digest verification can complete.
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to read envelope")
-
-	// The error should occur after checksum verification, so we can't check the result
-	// But we can verify that the verifyChecksum function is called by checking the implementation
-	// The checksum verification happens before parsing, so it should always be called
 }
 
 type fakeProgressMgr struct {
@@ -527,6 +508,59 @@ func entityEvidenceEnvelopeBytes(t *testing.T, digest string) []byte {
 	return data
 }
 
+func TestVerify_Sha256Subject_FailsWhenSignedDigestDiffers(t *testing.T) {
+	subjectSha256 := createTestSHA256()
+	signedSha256 := "1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef"
+	evidence := &[]model.SearchEvidenceEdge{{
+		Node: model.EvidenceMetadata{
+			DownloadPath: "test/path",
+			// The metadata claims the expected checksum, but the signed statement does not.
+			Subject: model.EvidenceSubject{Sha256: subjectSha256},
+		},
+	}}
+	mockClient := &MockArtifactoryServicesManagerVerifier{
+		ReadRemoteFileFunc: func() io.ReadCloser {
+			return io.NopCloser(bytes.NewReader(entityEvidenceEnvelopeBytes(t, `{"sha256":"`+signedSha256+`"}`)))
+		},
+	}
+	var clientInterface artifactory.ArtifactoryServicesManager = mockClient
+	verifier := NewEvidenceVerifier(nil, false, &clientInterface, nil)
+
+	result, err := verifier.Verify(model.SubjectDigest{Type: model.Sha256DigestType, Value: subjectSha256}, evidence, "/path/to/file")
+
+	assert.NoError(t, err)
+	verification := (*result.EvidenceVerifications)[0]
+	// The metadata checksum matches, so only the signed statement can reveal the mismatch.
+	assert.Equal(t, model.Failed, verification.VerificationResult.Sha256VerificationStatus)
+	assert.Equal(t, model.Failed, verification.VerificationResult.SubjectDigestVerificationStatus)
+	assert.Equal(t, model.Failed, result.OverallVerificationStatus)
+}
+
+func TestVerify_Sha256Subject_VerifiesSignedDigest(t *testing.T) {
+	subjectSha256 := createTestSHA256()
+	evidence := &[]model.SearchEvidenceEdge{{
+		Node: model.EvidenceMetadata{
+			DownloadPath: "test/path",
+			Subject:      model.EvidenceSubject{Sha256: subjectSha256},
+		},
+	}}
+	mockClient := &MockArtifactoryServicesManagerVerifier{
+		ReadRemoteFileFunc: func() io.ReadCloser {
+			return io.NopCloser(bytes.NewReader(entityEvidenceEnvelopeBytes(t, `{"sha256":"`+subjectSha256+`"}`)))
+		},
+	}
+	var clientInterface artifactory.ArtifactoryServicesManager = mockClient
+	verifier := NewEvidenceVerifier(nil, false, &clientInterface, nil)
+
+	result, err := verifier.Verify(model.SubjectDigest{Type: model.Sha256DigestType, Value: subjectSha256}, evidence, "/path/to/file")
+
+	assert.NoError(t, err)
+	verification := (*result.EvidenceVerifications)[0]
+	assert.Equal(t, model.Success, verification.VerificationResult.Sha256VerificationStatus)
+	assert.Equal(t, model.Success, verification.VerificationResult.SubjectDigestVerificationStatus)
+	assert.Equal(t, map[string]string{"sha256": subjectSha256}, verification.SignedSubjectDigest)
+}
+
 func TestVerify_EntitySubject_VerifiesSignedDigest(t *testing.T) {
 	evidence := &[]model.SearchEvidenceEdge{{
 		Node: model.EvidenceMetadata{
@@ -549,6 +583,8 @@ func TestVerify_EntitySubject_VerifiesSignedDigest(t *testing.T) {
 	assert.NoError(t, err)
 	// No sha256 is claimed for an entity subject, so no sha256 status is reported.
 	assert.Empty(t, result.Subject.Sha256)
+	assert.Equal(t, "gitCommit", result.Subject.EntityType)
+	assert.Equal(t, testGitCommitID, result.Subject.EntityId)
 	verification := (*result.EvidenceVerifications)[0]
 	assert.Empty(t, verification.SubjectChecksum)
 	assert.Empty(t, verification.VerificationResult.Sha256VerificationStatus)

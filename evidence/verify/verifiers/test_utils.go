@@ -3,6 +3,7 @@ package verifiers
 import (
 	"bytes"
 	"crypto"
+	"encoding/base64"
 	"encoding/json"
 	"io"
 	"testing"
@@ -40,9 +41,17 @@ func createTestEvidenceWithKeys() *[]model.SearchEvidenceEdge {
 	}
 }
 
+// createMockStatementPayload returns a base64 in-toto statement whose subject carries the
+// test sha256. Verification always reads the signed statement, so fixtures must contain one.
+func createMockStatementPayload() string {
+	statement := `{"_type":"https://in-toto.io/Statement/v1","subject":[{"digest":{"sha256":"` +
+		createTestSHA256() + `"}}],"predicateType":"https://example.com","predicate":{}}`
+	return base64.StdEncoding.EncodeToString([]byte(statement))
+}
+
 func createMockDsseEnvelope() dsse.Envelope {
 	return dsse.Envelope{
-		Payload:     "eyJ0ZXN0IjoiZGF0YSJ9",
+		Payload:     createMockStatementPayload(),
 		PayloadType: "application/vnd.in-toto+json",
 		Signatures: []dsse.Signature{
 			{
@@ -71,7 +80,7 @@ func createMockSigstoreBundleBytes(t *testing.T) []byte {
 			},
 		},
 		"dsseEnvelope": map[string]interface{}{
-			"payload":     "eyJ0ZXN0IjoiZGF0YSJ9",
+			"payload":     createMockStatementPayload(),
 			"payloadType": "application/vnd.in-toto+json",
 			"signatures": []map[string]interface{}{
 				{

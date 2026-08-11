@@ -25,6 +25,12 @@ func (p *plaintextReportPrinter) Print(result *model.VerificationResponse) error
 	if result.Subject.Sha256 != "" {
 		fmt.Printf("Subject sha256:        %s\n", result.Subject.Sha256)
 	}
+	if result.Subject.EntityType != "" {
+		fmt.Printf("Entity type:           %s\n", result.Subject.EntityType)
+	}
+	if result.Subject.EntityId != "" {
+		fmt.Printf("Entity ID:             %s\n", result.Subject.EntityId)
+	}
 	fmt.Printf("Subject:               %s\n", result.Subject.Path)
 	evidenceNumber := len(*result.EvidenceVerifications)
 	fmt.Printf("Loaded %d evidence\n", evidenceNumber)
@@ -60,12 +66,14 @@ func (p *plaintextReportPrinter) printVerificationResult(verification *model.Evi
 		fmt.Printf("    - Evidence subject sha256:         %s\n", verification.SubjectChecksum)
 	}
 	if len(verification.AvailableSubjectDigests) > 0 {
+		fmt.Printf("    - Available subject digests:\n")
 		for _, digest := range formatAvailableSubjectDigests(verification.AvailableSubjectDigests) {
-			fmt.Printf("    - Available subject digest:        %s\n", digest)
+			fmt.Printf("        - %s\n", digest)
 		}
-	} else {
-		for _, digest := range formatSignedSubjectDigests(verification.SignedSubjectDigest) {
-			fmt.Printf("    - Signed subject digest:           %s\n", digest)
+	} else if digests := formatSignedSubjectDigests(verification.SignedSubjectDigest); len(digests) > 0 {
+		fmt.Printf("    - Signed subject digests:\n")
+		for _, digest := range digests {
+			fmt.Printf("        - %s\n", digest)
 		}
 	}
 	if verification.VerificationResult.KeySource != "" {

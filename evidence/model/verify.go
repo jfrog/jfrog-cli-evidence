@@ -8,7 +8,7 @@ import (
 	"github.com/sigstore/sigstore-go/pkg/verify"
 )
 
-const SchemaVersion = "1.4"
+const SchemaVersion = "1.3"
 
 // Sha256DigestType is the digest type used for subjects identified by the sha256 of their content.
 const Sha256DigestType = "sha256"
@@ -22,13 +22,16 @@ type VerificationResponse struct {
 }
 
 type Subject struct {
-	Path   string `json:"path"`
-	Sha256 string `json:"sha256,omitempty"`
+	Path       string `json:"path"`
+	Sha256     string `json:"sha256,omitempty"`
+	EntityType string `json:"entityType,omitempty"`
+	EntityId   string `json:"entityId,omitempty"`
 }
 
 // SubjectDigest is the digest entry a signed in-toto statement is expected to carry for
-// the verified subject. Content based subjects use Sha256DigestType, while entity subjects
-// use the entity type as the digest type and the entity id as the value.
+// the verified subject. Content-based subjects use Sha256DigestType with the content
+// checksum as the value. Entity subjects use the entity type as the digest type and the
+// entity id as the value (for example Type="gitCommit", Value="abc123").
 type SubjectDigest struct {
 	Type  string
 	Value string
@@ -43,9 +46,13 @@ type EvidenceVerification struct {
 	MediaType       MediaType `json:"mediaType"`
 	DownloadPath    string    `json:"downloadPath"`
 	SubjectChecksum string    `json:"evidenceSubjectSha256,omitempty"`
-	// SignedSubjectDigest contains the matched digest on success. On failure it retains the
-	// legacy 1.3 representation for backward compatibility; use AvailableSubjectDigests for
-	// the complete, non-lossy list.
+	// SignedSubjectDigest is the digest map from the signed in-toto statement.
+	// Keys are digest types and values are digest values:
+	//   - content subjects: {"sha256": "<checksum>"}
+	//   - entity subjects:  {"<entityType>": "<entityId>"} (e.g. {"gitCommit": "abc123"})
+	// On success it holds the matched digest. On failure it retains the collapsed
+	// first-wins map for older clients; prefer AvailableSubjectDigests for the
+	// complete, non-lossy list.
 	SignedSubjectDigest map[string]string `json:"signedSubjectDigest,omitempty"`
 	// AvailableSubjectDigests lists every subject digest found in the signed statement when
 	// subject-digest verification fails. Preserving the per-subject maps avoids collapsing
@@ -61,9 +68,7 @@ type EvidenceVerification struct {
 }
 
 type EvidenceVerificationResult struct {
-	Sha256VerificationStatus VerificationStatus `json:"sha256VerificationStatus,omitempty"`
-	// SubjectDigestVerificationStatus reports whether the signed statement carries the expected
-	// subject digest. It is set instead of Sha256VerificationStatus for entity subjects.
+	Sha256VerificationStatus         VerificationStatus         `json:"sha256VerificationStatus,omitempty"`
 	SubjectDigestVerificationStatus  VerificationStatus         `json:"subjectDigestVerificationStatus,omitempty"`
 	SignaturesVerificationStatus     VerificationStatus         `json:"signaturesVerificationStatus,omitempty"`
 	SigstoreBundleVerificationStatus VerificationStatus         `json:"sigstoreBundleVerificationStatus,omitempty"`

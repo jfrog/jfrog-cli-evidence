@@ -2,13 +2,55 @@ package get
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
 	"path"
 	"strings"
 	"testing"
 
+	"github.com/jfrog/jfrog-cli-evidence/evidence/utils"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
+
+type searchEvidenceFallbackManager struct {
+	queries [][]byte
+}
+
+func (m *searchEvidenceFallbackManager) GraphqlQuery(query []byte) ([]byte, error) {
+	m.queries = append(m.queries, append([]byte(nil), query...))
+	if len(m.queries) == 1 {
+		return nil, fmt.Errorf(`Cannot query field "attachments" on type "Evidence"`)
+	}
+	return []byte(`{"data":{"evidence":{"searchEvidence":{"edges":[{"node":{"predicateSlug":"slug","downloadPath":"path","verified":true,"subject":{"sha256":"abc"},"createdBy":"user","createdAt":"time"}}]}}}}`), nil
+}
+
+func TestSearchEvidenceUsesConcreteQueriesAndParsesEntries(t *testing.T) {
+	manager := &searchEvidenceFallbackManager{}
+	base := getEvidenceBase{}
+	queries := searchEvidenceQueries{
+		withAttachments:    []byte("with attachments"),
+		withoutAttachments: []byte("without attachments"),
+	}
+
+	entries, err := base.searchEvidence(manager, queries)
+
+	require.NoError(t, err)
+	require.Len(t, entries, 1)
+	assert.Equal(t, "slug", entries[0].PredicateSlug)
+	assert.Equal(t, [][]byte{queries.withAttachments, queries.withoutAttachments}, manager.queries)
+}
+
+func TestBuildSearchEvidenceNodeFields(t *testing.T) {
+	base := getEvidenceBase{includePredicate: true}
+
+	fields := base.buildSearchEvidenceNodeFields(utils.FieldSubjectWithPath, true)
+
+	assert.Contains(t, fields, "predicateSlug")
+	assert.Contains(t, fields, "fullPath")
+	assert.Contains(t, fields, "attachments")
+	assert.Contains(t, fields, "predicate")
+}
 
 func TestExportEvidenceToJsonlFileWithMetadata(t *testing.T) {
 	tests := []struct {

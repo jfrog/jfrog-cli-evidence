@@ -98,7 +98,7 @@ func TestParseEvidence_DsseEnvelope(t *testing.T) {
 	assert.NotNil(t, result.DsseEnvelope)
 	assert.Nil(t, result.SigstoreBundle)
 	assert.Equal(t, model.SimpleDSSE, result.MediaType)
-	assert.Equal(t, "eyJ0ZXN0IjoiZGF0YSJ9", result.DsseEnvelope.Payload)
+	assert.Equal(t, createMockStatementPayload(), result.DsseEnvelope.Payload)
 }
 
 func TestParseEvidence_SigstoreBundle(t *testing.T) {

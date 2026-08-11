@@ -29,14 +29,14 @@ type signedStatement struct {
 func verifySignedSubjectDigest(expected model.SubjectDigest, result *model.EvidenceVerification) {
 	statement, err := decodeSignedStatementFromVerification(result)
 	if err != nil {
-		result.VerificationResult.SubjectDigestVerificationStatus = model.Failed
+		recordSubjectDigestStatus(expected, result, model.Failed)
 		setFailureReason(result, err.Error())
 		return
 	}
 
 	if matched := findMatchingSubjectDigest(statement, expected); matched != nil {
 		result.SignedSubjectDigest = matched
-		result.VerificationResult.SubjectDigestVerificationStatus = model.Success
+		recordSubjectDigestStatus(expected, result, model.Success)
 		return
 	}
 
@@ -45,8 +45,18 @@ func verifySignedSubjectDigest(expected model.SubjectDigest, result *model.Evide
 	found := allSubjectDigests(statement)
 	result.SignedSubjectDigest = legacySubjectDigest(found)
 	result.AvailableSubjectDigests = found
-	result.VerificationResult.SubjectDigestVerificationStatus = model.Failed
+	recordSubjectDigestStatus(expected, result, model.Failed)
 	setFailureReason(result, subjectDigestMismatchError(expected, found).Error())
+}
+
+// recordSubjectDigestStatus always records the signed-statement outcome on
+// SubjectDigestVerificationStatus. For content (sha256) subjects it also mirrors the outcome onto
+// Sha256VerificationStatus.
+func recordSubjectDigestStatus(expected model.SubjectDigest, result *model.EvidenceVerification, status model.VerificationStatus) {
+	result.VerificationResult.SubjectDigestVerificationStatus = status
+	if expected.IsSha256() {
+		result.VerificationResult.Sha256VerificationStatus = status
+	}
 }
 
 // findMatchingSubjectDigest returns the subject digest map that contains the expected entry,
@@ -73,9 +83,9 @@ func allSubjectDigests(statement *signedStatement) []map[string]string {
 	return digests
 }
 
-// legacySubjectDigest preserves the 1.3 signedSubjectDigest failure output. The 1.4
-// availableSubjectDigests field is the authoritative, non-lossy representation when multiple
-// subjects contain the same digest type.
+// legacySubjectDigest preserves the collapsed signedSubjectDigest failure output: a single
+// map with first-wins values per digest type. AvailableSubjectDigests is the authoritative,
+// non-lossy representation when multiple subjects contain the same digest type.
 func legacySubjectDigest(digests []map[string]string) map[string]string {
 	if len(digests) == 0 {
 		return nil

@@ -220,10 +220,38 @@ func entityVerificationResponse(status model.VerificationStatus, failureReason s
 		verification.AvailableSubjectDigests = []map[string]string{{"gitTag": "tag-1"}}
 	}
 	return &model.VerificationResponse{
-		Subject:                   model.Subject{Path: "gitCommit/c1712d8f3dddb5c3bd6eb8edf85fa9279cdc14b7"},
+		Subject: model.Subject{
+			Path:       "gitCommit/c1712d8f3dddb5c3bd6eb8edf85fa9279cdc14b7",
+			EntityType: "gitCommit",
+			EntityId:   "c1712d8f3dddb5c3bd6eb8edf85fa9279cdc14b7",
+		},
 		OverallVerificationStatus: overall,
 		EvidenceVerifications:     &[]model.EvidenceVerification{verification},
 	}
+}
+
+func TestPlaintext_Print_EntitySubjectPrintsEntityTypeAndId(t *testing.T) {
+	out := captureOutput(func() {
+		assert.NoError(t, PlaintextReportPrinter.Print(entityVerificationResponse(model.Success, "")))
+	})
+
+	assert.Contains(t, out, "Entity type:           gitCommit")
+	assert.Contains(t, out, "Entity ID:             c1712d8f3dddb5c3bd6eb8edf85fa9279cdc14b7")
+}
+
+func TestPlaintext_Print_ArtifactSubjectOmitsEntityLines(t *testing.T) {
+	resp := &model.VerificationResponse{
+		Subject:                   model.Subject{Path: "repo/file.txt", Sha256: "test-checksum"},
+		OverallVerificationStatus: model.Success,
+		EvidenceVerifications:     &[]model.EvidenceVerification{{MediaType: model.SimpleDSSE}},
+	}
+
+	out := captureOutput(func() {
+		assert.NoError(t, PlaintextReportPrinter.Print(resp))
+	})
+
+	assert.NotContains(t, out, "Entity type:")
+	assert.NotContains(t, out, "Entity ID:")
 }
 
 func TestPlaintext_Print_EntitySubjectOmitsSha256AndShowsSignedDigest(t *testing.T) {
@@ -235,7 +263,8 @@ func TestPlaintext_Print_EntitySubjectOmitsSha256AndShowsSignedDigest(t *testing
 	assert.NotContains(t, out, "Subject sha256")
 	assert.NotContains(t, out, "Evidence subject sha256")
 	assert.NotContains(t, out, "Sha256 verification status")
-	assert.Contains(t, out, "Signed subject digest:           gitCommit: c1712d8f3dddb5c3bd6eb8edf85fa9279cdc14b7")
+	assert.Contains(t, out, "Signed subject digests:")
+	assert.Contains(t, out, "gitCommit: c1712d8f3dddb5c3bd6eb8edf85fa9279cdc14b7")
 	assert.Contains(t, out, "Subject digest verification:")
 	assert.Contains(t, out, "Verification passed for 1 out of 1 evidence")
 }
@@ -248,9 +277,8 @@ func TestPlaintext_Print_EntitySubjectDigestMismatchFails(t *testing.T) {
 
 	assert.Contains(t, out, "Verification passed for 0 out of 1 evidence")
 	assert.Contains(t, out, failureReason)
-	assert.Contains(t, out, "Available subject digest:        gitTag: tag-1")
-	assert.NotContains(t, out, "Signed subject digest:")
-	assert.Contains(t, out, "Available subject digest:        gitTag: tag-1")
-	assert.NotContains(t, out, "Signed subject digest:")
+	assert.Contains(t, out, "Available subject digests:")
+	assert.Contains(t, out, "gitTag: tag-1")
+	assert.NotContains(t, out, "Signed subject digests:")
 	assert.NotContains(t, out, "Sha256 verification status")
 }

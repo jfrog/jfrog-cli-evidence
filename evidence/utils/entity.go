@@ -3,22 +3,24 @@ package utils
 import (
 	"fmt"
 	"strings"
+
+	"github.com/jfrog/jfrog-cli-evidence/evidence/model"
 )
 
 // BuildGraphQLEntityHasSubjectWith builds the GraphQL hasSubjectWith fields for an entity subject.
-// Exactly one of entityRepo, projectKey, and applicationKey may be set (or none).
-func BuildGraphQLEntityHasSubjectWith(entityType, entityID, entityRepo, projectKey, applicationKey string) string {
-	fields := []string{fmt.Sprintf(`entityType: \"%s\"`, escapeGraphQLString(entityType))}
-	if entityID != "" {
-		fields = append(fields, fmt.Sprintf(`entityId: \"%s\"`, escapeGraphQLString(entityID)))
+// Exactly one of EntityRepo, ProjectKey, and ApplicationKey may be set (or none).
+func BuildGraphQLEntityHasSubjectWith(subject model.EntitySubject) string {
+	fields := []string{fmt.Sprintf(`entityType: \"%s\"`, escapeGraphQLString(subject.EntityType))}
+	if subject.EntityID != "" {
+		fields = append(fields, fmt.Sprintf(`entityId: \"%s\"`, escapeGraphQLString(subject.EntityID)))
 	}
 	switch {
-	case entityRepo != "":
-		fields = append(fields, fmt.Sprintf(`repositoryKey: \"%s\"`, escapeGraphQLString(entityRepo)))
-	case projectKey != "":
-		fields = append(fields, fmt.Sprintf(`projectKey: \"%s\"`, escapeGraphQLString(projectKey)))
-	case applicationKey != "":
-		fields = append(fields, fmt.Sprintf(`applicationKey: \"%s\"`, escapeGraphQLString(applicationKey)))
+	case subject.EntityRepo != "":
+		fields = append(fields, fmt.Sprintf(`repositoryKey: \"%s\"`, escapeGraphQLString(subject.EntityRepo)))
+	case subject.ProjectKey != "":
+		fields = append(fields, fmt.Sprintf(`projectKey: \"%s\"`, escapeGraphQLString(subject.ProjectKey)))
+	case subject.ApplicationKey != "":
+		fields = append(fields, fmt.Sprintf(`applicationKey: \"%s\"`, escapeGraphQLString(subject.ApplicationKey)))
 	}
 	return strings.Join(fields, ", ")
 }

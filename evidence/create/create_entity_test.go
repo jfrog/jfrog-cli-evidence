@@ -14,17 +14,18 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-type capturePrepareClient struct {
+type captureEvidenceServiceClient struct {
 	prepareReq  client.PrepareEvidenceRequest
 	prepareResp *client.PrepareEvidenceResponse
 	prepareErr  error
+	createReq   client.CreateEntityEvidenceRequest
 	uploadURL   string
 	uploadBody  []byte
 	uploadResp  []byte
 	uploadErr   error
 }
 
-func (c *capturePrepareClient) PrepareEvidence(request client.PrepareEvidenceRequest, _ bool) (*client.PrepareEvidenceResponse, error) {
+func (c *captureEvidenceServiceClient) PrepareEvidence(request client.PrepareEvidenceRequest, _ bool) (*client.PrepareEvidenceResponse, error) {
 	c.prepareReq = request
 	if c.prepareErr != nil {
 		return nil, c.prepareErr
@@ -32,7 +33,7 @@ func (c *capturePrepareClient) PrepareEvidence(request client.PrepareEvidenceReq
 	return c.prepareResp, nil
 }
 
-func (c *capturePrepareClient) UploadPreparedSignedEvidence(postURL string, signedEnvelope []byte) ([]byte, error) {
+func (c *captureEvidenceServiceClient) UploadPreparedSignedEvidence(postURL string, signedEnvelope []byte) ([]byte, error) {
 	c.uploadURL = postURL
 	c.uploadBody = signedEnvelope
 	if c.uploadErr != nil {
@@ -41,54 +42,13 @@ func (c *capturePrepareClient) UploadPreparedSignedEvidence(postURL string, sign
 	return c.uploadResp, nil
 }
 
-func TestBuildEntityPostURL(t *testing.T) {
-	tests := []struct {
-		name string
-		cmd  createEvidenceEntity
-		want string
-	}{
-		{
-			name: "project scope",
-			cmd: createEvidenceEntity{
-				createEvidenceBase: createEvidenceBase{providerId: "ci"},
-				entityType:         "gitCommit",
-				entityID:           "abc123",
-				projectKey:         "proj",
-			},
-			want: "/evidence/api/v1/entity/gitCommit/abc123?project=proj&providerId=ci",
-		},
-		{
-			name: "entity repo scope",
-			cmd: createEvidenceEntity{
-				entityType: "languageModel",
-				entityID:   "model-1",
-				entityRepo: "models-entity",
-			},
-			want: "/evidence/api/v1/entity/languageModel/model-1?repo=models-entity",
-		},
-		{
-			name: "application scope",
-			cmd: createEvidenceEntity{
-				entityType:     "gitCommit",
-				entityID:       "abc123",
-				applicationKey: "my-app",
-			},
-			want: "/evidence/api/v1/entity/gitCommit/abc123?application=my-app",
-		},
-		{
-			name: "no scope",
-			cmd: createEvidenceEntity{
-				entityType: "gitCommit",
-				entityID:   "abc123",
-			},
-			want: "/evidence/api/v1/entity/gitCommit/abc123",
-		},
+func (c *captureEvidenceServiceClient) CreateEntityEvidence(request client.CreateEntityEvidenceRequest, payload []byte) ([]byte, error) {
+	c.createReq = request
+	c.uploadBody = payload
+	if c.uploadErr != nil {
+		return nil, c.uploadErr
 	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			assert.Equal(t, tt.want, tt.cmd.buildEntityPostURL())
-		})
-	}
+	return c.uploadResp, nil
 }
 
 func TestCreateEvidenceEntity_Run_SigstoreBundle(t *testing.T) {
@@ -115,24 +75,31 @@ func TestCreateEvidenceEntity_Run_SigstoreBundle(t *testing.T) {
 	bundlePath := filepath.Join(dir, "bundle.json")
 	require.NoError(t, os.WriteFile(bundlePath, []byte(bundleJSON), 0o600))
 
-	prepareClient := &capturePrepareClient{
+	evidenceServiceClient := &captureEvidenceServiceClient{
 		uploadResp: []byte(`{"verified":true,"predicate_slug":"example"}`),
 	}
 	cmd := &createEvidenceEntity{
 		createEvidenceBase: createEvidenceBase{
-			serverDetails:      &config.ServerDetails{Url: "https://example.jfrog.io/"},
-			sigstoreBundlePath: bundlePath,
-			providerId:         "ci",
-			prepareClient:      prepareClient,
+			serverDetails:         &config.ServerDetails{Url: "https://example.jfrog.io/"},
+			sigstoreBundlePath:    bundlePath,
+			providerId:            "ci",
+			evidenceServiceClient: evidenceServiceClient,
 		},
-		entityType: "gitCommit",
-		entityID:   "abc123",
-		projectKey: "proj",
+		EntitySubject: model.EntitySubject{
+			EntityType: "gitCommit",
+			EntityID:   "abc123",
+			ProjectKey: "proj",
+		},
 	}
 
 	require.NoError(t, cmd.Run())
-	assert.Equal(t, "/evidence/api/v1/entity/gitCommit/abc123?project=proj&providerId=ci", prepareClient.uploadURL)
-	assert.Equal(t, []byte(bundleJSON), prepareClient.uploadBody)
+	assert.Equal(t, client.CreateEntityEvidenceRequest{
+		EntityType: "gitCommit",
+		EntityID:   "abc123",
+		ProjectKey: "proj",
+		ProviderID: "ci",
+	}, evidenceServiceClient.createReq)
+	assert.Equal(t, []byte(bundleJSON), evidenceServiceClient.uploadBody)
 	require.Len(t, cmd.CollectedResponses(), 1)
 	assert.True(t, cmd.CollectedResponses()[0].Verified)
 }
@@ -142,7 +109,7 @@ func TestCreateEvidenceEntity_Run_PrepareSignUpload(t *testing.T) {
 	predicatePath := filepath.Join(dir, "predicate.json")
 	require.NoError(t, os.WriteFile(predicatePath, []byte(`{"result":"ok"}`), 0o600))
 
-	prepareClient := &capturePrepareClient{
+	evidenceServiceClient := &captureEvidenceServiceClient{
 		prepareResp: &client.PrepareEvidenceResponse{
 			PostURL:         "/evidence/api/v1/entity/gitCommit/abc123?project=proj",
 			DSSEPayload:     base64.StdEncoding.EncodeToString([]byte(`{"_type":"https://in-toto.io/Statement/v1","predicateType":"https://example.com/v1","predicate":{"result":"ok"},"subject":[{"digest":{"gitCommit":"abc123"}}]}`)),
@@ -158,26 +125,28 @@ func TestCreateEvidenceEntity_Run_PrepareSignUpload(t *testing.T) {
 
 	cmd := &createEvidenceEntity{
 		createEvidenceBase: createEvidenceBase{
-			serverDetails:     &config.ServerDetails{Url: "https://example.jfrog.io/"},
-			predicateFilePath: predicatePath,
-			predicateType:     "https://example.com/v1",
-			providerId:        "ci",
-			key:               "not-a-real-key",
-			prepareClient:     prepareClient,
+			serverDetails:         &config.ServerDetails{Url: "https://example.jfrog.io/"},
+			predicateFilePath:     predicatePath,
+			predicateType:         "https://example.com/v1",
+			providerId:            "ci",
+			key:                   "not-a-real-key",
+			evidenceServiceClient: evidenceServiceClient,
 		},
-		entityType: "gitCommit",
-		entityID:   "abc123",
-		projectKey: "proj",
+		EntitySubject: model.EntitySubject{
+			EntityType: "gitCommit",
+			EntityID:   "abc123",
+			ProjectKey: "proj",
+		},
 	}
 
 	err := cmd.Run()
 	require.Error(t, err) // signing key invalid
-	assert.Equal(t, "gitCommit", prepareClient.prepareReq.Subject.EntityType)
-	assert.Equal(t, "abc123", prepareClient.prepareReq.Subject.EntityID)
-	assert.Equal(t, client.SubjectTypeEntity, prepareClient.prepareReq.Subject.SubjectType)
-	assert.Equal(t, "proj", prepareClient.prepareReq.ProjectKey)
-	assert.Equal(t, "ci", prepareClient.prepareReq.ProviderID)
-	assert.JSONEq(t, `{"result":"ok"}`, string(prepareClient.prepareReq.Predicate))
+	assert.Equal(t, "gitCommit", evidenceServiceClient.prepareReq.Subject.EntityType)
+	assert.Equal(t, "abc123", evidenceServiceClient.prepareReq.Subject.EntityID)
+	assert.Equal(t, client.SubjectTypeEntity, evidenceServiceClient.prepareReq.Subject.SubjectType)
+	assert.Equal(t, "proj", evidenceServiceClient.prepareReq.ProjectKey)
+	assert.Equal(t, "ci", evidenceServiceClient.prepareReq.ProviderID)
+	assert.JSONEq(t, `{"result":"ok"}`, string(evidenceServiceClient.prepareReq.Predicate))
 }
 
 func TestWrapEnvelopeWithAttachmentRefs(t *testing.T) {
@@ -197,11 +166,11 @@ func TestWrapEnvelopeWithAttachmentRefs(t *testing.T) {
 }
 
 func TestUploadPreparedEvidence_CollectsResponse(t *testing.T) {
-	prepareClient := &capturePrepareClient{
+	evidenceServiceClient := &captureEvidenceServiceClient{
 		uploadResp: []byte(`{"verified":false,"predicate_slug":"slug"}`),
 	}
 	cmd := &createEvidenceEntity{
-		createEvidenceBase: createEvidenceBase{prepareClient: prepareClient},
+		createEvidenceBase: createEvidenceBase{evidenceServiceClient: evidenceServiceClient},
 	}
 	resp, err := cmd.uploadPreparedEvidence("/evidence/api/v1/entity/gitCommit/abc", []byte(`{"payload":"x"}`))
 	require.NoError(t, err)
@@ -210,7 +179,7 @@ func TestUploadPreparedEvidence_CollectsResponse(t *testing.T) {
 	assert.Equal(t, "slug", resp.PredicateSlug)
 	require.Len(t, cmd.CollectedResponses(), 1)
 	assert.Equal(t, &model.CreateResponse{Verified: false, PredicateSlug: "slug"}, cmd.CollectedResponses()[0])
-	assert.Equal(t, "/evidence/api/v1/entity/gitCommit/abc", prepareClient.uploadURL)
+	assert.Equal(t, "/evidence/api/v1/entity/gitCommit/abc", evidenceServiceClient.uploadURL)
 }
 
 func TestPrepareSignedStatement_ReadsMarkdown(t *testing.T) {
@@ -220,25 +189,27 @@ func TestPrepareSignedStatement_ReadsMarkdown(t *testing.T) {
 	require.NoError(t, os.WriteFile(predicatePath, []byte(`{}`), 0o600))
 	require.NoError(t, os.WriteFile(markdownPath, []byte("# hi"), 0o600))
 
-	prepareClient := &capturePrepareClient{
+	evidenceServiceClient := &captureEvidenceServiceClient{
 		prepareResp: &client.PrepareEvidenceResponse{DSSEPayload: base64.StdEncoding.EncodeToString([]byte(`{}`))},
 	}
 	cmd := &createEvidenceEntity{
 		createEvidenceBase: createEvidenceBase{
-			predicateFilePath: predicatePath,
-			predicateType:     "https://example.com/v1",
-			markdownFilePath:  markdownPath,
-			prepareClient:     prepareClient,
+			predicateFilePath:     predicatePath,
+			predicateType:         "https://example.com/v1",
+			markdownFilePath:      markdownPath,
+			evidenceServiceClient: evidenceServiceClient,
 		},
-		entityType: "languageModel",
-		entityID:   "model-1",
-		entityRepo: "models-entity",
+		EntitySubject: model.EntitySubject{
+			EntityType: "languageModel",
+			EntityID:   "model-1",
+			EntityRepo: "models-entity",
+		},
 	}
-	_, err := cmd.prepareSignedStatement(nil)
+	_, err := cmd.buildEvidenceStatement(nil)
 	require.NoError(t, err)
-	assert.Equal(t, "# hi", prepareClient.prepareReq.Markdown)
-	assert.Equal(t, "models-entity", prepareClient.prepareReq.EntityRepo)
+	assert.Equal(t, "# hi", evidenceServiceClient.prepareReq.Markdown)
+	assert.Equal(t, "models-entity", evidenceServiceClient.prepareReq.EntityRepo)
 
 	var decoded map[string]any
-	require.NoError(t, json.Unmarshal(prepareClient.prepareReq.Predicate, &decoded))
+	require.NoError(t, json.Unmarshal(evidenceServiceClient.prepareReq.Predicate, &decoded))
 }

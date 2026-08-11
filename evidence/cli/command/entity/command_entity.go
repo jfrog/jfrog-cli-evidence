@@ -11,6 +11,7 @@ import (
 	"github.com/jfrog/jfrog-cli-evidence/evidence/client"
 	"github.com/jfrog/jfrog-cli-evidence/evidence/create"
 	"github.com/jfrog/jfrog-cli-evidence/evidence/get"
+	evidenceutils "github.com/jfrog/jfrog-cli-evidence/evidence/utils"
 	"github.com/jfrog/jfrog-cli-evidence/evidence/verify"
 	"github.com/jfrog/jfrog-client-go/utils/errorutils"
 )
@@ -31,7 +32,7 @@ func (eec *evidenceEntityCommand) CreateEvidence(ctx *components.Context, server
 	if err := eec.validateEvidenceEntityContext(ctx); err != nil {
 		return err
 	}
-	if err := client.EnsureEntityAPISupported(serverDetails); err != nil {
+	if err := client.EnsureFeatureSupported(serverDetails, evidenceutils.FeatureEntityAPI); err != nil {
 		return err
 	}
 
@@ -60,7 +61,7 @@ func (eec *evidenceEntityCommand) GetEvidence(ctx *components.Context, serverDet
 	if err := eec.validateEvidenceEntityContext(ctx); err != nil {
 		return err
 	}
-	if err := client.EnsureEntityAPISupported(serverDetails); err != nil {
+	if err := client.EnsureFeatureSupported(serverDetails, evidenceutils.FeatureEntityAPI); err != nil {
 		return err
 	}
 
@@ -82,7 +83,7 @@ func (eec *evidenceEntityCommand) VerifyEvidence(ctx *components.Context, server
 	if err := eec.validateEvidenceEntityContext(ctx); err != nil {
 		return err
 	}
-	if err := client.EnsureEntityAPISupported(serverDetails); err != nil {
+	if err := client.EnsureFeatureSupported(serverDetails, evidenceutils.FeatureEntityAPI); err != nil {
 		return err
 	}
 

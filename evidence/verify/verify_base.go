@@ -108,19 +108,23 @@ func (v *verifyEvidenceBase) createArtifactoryClient() (*artifactory.Artifactory
 
 // queryEvidenceMetadata queries evidence metadata for a given repo, path, and name.
 func (v *verifyEvidenceBase) queryEvidenceMetadata(repo string, path string, name string) (*[]model.SearchEvidenceEdge, error) {
+	queryWithAttachments := fmt.Sprintf(v.buildSearchEvidenceQuery(true), repo, path, name)
+	queryWithoutAttachments := fmt.Sprintf(v.buildSearchEvidenceQuery(false), repo, path, name)
+	return v.queryEvidenceMetadataWithQueries(queryWithAttachments, queryWithoutAttachments)
+}
+
+func (v *verifyEvidenceBase) queryEvidenceMetadataWithQueries(queryWithAttachments, queryWithoutAttachments string) (*[]model.SearchEvidenceEdge, error) {
 	v.setHeadline("Searching evidence")
 
-	err := createOneModelService(v)
-	if err != nil {
+	if err := createOneModelService(v); err != nil {
 		return nil, err
 	}
-	response, usedFallbackWithoutAttachments, err := v.fetchSearchEvidenceResponse(repo, path, name)
+	response, usedFallbackWithoutAttachments, err := v.fetchGraphqlWithAttachmentsFallback(queryWithAttachments, queryWithoutAttachments)
 	if err != nil {
 		return nil, err
 	}
 	evidence := model.ResponseSearchEvidence{}
-	err = json.Unmarshal(response, &evidence)
-	if err != nil {
+	if err = json.Unmarshal(response, &evidence); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal evidence metadata: %w", err)
 	}
 	edges := evidence.Data.Evidence.SearchEvidence.Edges
@@ -135,8 +139,7 @@ func (v *verifyEvidenceBase) queryEvidenceMetadata(repo string, path string, nam
 	return &edges, nil
 }
 
-func (v *verifyEvidenceBase) fetchSearchEvidenceResponse(repo, path, name string) ([]byte, bool, error) {
-	queryWithAttachments := fmt.Sprintf(v.buildSearchEvidenceQuery(true), repo, path, name)
+func (v *verifyEvidenceBase) fetchGraphqlWithAttachmentsFallback(queryWithAttachments, queryWithoutAttachments string) ([]byte, bool, error) {
 	log.Debug("Fetch evidence metadata using query:", queryWithAttachments)
 	response, err := v.oneModelClient.GraphqlQuery([]byte(queryWithAttachments))
 	if err == nil {
@@ -145,7 +148,6 @@ func (v *verifyEvidenceBase) fetchSearchEvidenceResponse(repo, path, name string
 
 	if evidenceutils.IsAttachmentsFieldNotFound(err) {
 		log.Debug("GraphQL schema does not support attachments field. Falling back to verify query without attachments.")
-		queryWithoutAttachments := fmt.Sprintf(v.buildSearchEvidenceQuery(false), repo, path, name)
 		log.Debug("Fetch evidence metadata using query without attachments:", queryWithoutAttachments)
 		response, err = v.oneModelClient.GraphqlQuery([]byte(queryWithoutAttachments))
 		if err != nil {

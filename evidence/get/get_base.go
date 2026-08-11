@@ -2,10 +2,13 @@ package get
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 
 	"github.com/jfrog/jfrog-cli-core/v2/utils/config"
+	evidenceutils "github.com/jfrog/jfrog-cli-evidence/evidence/utils"
+	"github.com/jfrog/jfrog-client-go/onemodel"
 	"github.com/jfrog/jfrog-client-go/utils/log"
 )
 
@@ -25,6 +28,11 @@ type getEvidenceBase struct {
 	outputFileName   string
 	format           string
 	includePredicate bool
+}
+
+type searchEvidenceQueries struct {
+	withAttachments    []byte
+	withoutAttachments []byte
 }
 
 type JsonlLine struct {
@@ -95,6 +103,57 @@ func (g *getEvidenceBase) exportEvidenceToFile(evidence []byte, outputFileName, 
 	}
 }
 
+// graphqlQueryWithAttachmentsFallback runs queryWithAttachments first. If the server schema
+// does not support the attachments field, it retries with queryWithoutAttachments.
+func graphqlQueryWithAttachmentsFallback(client onemodel.Manager, queryWithAttachments, queryWithoutAttachments []byte) ([]byte, error) {
+	response, err := client.GraphqlQuery(queryWithAttachments)
+	if err == nil {
+		return response, nil
+	}
+	if !evidenceutils.IsAttachmentsFieldNotFound(err) {
+		return nil, err
+	}
+	log.Debug("GraphQL schema does not support attachments field. Falling back to query without attachments.")
+	return client.GraphqlQuery(queryWithoutAttachments)
+}
+
+func (g *getEvidenceBase) searchEvidence(client onemodel.Manager, queries searchEvidenceQueries) ([]EvidenceEntry, error) {
+	response, err := graphqlQueryWithAttachmentsFallback(client, queries.withAttachments, queries.withoutAttachments)
+	if err != nil {
+		return nil, err
+	}
+	return evidenceEntriesFromSearchResponse(response, g.includePredicate)
+}
+
+func (g *getEvidenceBase) buildSearchEvidenceNodeFields(subjectField string, includeAttachments bool) string {
+	return evidenceutils.NewNodeFieldsBuilder(
+		evidenceutils.FieldPredicateSlug,
+		evidenceutils.FieldPredicateType,
+		evidenceutils.FieldDownloadPath,
+		evidenceutils.FieldVerified,
+		evidenceutils.FieldSigningKeyAlias,
+		evidenceutils.FieldCreatedBy,
+		evidenceutils.FieldCreatedAt,
+		subjectField,
+	).
+		WithIf(includeAttachments, evidenceutils.AttachmentsFragment).
+		WithIf(g.includePredicate, evidenceutils.FieldPredicate).
+		Build()
+}
+
+func marshalSearchEvidenceOutput(subjectType SubjectType, result any) ([]byte, error) {
+	output := JsonlLine{
+		SchemaVersion: SchemaVersion,
+		Type:          subjectType,
+		Result:        result,
+	}
+	transformed, err := json.MarshalIndent(output, "", "  ")
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal transformed response: %w", err)
+	}
+	return transformed, nil
+}
+
 func exportEvidenceToJsonFile(evidence []byte, outputFileName string) error {
 	if outputFileName == "" {
 		// Stream to console
@@ -162,26 +221,26 @@ func writeEvidenceJsonl(data []byte, file *os.File) error {
 		if err := json.Unmarshal(data, &entityEvidenceOutput); err != nil {
 			return fmt.Errorf("failed to parse entity evidence output: %w", err)
 		}
-		return writeEntityEvidenceJsonl(schemaVersion, typeField, entityEvidenceOutput.Result, file)
+		return writeEvidenceEntriesJsonl(schemaVersion, typeField, entityEvidenceOutput.Result.Evidence, file)
 	default:
 		var customEvidenceOutput CustomEvidenceOutput
 		if err := json.Unmarshal(data, &customEvidenceOutput); err != nil {
 			return fmt.Errorf("failed to parse custom evidence output: %w", err)
 		}
-		return writeCustomEvidenceJsonl(schemaVersion, typeField, customEvidenceOutput.Result, file)
+		return writeEvidenceEntriesJsonl(schemaVersion, typeField, customEvidenceOutput.Result.Evidence, file)
 	}
 }
 
-func writeEntityEvidenceJsonl(schemaVersion string, typeField SubjectType, result EntityEvidenceResult, file *os.File) error {
-	for _, evidence := range result.Evidence {
+func writeEvidenceEntriesJsonl(schemaVersion string, typeField SubjectType, evidence []EvidenceEntry, file *os.File) error {
+	for _, entry := range evidence {
 		lineWithMetadata := JsonlLine{
 			SchemaVersion: schemaVersion,
 			Type:          typeField,
-			Result:        evidence,
+			Result:        entry,
 		}
 		jsonLine, err := json.Marshal(lineWithMetadata)
 		if err != nil {
-			return fmt.Errorf("failed to marshal entity evidence line: %w", err)
+			return fmt.Errorf("failed to marshal evidence line: %w", err)
 		}
 		if _, err := file.Write(append(jsonLine, '\n')); err != nil {
 			return fmt.Errorf("failed to write evidence line: %w", err)
@@ -194,28 +253,49 @@ func writeEntityEvidenceJsonl(schemaVersion string, typeField SubjectType, resul
 	return nil
 }
 
-func writeCustomEvidenceJsonl(schemaVersion string, typeField SubjectType, result CustomEvidenceResult, file *os.File) error {
-	// Write each evidence entry as a separate line
-	for _, evidence := range result.Evidence {
-		lineWithMetadata := JsonlLine{
-			SchemaVersion: schemaVersion,
-			Type:          typeField,
-			Result:        evidence,
-		}
-		jsonLine, err := json.Marshal(lineWithMetadata)
-		if err != nil {
-			return fmt.Errorf("failed to marshal custom evidence line: %w", err)
-		}
-		if _, err := file.Write(append(jsonLine, '\n')); err != nil {
-			return fmt.Errorf("failed to write evidence line: %w", err)
-		}
+var (
+	errSearchEvidenceMissing      = errors.New("invalid GraphQL response structure: missing searchEvidence")
+	errSearchEvidenceEdgesMissing = errors.New("invalid GraphQL response structure: missing edges")
+)
+
+// evidenceEntriesFromSearchResponse parses a One-Model searchEvidence GraphQL payload into
+// ordered evidence entries. Callers map errSearchEvidenceMissing / errSearchEvidenceEdgesMissing
+// to subject-specific errors when needed.
+func evidenceEntriesFromSearchResponse(rawEvidence []byte, includePredicate bool) ([]EvidenceEntry, error) {
+	var graphqlResponse map[string]any
+	if err := json.Unmarshal(rawEvidence, &graphqlResponse); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal GraphQL response: %w", err)
 	}
 
-	if file != os.Stdout {
-		log.Info("Evidence successfully exported to file name: ", file.Name())
+	evidenceData, ok := graphqlResponse["data"].(map[string]any)
+	if !ok {
+		return nil, fmt.Errorf("invalid GraphQL response structure: missing data field")
 	}
 
-	return nil
+	searchEvidence, ok := evidenceData["evidence"].(map[string]any)
+	if !ok {
+		return nil, fmt.Errorf("invalid GraphQL response structure: missing evidence field")
+	}
+
+	searchEvidenceData, ok := searchEvidence["searchEvidence"].(map[string]any)
+	if !ok {
+		return nil, errSearchEvidenceMissing
+	}
+
+	edges, ok := searchEvidenceData["edges"].([]any)
+	if !ok {
+		return nil, errSearchEvidenceEdgesMissing
+	}
+
+	evidenceArray := make([]EvidenceEntry, 0, len(edges))
+	for _, edge := range edges {
+		if edgeMap, ok := edge.(map[string]any); ok {
+			if node, ok := edgeMap["node"].(map[string]any); ok {
+				evidenceArray = append(evidenceArray, createOrderedEvidenceEntry(node, includePredicate))
+			}
+		}
+	}
+	return evidenceArray, nil
 }
 
 func writeReleaseBundleJsonlFromStruct(schemaVersion string, typeField SubjectType, result ReleaseBundleResult, file *os.File) error {

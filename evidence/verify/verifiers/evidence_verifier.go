@@ -44,6 +44,9 @@ func (v *evidenceVerifier) Verify(expectedSubject model.SubjectDigest, evidenceM
 	subject := model.Subject{Path: subjectPath}
 	if expectedSubject.IsSha256() {
 		subject.Sha256 = expectedSubject.Value
+	} else {
+		subject.EntityType = expectedSubject.Type
+		subject.EntityId = expectedSubject.Value
 	}
 	verificationResponse := &model.VerificationResponse{
 		SchemaVersion:             model.SchemaVersion,
@@ -79,14 +82,12 @@ func (v *evidenceVerifier) verifyEvidence(evidence *model.SearchEvidenceEdge, ex
 	}
 	if expectedSubject.IsSha256() {
 		evidenceVerification.SubjectChecksum = evidence.Node.Subject.Sha256
-		evidenceVerification.VerificationResult.Sha256VerificationStatus = verifyChecksum(expectedSubject.Value, evidence.Node.Subject.Sha256)
 	}
 	if err := v.parser.parseEvidence(evidence, evidenceVerification); err != nil {
 		return nil, fmt.Errorf("failed to read envelope: %w", err)
 	}
-	if !expectedSubject.IsSha256() {
-		verifySignedSubjectDigest(expectedSubject, evidenceVerification)
-	}
+	// The subject digest is always checked against the signed statement.
+	verifySignedSubjectDigest(expectedSubject, evidenceVerification)
 	if err := v.performVerification(evidence, evidenceVerification); err != nil {
 		return nil, err
 	}
@@ -110,11 +111,4 @@ func shouldFailOverall(verification *model.EvidenceVerification) bool {
 		verification.VerificationResult.SubjectDigestVerificationStatus == model.Failed ||
 		verification.VerificationResult.SigstoreBundleVerificationStatus == model.Failed ||
 		verification.VerificationResult.AttachmentsVerificationStatus == model.Failed
-}
-
-func verifyChecksum(subjectSha256, evidenceChecksum string) model.VerificationStatus {
-	if subjectSha256 == evidenceChecksum {
-		return model.Success
-	}
-	return model.Failed
 }

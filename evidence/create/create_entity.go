@@ -4,7 +4,6 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
-	"net/url"
 	"os"
 	"strings"
 
@@ -21,11 +20,7 @@ import (
 
 type createEvidenceEntity struct {
 	createEvidenceBase
-	entityType     string
-	entityID       string
-	entityRepo     string
-	projectKey     string
-	applicationKey string
+	model.EntitySubject
 }
 
 func NewCreateEvidenceEntity(serverDetails *config.ServerDetails, predicateFilePath, predicateType, markdownFilePath, key, keyId,
@@ -45,11 +40,13 @@ func NewCreateEvidenceEntity(serverDetails *config.ServerDetails, predicateFileP
 			attachArtifactoryTempPath: attachArtifactoryTempPath,
 			attachArtifactoryPath:     attachArtifactoryPath,
 		},
-		entityType:     entityType,
-		entityID:       entityID,
-		entityRepo:     entityRepo,
-		projectKey:     projectKey,
-		applicationKey: applicationKey,
+		EntitySubject: model.EntitySubject{
+			EntityType:     entityType,
+			EntityID:       entityID,
+			EntityRepo:     entityRepo,
+			ProjectKey:     projectKey,
+			ApplicationKey: applicationKey,
+		},
 	}
 }
 
@@ -62,7 +59,7 @@ func (c *createEvidenceEntity) ServerDetails() (*config.ServerDetails, error) {
 }
 
 func (c *createEvidenceEntity) Run() error {
-	if err := c.resolveApplicationEntityProject(); err != nil {
+	if err := evidenceUtils.ResolveApplicationEntityProjectKey(c.serverDetails, &c.EntitySubject); err != nil {
 		return err
 	}
 
@@ -82,7 +79,7 @@ func (c *createEvidenceEntity) runWithSigstoreBundle() error {
 		return errorutils.CheckError(err)
 	}
 
-	response, err := c.uploadPreparedEvidence(c.buildEntityPostURL(), payload)
+	response, err := c.createEntityEvidence(payload)
 	if err != nil {
 		return err
 	}
@@ -104,7 +101,7 @@ func (c *createEvidenceEntity) runWithPrepare() error {
 		defer cleanup()
 	}
 
-	prepareResponse, err := c.prepareSignedStatement(attachment)
+	prepareResponse, err := c.buildEvidenceStatement(attachment)
 	if err != nil {
 		return err
 	}
@@ -136,47 +133,38 @@ func (c *createEvidenceEntity) runWithPrepare() error {
 	return nil
 }
 
-func (c *createEvidenceEntity) buildEntityPostURL() string {
-	postURL := "/evidence/api/v1/entity/" + c.entityType + "/" + c.entityID
-	query := url.Values{}
-	switch {
-	case c.entityRepo != "":
-		query.Set("repo", c.entityRepo)
-	case c.projectKey != "":
-		query.Set("project", c.projectKey)
-	case c.applicationKey != "":
-		query.Set("application", c.applicationKey)
-	}
-	if c.providerId != "" {
-		query.Set("providerId", c.providerId)
-	}
-	if encoded := query.Encode(); encoded != "" {
-		postURL += "?" + encoded
-	}
-	return postURL
-}
-
-func (c *createEvidenceEntity) resolveApplicationEntityProject() error {
-	// Bare --application-key shorthand uses entity-type=application and resolves project scope via AppTrust.
-	if c.entityType != "application" || c.projectKey != "" || c.entityRepo != "" || c.applicationKey != "" {
-		return nil
-	}
-	var err error
-	c.projectKey, err = evidenceUtils.ResolveApplicationProjectKey(c.serverDetails, c.entityID)
-	if err != nil {
-		return err
-	}
-	log.Debug("Resolved project key for application entity:", c.projectKey)
-	return nil
-}
-
-func (c *createEvidenceEntity) prepareSignedStatement(attachment *statementAttachment) (*client.PrepareEvidenceResponse, error) {
-	if c.prepareClient == nil {
-		prepareClient, err := client.NewEvidenceClient(c.serverDetails)
+// createEntityEvidence POSTs a ready-made payload (for example a Sigstore bundle) to the
+// entity create API. It does not use the prepare flow.
+func (c *createEvidenceEntity) createEntityEvidence(payload []byte) (*model.CreateResponse, error) {
+	if c.evidenceServiceClient == nil {
+		evidenceServiceClient, err := client.NewEvidenceClient(c.serverDetails)
 		if err != nil {
 			return nil, err
 		}
-		c.prepareClient = prepareClient
+		c.evidenceServiceClient = evidenceServiceClient
+	}
+
+	body, err := c.evidenceServiceClient.CreateEntityEvidence(client.CreateEntityEvidenceRequest{
+		EntityType:     c.EntityType,
+		EntityID:       c.EntityID,
+		EntityRepo:     c.EntityRepo,
+		ProjectKey:     c.ProjectKey,
+		ApplicationKey: c.ApplicationKey,
+		ProviderID:     c.providerId,
+	}, payload)
+	if err != nil {
+		return nil, err
+	}
+	return c.collectCreateResponse(body)
+}
+
+func (c *createEvidenceEntity) buildEvidenceStatement(attachment *statementAttachment) (*client.PrepareEvidenceResponse, error) {
+	if c.evidenceServiceClient == nil {
+		evidenceServiceClient, err := client.NewEvidenceClient(c.serverDetails)
+		if err != nil {
+			return nil, err
+		}
+		c.evidenceServiceClient = evidenceServiceClient
 	}
 
 	predicate, err := os.ReadFile(c.predicateFilePath)
@@ -190,12 +178,12 @@ func (c *createEvidenceEntity) prepareSignedStatement(attachment *statementAttac
 		ProviderID:    c.providerId,
 		Subject: client.PrepareEvidenceSubject{
 			SubjectType: client.SubjectTypeEntity,
-			EntityType:  c.entityType,
-			EntityID:    c.entityID,
+			EntityType:  c.EntityType,
+			EntityID:    c.EntityID,
 		},
-		EntityRepo:     c.entityRepo,
-		ProjectKey:     c.projectKey,
-		ApplicationKey: c.applicationKey,
+		EntityRepo:     c.EntityRepo,
+		ProjectKey:     c.ProjectKey,
+		ApplicationKey: c.ApplicationKey,
 	}
 
 	if attachment != nil {
@@ -212,8 +200,8 @@ func (c *createEvidenceEntity) prepareSignedStatement(attachment *statementAttac
 	}
 	request.Markdown = markdown
 
-	log.Debug("Preparing entity evidence:", c.entityType, c.entityID)
-	return c.prepareClient.PrepareEvidence(request, false)
+	log.Debug("Preparing entity evidence:", c.EntityType, c.EntityID)
+	return c.evidenceServiceClient.PrepareEvidence(request, false)
 }
 
 func (c *createEvidenceEntity) readMarkdown() (string, error) {
@@ -246,20 +234,20 @@ func (c *createEvidenceEntity) recordSummary(response *model.CreateResponse) {
 	if !evidenceUtils.IsRunningUnderGitHubAction() {
 		return
 	}
-	applicationKey := c.applicationKey
+	applicationKey := c.ApplicationKey
 	subjectType := commandsummary.SubjectTypeArtifact
-	if c.entityType == "application" {
-		applicationKey = c.entityID
+	if c.EntityType == "application" {
+		applicationKey = c.EntityID
 		subjectType = commandsummary.SubjectTypeApplication
 	}
 	err := c.recordEvidenceSummary(commandsummary.EvidenceSummaryData{
-		Subject:        fmt.Sprintf("%s/%s", c.entityType, c.entityID),
+		Subject:        fmt.Sprintf("%s/%s", c.EntityType, c.EntityID),
 		PredicateType:  c.predicateType,
 		PredicateSlug:  response.PredicateSlug,
 		Verified:       response.Verified,
-		DisplayName:    fmt.Sprintf("%s %s", c.entityType, c.entityID),
+		DisplayName:    fmt.Sprintf("%s %s", c.EntityType, c.EntityID),
 		SubjectType:    subjectType,
-		RepoKey:        c.entityRepo,
+		RepoKey:        c.EntityRepo,
 		ApplicationKey: applicationKey,
 	})
 	if err != nil {

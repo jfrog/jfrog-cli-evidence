@@ -58,9 +58,11 @@ func TestVerifyEvidenceEntity_Run(t *testing.T) {
 			verifier:          mockVerifier,
 			format:            "json",
 		},
-		entityType: "gitCommit",
-		entityID:   "abc123",
-		projectKey: "proj",
+		EntitySubject: model.EntitySubject{
+			EntityType: "gitCommit",
+			EntityID:   "abc123",
+			ProjectKey: "proj",
+		},
 	}
 
 	err := cmd.Run()
@@ -82,8 +84,10 @@ func TestVerifyEvidenceEntity_NoEvidence(t *testing.T) {
 			oneModelClient:    &mockOneModelManagerEntity{GraphqlResponse: []byte(`{"data":{"evidence":{"searchEvidence":{"edges":[]}}}}`)},
 			format:            "json",
 		},
-		entityType: "gitCommit",
-		entityID:   "abc123",
+		EntitySubject: model.EntitySubject{
+			EntityType: "gitCommit",
+			EntityID:   "abc123",
+		},
 	}
 	err := cmd.Run()
 	require.Error(t, err)
@@ -95,5 +99,5 @@ func TestNewVerifyEvidenceEntity(t *testing.T) {
 	entityCmd, ok := cmd.(*verifyEvidenceEntity)
 	require.True(t, ok)
 	assert.Equal(t, "verify-evidence-entity", entityCmd.CommandName())
-	assert.Equal(t, "repo", entityCmd.entityRepo)
+	assert.Equal(t, "repo", entityCmd.EntityRepo)
 }

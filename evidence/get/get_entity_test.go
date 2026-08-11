@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/jfrog/jfrog-cli-core/v2/utils/config"
+	"github.com/jfrog/jfrog-cli-evidence/evidence/model"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -30,9 +31,11 @@ func (m *mockOnemodelManagerEntityError) GraphqlQuery(_ []byte) ([]byte, error) 
 func TestGetEvidenceEntity_Transform(t *testing.T) {
 	cmd := &getEvidenceEntity{
 		getEvidenceBase: getEvidenceBase{includePredicate: false},
-		entityType:      "gitCommit",
-		entityID:        "abc123",
-		projectKey:      "proj",
+		EntitySubject: model.EntitySubject{
+			EntityType: "gitCommit",
+			EntityID:   "abc123",
+			ProjectKey: "proj",
+		},
 	}
 	mock := &mockOnemodelManagerEntitySuccess{}
 	out, err := cmd.getEvidence(mock)
@@ -57,8 +60,10 @@ func TestGetEvidenceEntity_Transform(t *testing.T) {
 func TestGetEvidenceEntity_QueryError(t *testing.T) {
 	cmd := &getEvidenceEntity{
 		getEvidenceBase: getEvidenceBase{serverDetails: &config.ServerDetails{}},
-		entityType:      "gitCommit",
-		entityID:        "abc123",
+		EntitySubject: model.EntitySubject{
+			EntityType: "gitCommit",
+			EntityID:   "abc123",
+		},
 	}
 	_, err := cmd.getEvidence(&mockOnemodelManagerEntityError{})
 	require.Error(t, err)
@@ -69,7 +74,7 @@ func TestNewGetEvidenceEntity(t *testing.T) {
 	entityCmd, ok := cmd.(*getEvidenceEntity)
 	require.True(t, ok)
 	assert.Equal(t, "get-entity-evidence", entityCmd.CommandName())
-	assert.Equal(t, "gitCommit", entityCmd.entityType)
-	assert.Equal(t, "abc", entityCmd.entityID)
-	assert.Equal(t, "proj", entityCmd.projectKey)
+	assert.Equal(t, "gitCommit", entityCmd.EntityType)
+	assert.Equal(t, "abc", entityCmd.EntityID)
+	assert.Equal(t, "proj", entityCmd.ProjectKey)
 }

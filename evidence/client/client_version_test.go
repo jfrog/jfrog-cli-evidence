@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/jfrog/jfrog-cli-core/v2/utils/config"
+	evidenceutils "github.com/jfrog/jfrog-cli-evidence/evidence/utils"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -25,7 +26,7 @@ func TestGetVersion(t *testing.T) {
 	assert.Equal(t, "7.1269.0", version)
 }
 
-func TestEnsureEntityAPISupported(t *testing.T) {
+func TestEnsureFeatureSupported(t *testing.T) {
 	tests := []struct {
 		name          string
 		version       string
@@ -58,7 +59,7 @@ func TestEnsureEntityAPISupported(t *testing.T) {
 				EvidenceUrl: testServer.URL + "/evidence/",
 				AccessToken: "token",
 			}
-			err := EnsureEntityAPISupported(serverDetails)
+			err := EnsureFeatureSupported(serverDetails, evidenceutils.FeatureEntityAPI)
 			if tt.errorContains == "" {
 				assert.NoError(t, err)
 			} else {
@@ -67,4 +68,10 @@ func TestEnsureEntityAPISupported(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestEnsureFeatureSupported_UnknownFeature(t *testing.T) {
+	err := EnsureFeatureSupported(&config.ServerDetails{}, evidenceutils.EvidenceFeature("unknown"))
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "unknown Evidence feature")
 }
