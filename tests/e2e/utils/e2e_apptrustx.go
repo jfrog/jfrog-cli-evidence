@@ -1,6 +1,8 @@
 package utils
 
 import (
+	"crypto/rand"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -15,6 +17,17 @@ import (
 	"github.com/jfrog/jfrog-client-go/utils/errorutils"
 	"github.com/stretchr/testify/require"
 )
+
+// newApplicationKeySuffix returns a random suffix that keeps application keys unique across
+// concurrent runs against the same platform. A timestamp is not enough: two suites starting
+// within the same second would pick the same key, and applications holding versions cannot be
+// deleted and reused. AppTrust keys must be lowercase alphanumeric with hyphens, so hex fits.
+func newApplicationKeySuffix(t *testing.T) string {
+	buf := make([]byte, 8)
+	_, err := rand.Read(buf)
+	require.NoError(t, err, "Failed to generate a random application key suffix")
+	return hex.EncodeToString(buf)
+}
 
 // CreateApplicationRequest represents the request to create an application
 type CreateApplicationRequest struct {
@@ -59,8 +72,9 @@ type ApplicationVersionResponse struct {
 func CreateTestApplication(t *testing.T, artifactoryManager artifactory.ArtifactoryServicesManager, projectKey string) (string, string) {
 	// Generate unique application name with timestamp
 	timestamp := time.Now().Unix()
-	applicationKey := fmt.Sprintf("test-app-%d", timestamp)
-	applicationName := fmt.Sprintf("Test Application %d", timestamp)
+	suffix := newApplicationKeySuffix(t)
+	applicationKey := fmt.Sprintf("test-app-%d-%s", timestamp, suffix)
+	applicationName := fmt.Sprintf("Test Application %d %s", timestamp, suffix)
 
 	t.Logf("Creating test application via AppTrust API: %s in project: %s", applicationKey, projectKey)
 

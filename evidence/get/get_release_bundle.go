@@ -77,19 +77,13 @@ func (g *getEvidenceReleaseBundle) Run() error {
 }
 
 func (g *getEvidenceReleaseBundle) getEvidence(onemodelClient onemodel.Manager) ([]byte, error) {
-	query := g.buildGraphqlQuery(g.releaseBundle, g.releaseBundleVersion, true)
-	evidence, err := onemodelClient.GraphqlQuery(query)
+	evidence, err := graphqlQueryWithAttachmentsFallback(
+		onemodelClient,
+		g.buildGraphqlQuery(g.releaseBundle, g.releaseBundleVersion, true),
+		g.buildGraphqlQuery(g.releaseBundle, g.releaseBundleVersion, false),
+	)
 	if err != nil {
-		if evidenceutils.IsAttachmentsFieldNotFound(err) {
-			log.Debug("GraphQL schema does not support attachments field. Falling back to query without attachments.")
-			queryWithoutAttachments := g.buildGraphqlQuery(g.releaseBundle, g.releaseBundleVersion, false)
-			evidence, err = onemodelClient.GraphqlQuery(queryWithoutAttachments)
-			if err != nil {
-				return nil, err
-			}
-		} else {
-			return nil, err
-		}
+		return nil, err
 	}
 
 	if len(evidence) == 0 {

@@ -22,6 +22,7 @@ import (
 
 	"github.com/jfrog/jfrog-cli-core/v2/artifactory/utils"
 	"github.com/jfrog/jfrog-cli-core/v2/utils/config"
+	"github.com/jfrog/jfrog-cli-evidence/evidence/client"
 	"github.com/jfrog/jfrog-client-go/artifactory"
 	evidenceService "github.com/jfrog/jfrog-client-go/evidence/services"
 	"github.com/jfrog/jfrog-client-go/utils/log"
@@ -29,6 +30,14 @@ import (
 
 type evidenceUploader interface {
 	UploadEvidence(evidenceService.EvidenceDetails) ([]byte, error)
+}
+
+// evidenceServiceClient is the Evidence service HTTP API used by subject types that create
+// evidence via prepare → sign → POST, or via direct create (e.g. Sigstore bundle).
+type evidenceServiceClient interface {
+	PrepareEvidence(request client.PrepareEvidenceRequest, includePAE bool) (*client.PrepareEvidenceResponse, error)
+	UploadPreparedSignedEvidence(postURL string, signedEnvelope []byte) ([]byte, error)
+	CreateEntityEvidence(request client.CreateEntityEvidenceRequest, payload []byte) ([]byte, error)
 }
 
 const sonarProviderId = "sonar"
@@ -52,6 +61,7 @@ type createEvidenceBase struct {
 	attachArtifactoryPath     string
 	artifactoryClient         artifactory.ArtifactoryServicesManager
 	uploader                  evidenceUploader
+	evidenceServiceClient     evidenceServiceClient
 	stmtResolver              sonar.StatementResolver
 	collectedResponses        []*model.CreateResponse
 }
@@ -270,10 +280,32 @@ func (c *createEvidenceBase) uploadEvidence(evidencePayload []byte, repoPath str
 	if err != nil {
 		return nil, err
 	}
+	return c.collectCreateResponse(body)
+}
 
-	createResponse := &model.CreateResponse{}
-	err = json.Unmarshal(body, createResponse)
+// uploadPreparedEvidence uploads a signed DSSE envelope to a prepare-flow post URL and records
+// the create response for --format output.
+func (c *createEvidenceBase) uploadPreparedEvidence(postURL string, envelopeBytes []byte) (*model.CreateResponse, error) {
+	if c.evidenceServiceClient == nil {
+		evidenceServiceClient, err := client.NewEvidenceClient(c.serverDetails)
+		if err != nil {
+			return nil, err
+		}
+		c.evidenceServiceClient = evidenceServiceClient
+	}
+
+	log.Debug("Uploading prepared evidence to:", postURL)
+	body, err := c.evidenceServiceClient.UploadPreparedSignedEvidence(postURL, envelopeBytes)
 	if err != nil {
+		return nil, err
+	}
+	return c.collectCreateResponse(body)
+}
+
+// collectCreateResponse unmarshals an Evidence create response and records it for --format output.
+func (c *createEvidenceBase) collectCreateResponse(body []byte) (*model.CreateResponse, error) {
+	createResponse := &model.CreateResponse{}
+	if err := json.Unmarshal(body, createResponse); err != nil {
 		return nil, err
 	}
 	if createResponse.Verified {

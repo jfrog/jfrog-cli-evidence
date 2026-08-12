@@ -56,8 +56,8 @@ type MockVerifierCustom struct {
 	mock.Mock
 }
 
-func (m *MockVerifierCustom) Verify(subjectSha256 string, evidenceMetadata *[]model.SearchEvidenceEdge, subjectPath string) (*model.VerificationResponse, error) {
-	args := m.Called(subjectSha256, evidenceMetadata, subjectPath)
+func (m *MockVerifierCustom) Verify(expectedSubject model.SubjectDigest, evidenceMetadata *[]model.SearchEvidenceEdge, subjectPath string) (*model.VerificationResponse, error) {
+	args := m.Called(expectedSubject, evidenceMetadata, subjectPath)
 	if args.Get(0) == nil {
 		return nil, args.Error(1)
 	}
@@ -315,7 +315,7 @@ func TestVerifyEvidenceCustom_Run_Success(t *testing.T) {
 	}
 
 	// Set up the mock expectations - use mock.Anything for the subjectPath since it gets formatted
-	mockVerifier.On("Verify", "test-sha256", mock.AnythingOfType("*[]model.SearchEvidenceEdge"), mock.Anything).Return(expectedResponse, nil)
+	mockVerifier.On("Verify", model.SubjectDigest{Type: model.Sha256DigestType, Value: "test-sha256"}, mock.AnythingOfType("*[]model.SearchEvidenceEdge"), mock.Anything).Return(expectedResponse, nil)
 
 	// Create custom verifier with injected mock verifier
 	customVerifier := &verifyEvidenceCustom{
@@ -341,7 +341,7 @@ func TestVerifyEvidenceCustom_Run_Success(t *testing.T) {
 
 	// Verify that the mock verifier was called with the exact expected parameters
 	mockVerifier.AssertExpectations(t)
-	mockVerifier.AssertCalled(t, "Verify", "test-sha256", mock.AnythingOfType("*[]model.SearchEvidenceEdge"), mock.Anything)
+	mockVerifier.AssertCalled(t, "Verify", model.SubjectDigest{Type: model.Sha256DigestType, Value: "test-sha256"}, mock.AnythingOfType("*[]model.SearchEvidenceEdge"), mock.Anything)
 
 	t.Log("✅ SUCCESS: Run() method called mock verifier.Verify() with testify assertions!")
 }
@@ -353,7 +353,7 @@ func TestVerifyEvidenceCustom_Progress_Success(t *testing.T) {
 	mockOneModel := &MockOneModelManagerCustom{GraphqlResponse: []byte(`{"data":{"evidence":{"searchEvidence":{"edges":[{"node":{"subject":{"sha256":"test-sha256"},"downloadPath":"/evidence/path"}}]}}}}`)}
 	mockVerifier := &MockVerifierCustom{}
 	expected := &model.VerificationResponse{OverallVerificationStatus: model.Success, Subject: model.Subject{Path: "test-repo/path/to/subject.txt", Sha256: "test-sha256"}}
-	mockVerifier.On("Verify", "test-sha256", mock.AnythingOfType("*[]model.SearchEvidenceEdge"), mock.AnythingOfType("string")).Return(expected, nil)
+	mockVerifier.On("Verify", model.SubjectDigest{Type: model.Sha256DigestType, Value: "test-sha256"}, mock.AnythingOfType("*[]model.SearchEvidenceEdge"), mock.AnythingOfType("string")).Return(expected, nil)
 
 	cmd := &verifyEvidenceCustom{
 		verifyEvidenceBase: verifyEvidenceBase{

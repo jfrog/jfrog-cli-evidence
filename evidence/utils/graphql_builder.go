@@ -6,14 +6,17 @@ const (
 	NodeFieldsPlaceholder = "{{NODE_FIELDS}}"
 
 	// Shared GraphQL node field fragments.
-	FieldDownloadPath            = "downloadPath"
-	FieldPredicateType           = "predicateType"
-	FieldPredicateSlug           = "predicateSlug"
-	FieldPredicate               = "predicate"
-	FieldVerified                = "verified"
-	FieldCreatedBy               = "createdBy"
-	FieldCreatedAt               = "createdAt"
-	FieldSubjectSha256           = "subject { sha256 }"
+	FieldDownloadPath  = "downloadPath"
+	FieldPredicateType = "predicateType"
+	FieldPredicateSlug = "predicateSlug"
+	FieldPredicate     = "predicate"
+	FieldVerified      = "verified"
+	FieldCreatedBy     = "createdBy"
+	FieldCreatedAt     = "createdAt"
+	FieldSubjectSha256 = "subject { sha256 }"
+	// FieldSubjectWithPath includes Artifactory subject location fields used by entity cleanup
+	// and callers that need the stored subject path in addition to the checksum.
+	FieldSubjectWithPath         = "subject { sha256 fullPath repositoryKey path name }"
 	FieldSigningKeyAlias         = "signingKey { alias }"
 	FieldSigningKeyWithPublicKey = "signingKey {alias, publicKey}"
 

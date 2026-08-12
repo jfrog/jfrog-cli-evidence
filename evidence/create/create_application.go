@@ -54,10 +54,12 @@ func (c *createEvidenceApplication) ServerDetails() (*config.ServerDetails, erro
 
 func (c *createEvidenceApplication) Run() error {
 	// Get project key from application details
-	err := c.fetchProjectKey()
+	var err error
+	c.projectKey, err = utils.ResolveApplicationProjectKey(c.serverDetails, c.applicationKey)
 	if err != nil {
 		return err
 	}
+	log.Debug("Retrieved project key from application:", c.projectKey)
 
 	artifactoryClient, err := c.createArtifactoryClient()
 	if err != nil {
@@ -86,22 +88,6 @@ func (c *createEvidenceApplication) Run() error {
 	}
 	c.recordSummary(response, subject, sha256)
 
-	return nil
-}
-
-func (c *createEvidenceApplication) fetchProjectKey() error {
-	apptrustServiceManager, err := artifactoryUtils.CreateApptrustServiceManager(c.serverDetails, false)
-	if err != nil {
-		return fmt.Errorf("failed to create apptrust service manager: %w", err)
-	}
-
-	applicationDetails, err := apptrustServiceManager.GetApplicationDetails(c.applicationKey)
-	if err != nil {
-		return fmt.Errorf("failed to get application details for %s: %w", c.applicationKey, err)
-	}
-
-	c.projectKey = applicationDetails.ProjectKey
-	log.Debug("Retrieved project key from application:", c.projectKey)
 	return nil
 }
 

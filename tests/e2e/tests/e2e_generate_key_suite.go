@@ -42,7 +42,7 @@ func (r *EvidenceE2ETestsRunner) RunGenerateKeyPairBasic(t *testing.T) {
 	keyAlias := fmt.Sprintf("e2e-basic-key-%d", time.Now().Unix())
 	keyFileName := "basic-key"
 
-	generateOutput := r.EvidenceUserCLI.RunCliCmdWithOutput(t,
+	generateOutput := RunCliCmdWithStdOutputAndErrOutput(t, r.EvidenceUserCLI,
 		"generate-key-pair",
 		"--key-file-path", keyDir,
 		"--key-file-name", keyFileName,
@@ -81,7 +81,7 @@ func (r *EvidenceE2ETestsRunner) RunGenerateKeyPairWithCustomPath(t *testing.T) 
 	keyAlias := fmt.Sprintf("e2e-custom-path-key-%d", time.Now().Unix())
 	keyFileName := "custom-key"
 
-	generateOutput := r.EvidenceUserCLI.RunCliCmdWithOutput(t,
+	generateOutput := RunCliCmdWithStdOutputAndErrOutput(t, r.EvidenceUserCLI,
 		"generate-key-pair",
 		"--key-file-path", customKeyDir,
 		"--key-file-name", keyFileName,
@@ -129,7 +129,7 @@ func (r *EvidenceE2ETestsRunner) RunGenerateKeyPairWithUpload(t *testing.T) {
 	keyAlias := fmt.Sprintf("e2e-upload-key-%d", time.Now().Unix())
 	keyFileName := "upload-key"
 
-	generateOutput := r.EvidenceAdminCLI.RunCliCmdWithOutput(t,
+	generateOutput := RunCliCmdWithStdOutputAndErrOutput(t, r.EvidenceAdminCLI,
 		"generate-key-pair",
 		"--key-file-path", keyDir,
 		"--key-file-name", keyFileName,

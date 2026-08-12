@@ -139,19 +139,41 @@ func toStatementAttachmentMeta(att *statementAttachment) []intoto.Attachment {
 	}}
 }
 
+type attachmentRef struct {
+	Repository string
+	Path       string
+	Sha256     string
+}
+
 func (c *createEvidenceBase) wrapCreatePayloadWithAttachments(envelopeBytes []byte, att *statementAttachment) ([]byte, error) {
 	if att == nil {
+		return envelopeBytes, nil
+	}
+	return wrapEnvelopeWithAttachmentRefs(envelopeBytes, []attachmentRef{{
+		Repository: att.Repository,
+		Path:       att.Path,
+		Sha256:     att.Sha256,
+	}})
+}
+
+// wrapEnvelopeWithAttachmentRefs injects Artifactory attachment refs into a signed DSSE envelope JSON body.
+func wrapEnvelopeWithAttachmentRefs(envelopeBytes []byte, attachments []attachmentRef) ([]byte, error) {
+	if len(attachments) == 0 {
 		return envelopeBytes, nil
 	}
 	var payload map[string]any
 	if err := jsonUnmarshal(envelopeBytes, &payload); err != nil {
 		return nil, err
 	}
-	payload["attachments"] = []map[string]string{{
-		"repository": att.Repository,
-		"path":       att.Path,
-		"sha256":     att.Sha256,
-	}}
+	wrapped := make([]map[string]string, 0, len(attachments))
+	for _, att := range attachments {
+		wrapped = append(wrapped, map[string]string{
+			"repository": att.Repository,
+			"path":       att.Path,
+			"sha256":     att.Sha256,
+		})
+	}
+	payload["attachments"] = wrapped
 	return jsonMarshal(payload)
 }
 

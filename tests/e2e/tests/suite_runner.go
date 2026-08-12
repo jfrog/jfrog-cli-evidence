@@ -132,7 +132,7 @@ func generateCommonPrivatePublicKey(r *EvidenceE2ETestsRunner) error {
 	// Generate key pair and upload public key to Artifactory
 	// Uses EvidenceAdminCLI which is configured with admin token for key upload permissions
 	tmpT := &testing.T{}
-	output := r.EvidenceAdminCLI.RunCliCmdWithOutput(tmpT,
+	output := RunCliCmdWithStdOutputAndErrOutput(tmpT, r.EvidenceAdminCLI,
 		"generate-key-pair",
 		"--key-file-path", SharedKeyDir,
 		"--key-file-name", keyFileName,

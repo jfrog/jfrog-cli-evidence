@@ -39,6 +39,9 @@ func (r *EvidenceE2ETestsRunner) RunVerifyEvidenceSuite(t *testing.T) {
 	t.Run("ForPackage", func(t *testing.T) {
 		r.RunVerifyEvidenceForPackage(t)
 	})
+	t.Run("ForEntity", func(t *testing.T) {
+		r.RunVerifyEvidenceForEntity(t)
+	})
 	t.Run("WithJsonFormat", func(t *testing.T) {
 		r.RunVerifyEvidenceWithJsonFormat(t)
 	})
@@ -87,7 +90,7 @@ func (r *EvidenceE2ETestsRunner) RunVerifyEvidenceForArtifact(t *testing.T) {
 
 	// Step 3: Create evidence using Admin CLI
 	t.Log("Step 3: Creating evidence using Admin CLI...")
-	createOutput := r.EvidenceAdminCLI.RunCliCmdWithOutput(t,
+	createOutput := RunCliCmdWithStdOutputAndErrOutput(t, r.EvidenceAdminCLI,
 		"create",
 		"--predicate", predicatePath,
 		"--predicate-type", "https://slsa.dev/provenance/v1",
@@ -101,7 +104,7 @@ func (r *EvidenceE2ETestsRunner) RunVerifyEvidenceForArtifact(t *testing.T) {
 
 	// Step 4: Verify evidence using User CLI
 	t.Log("Step 4: Verifying evidence using User CLI...")
-	verifyOutput := r.EvidenceUserCLI.RunCliCmdWithOutput(t,
+	verifyOutput := RunCliCmdWithStdOutputAndErrOutput(t, r.EvidenceUserCLI,
 		"verify",
 		"--subject-repo-path", repoPath,
 		"--public-keys", SharedPublicKeyPath,
@@ -154,7 +157,7 @@ func (r *EvidenceE2ETestsRunner) RunVerifyEvidenceForArtifactWithPublicKey(t *te
 
 	// Step 3: Create evidence using Admin CLI
 	t.Log("Step 3: Creating evidence using Admin CLI...")
-	createOutput := r.EvidenceAdminCLI.RunCliCmdWithOutput(t,
+	createOutput := RunCliCmdWithStdOutputAndErrOutput(t, r.EvidenceAdminCLI,
 		"create",
 		"--predicate", predicatePath,
 		"--predicate-type", "https://slsa.dev/provenance/v1",
@@ -233,7 +236,7 @@ func (r *EvidenceE2ETestsRunner) RunVerifyEvidenceForArtifactWithProject(t *test
 
 	// Step 3: Create evidence for artifact with project using Admin CLI
 	t.Log("Step 3: Creating evidence for artifact with project using Admin CLI...")
-	createOutput := r.EvidenceAdminCLI.RunCliCmdWithOutput(t,
+	createOutput := RunCliCmdWithStdOutputAndErrOutput(t, r.EvidenceAdminCLI,
 		"create",
 		"--predicate", predicatePath,
 		"--predicate-type", "https://slsa.dev/provenance/v1",
@@ -248,7 +251,7 @@ func (r *EvidenceE2ETestsRunner) RunVerifyEvidenceForArtifactWithProject(t *test
 
 	// Step 4: Verify evidence for artifact with project using Project CLI
 	t.Log("Step 4: Verifying evidence for artifact with project using Project CLI...")
-	verifyOutput := r.EvidenceProjectCLI.RunCliCmdWithOutput(t,
+	verifyOutput := RunCliCmdWithStdOutputAndErrOutput(t, r.EvidenceProjectCLI,
 		"verify",
 		"--subject-repo-path", repoPath,
 		"--project", e2e.ProjectKey,
@@ -298,7 +301,7 @@ func (r *EvidenceE2ETestsRunner) RunVerifyEvidenceForBuild(t *testing.T) {
 
 	// Step 3: Create evidence for build using Admin CLI
 	t.Log("Step 3: Creating evidence for build using Admin CLI...")
-	createOutput := r.EvidenceAdminCLI.RunCliCmdWithOutput(t,
+	createOutput := RunCliCmdWithStdOutputAndErrOutput(t, r.EvidenceAdminCLI,
 		"create",
 		"--predicate", predicatePath,
 		"--predicate-type", "https://slsa.dev/provenance/v1",
@@ -313,7 +316,7 @@ func (r *EvidenceE2ETestsRunner) RunVerifyEvidenceForBuild(t *testing.T) {
 
 	// Step 4: Verify evidence for build using User CLI (THIS IS WHAT WE'RE TESTING)
 	t.Log("Step 4: Verifying evidence for build using User CLI...")
-	verifyOutput := r.EvidenceUserCLI.RunCliCmdWithOutput(t,
+	verifyOutput := RunCliCmdWithStdOutputAndErrOutput(t, r.EvidenceUserCLI,
 		"verify",
 		"--build-name", buildName,
 		"--build-number", buildNumber,
@@ -364,7 +367,7 @@ func (r *EvidenceE2ETestsRunner) RunVerifyEvidenceForPackage(t *testing.T) {
 
 	// Step 3: Create evidence for package using Admin CLI
 	t.Log("Step 3: Creating evidence for package using Admin CLI...")
-	createOutput := r.EvidenceAdminCLI.RunCliCmdWithOutput(t,
+	createOutput := RunCliCmdWithStdOutputAndErrOutput(t, r.EvidenceAdminCLI,
 		"create",
 		"--predicate", predicatePath,
 		"--predicate-type", "https://slsa.dev/provenance/v1",
@@ -380,7 +383,7 @@ func (r *EvidenceE2ETestsRunner) RunVerifyEvidenceForPackage(t *testing.T) {
 
 	// Step 4: Verify evidence for package using User CLI (THIS IS WHAT WE'RE TESTING)
 	t.Log("Step 4: Verifying evidence for package using User CLI...")
-	verifyOutput := r.EvidenceUserCLI.RunCliCmdWithOutput(t,
+	verifyOutput := RunCliCmdWithStdOutputAndErrOutput(t, r.EvidenceUserCLI,
 		"verify",
 		"--package-name", packageName,
 		"--package-version", packageVersion,
@@ -435,7 +438,7 @@ func (r *EvidenceE2ETestsRunner) RunVerifyEvidenceWithUseArtifactoryKeys(t *test
 
 	// Step 3: Create evidence using Admin CLI (key already uploaded)
 	t.Log("Step 3: Creating evidence using Admin CLI...")
-	createOutput := r.EvidenceAdminCLI.RunCliCmdWithOutput(t,
+	createOutput := RunCliCmdWithStdOutputAndErrOutput(t, r.EvidenceAdminCLI,
 		"create",
 		"--predicate", predicatePath,
 		"--predicate-type", "https://slsa.dev/provenance/v1",
@@ -450,7 +453,7 @@ func (r *EvidenceE2ETestsRunner) RunVerifyEvidenceWithUseArtifactoryKeys(t *test
 	// Step 4: Verify using Artifactory keys with User CLI
 	t.Log("Step 4: Verifying evidence using --use-artifactory-keys with User CLI...")
 
-	verifyOutput := r.EvidenceUserCLI.RunCliCmdWithOutput(t,
+	verifyOutput := RunCliCmdWithStdOutputAndErrOutput(t, r.EvidenceUserCLI,
 		"verify",
 		"--subject-repo-path", repoPath,
 		"--use-artifactory-keys",
@@ -501,7 +504,7 @@ func (r *EvidenceE2ETestsRunner) RunVerifyEvidenceForReleaseBundle(t *testing.T)
 
 	// Step 3: Create evidence for release bundle using Admin CLI
 	t.Log("Step 3: Creating evidence for release bundle using Admin CLI...")
-	createOutput := r.EvidenceAdminCLI.RunCliCmdWithOutput(t,
+	createOutput := RunCliCmdWithStdOutputAndErrOutput(t, r.EvidenceAdminCLI,
 		"create",
 		"--predicate", predicatePath,
 		"--predicate-type", "https://slsa.dev/provenance/v1",
@@ -516,7 +519,7 @@ func (r *EvidenceE2ETestsRunner) RunVerifyEvidenceForReleaseBundle(t *testing.T)
 
 	// Step 4: Verify evidence for release bundle using User CLI
 	t.Log("Step 4: Verifying evidence for release bundle using User CLI...")
-	verifyOutput := r.EvidenceUserCLI.RunCliCmdWithOutput(t,
+	verifyOutput := RunCliCmdWithStdOutputAndErrOutput(t, r.EvidenceUserCLI,
 		"verify",
 		"--release-bundle", releaseBundleName,
 		"--release-bundle-version", releaseBundleVersion,
@@ -568,7 +571,7 @@ func (r *EvidenceE2ETestsRunner) RunVerifyEvidenceForBuildWithProject(t *testing
 
 	// Step 3: Create evidence for build with project using Admin CLI
 	t.Log("Step 3: Creating evidence for build with project using Admin CLI...")
-	createOutput := r.EvidenceAdminCLI.RunCliCmdWithOutput(t,
+	createOutput := RunCliCmdWithStdOutputAndErrOutput(t, r.EvidenceAdminCLI,
 		"create",
 		"--predicate", predicatePath,
 		"--predicate-type", "https://slsa.dev/provenance/v1",
@@ -584,7 +587,7 @@ func (r *EvidenceE2ETestsRunner) RunVerifyEvidenceForBuildWithProject(t *testing
 
 	// Step 4: Verify evidence for build with project using Project CLI (THIS IS WHAT WE'RE TESTING)
 	t.Log("Step 4: Verifying evidence for build with project using Project CLI...")
-	verifyOutput := r.EvidenceProjectCLI.RunCliCmdWithOutput(t,
+	verifyOutput := RunCliCmdWithStdOutputAndErrOutput(t, r.EvidenceProjectCLI,
 		"verify",
 		"--build-name", buildName,
 		"--build-number", buildNumber,
@@ -639,7 +642,7 @@ func (r *EvidenceE2ETestsRunner) RunVerifyEvidenceWithJsonFormat(t *testing.T) {
 
 	// Step 3: Create evidence using Admin CLI
 	t.Log("Step 3: Creating evidence using Admin CLI...")
-	createOutput := r.EvidenceAdminCLI.RunCliCmdWithOutput(t,
+	createOutput := RunCliCmdWithStdOutputAndErrOutput(t, r.EvidenceAdminCLI,
 		"create",
 		"--predicate", predicatePath,
 		"--predicate-type", "https://slsa.dev/provenance/v1",
@@ -686,7 +689,7 @@ func (r *EvidenceE2ETestsRunner) RunVerifyEvidenceWithAttachment(t *testing.T) {
 
 	fixture := prepareAttachmentEvidenceFixture(t, r, "verify-attachments")
 
-	createOutput := r.EvidenceAdminCLI.RunCliCmdWithOutput(t,
+	createOutput := RunCliCmdWithStdOutputAndErrOutput(t, r.EvidenceAdminCLI,
 		"create",
 		"--predicate", fixture.PredicatePath,
 		"--predicate-type", "https://slsa.dev/provenance/v1",

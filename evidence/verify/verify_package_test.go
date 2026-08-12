@@ -81,8 +81,8 @@ type MockVerifierPackage struct {
 	mock.Mock
 }
 
-func (m *MockVerifierPackage) Verify(subjectSha256 string, evidenceMetadata *[]model.SearchEvidenceEdge, subjectPath string) (*model.VerificationResponse, error) {
-	args := m.Called(subjectSha256, evidenceMetadata, subjectPath)
+func (m *MockVerifierPackage) Verify(expectedSubject model.SubjectDigest, evidenceMetadata *[]model.SearchEvidenceEdge, subjectPath string) (*model.VerificationResponse, error) {
+	args := m.Called(expectedSubject, evidenceMetadata, subjectPath)
 	if args.Get(0) == nil {
 		return nil, args.Error(1)
 	}
@@ -358,7 +358,7 @@ func TestVerifyEvidencePackage_Run_Success(t *testing.T) {
 		EvidenceVerifications:     &[]model.EvidenceVerification{},
 		OverallVerificationStatus: model.Success,
 	}
-	mockVerifier.On("Verify", "test-sha256", mock.AnythingOfType("*[]model.SearchEvidenceEdge"), mock.AnythingOfType("string")).Return(expectedResponse, nil)
+	mockVerifier.On("Verify", model.SubjectDigest{Type: model.Sha256DigestType, Value: "test-sha256"}, mock.AnythingOfType("*[]model.SearchEvidenceEdge"), mock.AnythingOfType("string")).Return(expectedResponse, nil)
 
 	// Create package verifier with mock verifier
 	packageVerifier := &verifyEvidencePackage{
@@ -384,7 +384,7 @@ func TestVerifyEvidencePackage_Run_Success(t *testing.T) {
 
 	// Verify that the mock verifier was called with expected parameters
 	mockVerifier.AssertExpectations(t)
-	mockVerifier.AssertCalled(t, "Verify", "test-sha256", mock.AnythingOfType("*[]model.SearchEvidenceEdge"), mock.AnythingOfType("string"))
+	mockVerifier.AssertCalled(t, "Verify", model.SubjectDigest{Type: model.Sha256DigestType, Value: "test-sha256"}, mock.AnythingOfType("*[]model.SearchEvidenceEdge"), mock.AnythingOfType("string"))
 }
 
 func TestVerifyEvidencePackage_Run_VerificationFailed(t *testing.T) {
@@ -417,7 +417,7 @@ func TestVerifyEvidencePackage_Run_VerificationFailed(t *testing.T) {
 		EvidenceVerifications:     &[]model.EvidenceVerification{},
 		OverallVerificationStatus: model.Failed,
 	}
-	mockVerifier.On("Verify", "test-sha256", mock.AnythingOfType("*[]model.SearchEvidenceEdge"), mock.AnythingOfType("string")).Return(expectedResponse, nil)
+	mockVerifier.On("Verify", model.SubjectDigest{Type: model.Sha256DigestType, Value: "test-sha256"}, mock.AnythingOfType("*[]model.SearchEvidenceEdge"), mock.AnythingOfType("string")).Return(expectedResponse, nil)
 
 	// Create package verifier with mock verifier
 	packageVerifier := &verifyEvidencePackage{
@@ -446,7 +446,7 @@ func TestVerifyEvidencePackage_Run_VerificationFailed(t *testing.T) {
 
 	// Verify that the mock verifier was called with expected parameters
 	mockVerifier.AssertExpectations(t)
-	mockVerifier.AssertCalled(t, "Verify", "test-sha256", mock.AnythingOfType("*[]model.SearchEvidenceEdge"), mock.AnythingOfType("string"))
+	mockVerifier.AssertCalled(t, "Verify", model.SubjectDigest{Type: model.Sha256DigestType, Value: "test-sha256"}, mock.AnythingOfType("*[]model.SearchEvidenceEdge"), mock.AnythingOfType("string"))
 }
 
 func TestVerifyEvidencePackage_Run_VerificationError(t *testing.T) {
@@ -471,7 +471,7 @@ func TestVerifyEvidencePackage_Run_VerificationError(t *testing.T) {
 	mockVerifier := new(MockVerifierPackage)
 
 	// Set up expectations for the mock verifier to return an error
-	mockVerifier.On("Verify", "test-sha256", mock.AnythingOfType("*[]model.SearchEvidenceEdge"), mock.AnythingOfType("string")).Return((*model.VerificationResponse)(nil), errors.New("verification error"))
+	mockVerifier.On("Verify", model.SubjectDigest{Type: model.Sha256DigestType, Value: "test-sha256"}, mock.AnythingOfType("*[]model.SearchEvidenceEdge"), mock.AnythingOfType("string")).Return((*model.VerificationResponse)(nil), errors.New("verification error"))
 
 	// Create package verifier with mock verifier
 	packageVerifier := &verifyEvidencePackage{
@@ -498,7 +498,7 @@ func TestVerifyEvidencePackage_Run_VerificationError(t *testing.T) {
 
 	// Verify that the mock verifier was called with expected parameters
 	mockVerifier.AssertExpectations(t)
-	mockVerifier.AssertCalled(t, "Verify", "test-sha256", mock.AnythingOfType("*[]model.SearchEvidenceEdge"), mock.AnythingOfType("string"))
+	mockVerifier.AssertCalled(t, "Verify", model.SubjectDigest{Type: model.Sha256DigestType, Value: "test-sha256"}, mock.AnythingOfType("*[]model.SearchEvidenceEdge"), mock.AnythingOfType("string"))
 }
 
 func TestVerifyEvidencePackage_Progress_Success(t *testing.T) {
@@ -507,7 +507,7 @@ func TestVerifyEvidencePackage_Progress_Success(t *testing.T) {
 	mockOneModel := &MockOneModelManagerPackage{GraphqlResponse: []byte(`{"data":{"evidence":{"searchEvidence":{"edges":[{"node":{"subject":{"sha256":"sha"},"downloadPath":"/evidence"}}]}}}}`)}
 	mockVerifier := new(MockVerifierPackage)
 	expected := &model.VerificationResponse{OverallVerificationStatus: model.Success, Subject: model.Subject{Path: "maven-local/p/v/p.jar", Sha256: "sha"}}
-	mockVerifier.On("Verify", "sha", mock.AnythingOfType("*[]model.SearchEvidenceEdge"), mock.AnythingOfType("string")).Return(expected, nil)
+	mockVerifier.On("Verify", model.SubjectDigest{Type: model.Sha256DigestType, Value: "sha"}, mock.AnythingOfType("*[]model.SearchEvidenceEdge"), mock.AnythingOfType("string")).Return(expected, nil)
 
 	cmd := &verifyEvidencePackage{
 		verifyEvidenceBase: verifyEvidenceBase{

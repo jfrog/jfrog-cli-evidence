@@ -36,6 +36,15 @@ func (r *EvidenceE2ETestsRunner) RunCreateEvidenceSuite(t *testing.T) {
 	t.Run("ForApplicationVersion", func(t *testing.T) {
 		r.RunCreateEvidenceForApplicationVersion(t)
 	})
+	t.Run("ForEntity", func(t *testing.T) {
+		r.RunCreateEvidenceForEntity(t)
+	})
+	t.Run("ForEntityWithProject", func(t *testing.T) {
+		r.RunCreateEvidenceForEntityWithProject(t)
+	})
+	t.Run("ForApplicationEntity", func(t *testing.T) {
+		r.RunCreateEvidenceForApplicationEntity(t)
+	})
 	t.Run("WithMarkdown", func(t *testing.T) {
 		r.RunCreateEvidenceWithMarkdown(t)
 	})
@@ -86,7 +95,7 @@ func (r *EvidenceE2ETestsRunner) RunCreateEvidenceForArtifact(t *testing.T) {
 
 	// Step 3: Create evidence using shared key
 	t.Log("Step 3: Creating evidence for artifact...")
-	createOutput := r.EvidenceUserCLI.RunCliCmdWithOutput(t,
+	createOutput := RunCliCmdWithStdOutputAndErrOutput(t, r.EvidenceUserCLI,
 		"create",
 		"--predicate", predicatePath,
 		"--predicate-type", "https://slsa.dev/provenance/v1",
@@ -101,7 +110,7 @@ func (r *EvidenceE2ETestsRunner) RunCreateEvidenceForArtifact(t *testing.T) {
 
 	// Step 4: Get evidence to validate it was created correctly
 	t.Log("Step 4: Getting evidence to validate creation...")
-	getOutput := r.EvidenceAdminCLI.RunCliCmdWithOutput(t,
+	getOutput := RunCliCmdWithStdOutputAndErrOutput(t, r.EvidenceAdminCLI,
 		"get",
 		"--subject-repo-path", repoPath,
 	)
@@ -149,7 +158,7 @@ func (r *EvidenceE2ETestsRunner) RunCreateEvidenceForBuild(t *testing.T) {
 
 	// Step 3: Create evidence for build using shared key
 	t.Log("Step 3: Creating evidence for build...")
-	createOutput := r.EvidenceUserCLI.RunCliCmdWithOutput(t,
+	createOutput := RunCliCmdWithStdOutputAndErrOutput(t, r.EvidenceUserCLI,
 		"create",
 		"--predicate", predicatePath,
 		"--predicate-type", "https://slsa.dev/provenance/v1",
@@ -165,7 +174,7 @@ func (r *EvidenceE2ETestsRunner) RunCreateEvidenceForBuild(t *testing.T) {
 	t.Log("✓ Evidence created successfully")
 
 	t.Log("Step 4: Verifying evidence using admin token")
-	verifyOutput := r.EvidenceAdminCLI.RunCliCmdWithOutput(t,
+	verifyOutput := RunCliCmdWithStdOutputAndErrOutput(t, r.EvidenceAdminCLI,
 		"verify",
 		"--build-name", buildName,
 		"--build-number", buildNumber,
@@ -216,7 +225,7 @@ func (r *EvidenceE2ETestsRunner) RunCreateEvidenceForReleaseBundle(t *testing.T)
 
 	// Step 3: Create evidence for release bundle using shared key
 	t.Log("Step 3: Creating evidence for release bundle...")
-	createOutput := r.EvidenceUserCLI.RunCliCmdWithOutput(t,
+	createOutput := RunCliCmdWithStdOutputAndErrOutput(t, r.EvidenceUserCLI,
 		"create",
 		"--predicate", predicatePath,
 		"--predicate-type", "https://slsa.dev/provenance/v1",
@@ -232,7 +241,7 @@ func (r *EvidenceE2ETestsRunner) RunCreateEvidenceForReleaseBundle(t *testing.T)
 
 	// Step 4: Verify evidence using admin token
 	t.Log("Step 4: Verifying evidence using admin token...")
-	verifyOutput := r.EvidenceAdminCLI.RunCliCmdWithOutput(t,
+	verifyOutput := RunCliCmdWithStdOutputAndErrOutput(t, r.EvidenceAdminCLI,
 		"verify",
 		"--release-bundle", rbName,
 		"--release-bundle-version", rbVersion,
@@ -280,7 +289,7 @@ func (r *EvidenceE2ETestsRunner) RunCreateEvidenceForPackage(t *testing.T) {
 
 	// Step 3: Create evidence for package using shared key
 	t.Log("Step 3: Creating evidence for package...")
-	createOutput := r.EvidenceUserCLI.RunCliCmdWithOutput(t,
+	createOutput := RunCliCmdWithStdOutputAndErrOutput(t, r.EvidenceUserCLI,
 		"create",
 		"--predicate", predicatePath,
 		"--predicate-type", "https://slsa.dev/provenance/v1",
@@ -297,7 +306,7 @@ func (r *EvidenceE2ETestsRunner) RunCreateEvidenceForPackage(t *testing.T) {
 
 	// Step 4: Verify evidence using admin token
 	t.Log("Step 4: Verifying evidence using admin token...")
-	verifyOutput := r.EvidenceAdminCLI.RunCliCmdWithOutput(t,
+	verifyOutput := RunCliCmdWithStdOutputAndErrOutput(t, r.EvidenceAdminCLI,
 		"verify",
 		"--package-name", packageName,
 		"--package-version", packageVersion,
@@ -347,7 +356,7 @@ func (r *EvidenceE2ETestsRunner) RunCreateEvidenceForBuildWithProject(t *testing
 
 	// Step 3: Create evidence using project-scoped CLI (with Developer role permissions)
 	t.Log("Step 3: Creating evidence using project-scoped token (Developer role)...")
-	createOutput := r.EvidenceProjectCLI.RunCliCmdWithOutput(t,
+	createOutput := RunCliCmdWithStdOutputAndErrOutput(t, r.EvidenceProjectCLI,
 		"create",
 		"--predicate", predicatePath,
 		"--predicate-type", "https://slsa.dev/provenance/v1",
@@ -364,7 +373,7 @@ func (r *EvidenceE2ETestsRunner) RunCreateEvidenceForBuildWithProject(t *testing
 
 	// Step 4: Verify evidence using admin token
 	t.Log("Step 4: Verifying evidence using admin token...")
-	verifyOutput := r.EvidenceAdminCLI.RunCliCmdWithOutput(t,
+	verifyOutput := RunCliCmdWithStdOutputAndErrOutput(t, r.EvidenceAdminCLI,
 		"verify",
 		"--build-name", buildName,
 		"--build-number", buildNumber,
@@ -442,7 +451,7 @@ func (r *EvidenceE2ETestsRunner) RunCreateEvidenceWithMarkdown(t *testing.T) {
 
 	// Step 4: Create evidence with markdown using shared key
 	t.Log("Step 4: Creating evidence with markdown...")
-	createOutput := r.EvidenceUserCLI.RunCliCmdWithOutput(t,
+	createOutput := RunCliCmdWithStdOutputAndErrOutput(t, r.EvidenceUserCLI,
 		"create",
 		"--predicate", predicatePath,
 		"--predicate-type", "https://slsa.dev/provenance/v1",
@@ -458,7 +467,7 @@ func (r *EvidenceE2ETestsRunner) RunCreateEvidenceWithMarkdown(t *testing.T) {
 
 	// Step 5: Verify evidence using admin token
 	t.Log("Step 5: Verifying evidence using admin token...")
-	verifyOutput := r.EvidenceAdminCLI.RunCliCmdWithOutput(t,
+	verifyOutput := RunCliCmdWithStdOutputAndErrOutput(t, r.EvidenceAdminCLI,
 		"verify",
 		"--subject-repo-path", repoPath,
 		"--public-keys", SharedPublicKeyPath,
@@ -520,7 +529,7 @@ func (r *EvidenceE2ETestsRunner) RunCreateEvidenceWithSubjectSha256(t *testing.T
 
 	// Step 4: Create evidence with explicit SHA256 using shared key
 	t.Log("Step 4: Creating evidence with explicit SHA256...")
-	createOutput := r.EvidenceUserCLI.RunCliCmdWithOutput(t,
+	createOutput := RunCliCmdWithStdOutputAndErrOutput(t, r.EvidenceUserCLI,
 		"create",
 		"--predicate", predicatePath,
 		"--predicate-type", "https://slsa.dev/provenance/v1",
@@ -536,7 +545,7 @@ func (r *EvidenceE2ETestsRunner) RunCreateEvidenceWithSubjectSha256(t *testing.T
 
 	// Step 5: Verify evidence using admin token
 	t.Log("Step 5: Verifying evidence using admin token...")
-	verifyOutput := r.EvidenceAdminCLI.RunCliCmdWithOutput(t,
+	verifyOutput := RunCliCmdWithStdOutputAndErrOutput(t, r.EvidenceAdminCLI,
 		"verify",
 		"--subject-repo-path", repoPath,
 		"--public-keys", SharedPublicKeyPath,
@@ -604,7 +613,7 @@ func (r *EvidenceE2ETestsRunner) RunCreateEvidenceForApplicationVersion(t *testi
 	t.Log("✓ Predicate created")
 
 	t.Log("Step 4: Creating evidence for application version...")
-	createOutput := r.EvidenceUserCLI.RunCliCmdWithOutput(t,
+	createOutput := RunCliCmdWithStdOutputAndErrOutput(t, r.EvidenceUserCLI,
 		"create",
 		"--predicate", predicatePath,
 		"--predicate-type", "https://slsa.dev/provenance/v1",

@@ -31,6 +31,9 @@ const (
 	TypeFlag             = "type"
 	ApplicationKey       = "application-key"
 	ApplicationVersion   = "application-version"
+	EntityType           = "entity-type"
+	EntityId             = "entity-id"
+	EntityRepo           = "entity-repo"
 
 	Predicate                 = "predicate"
 	PredicateType             = "predicate-type"
@@ -73,8 +76,11 @@ var flagsMap = map[string]components.Flag{
 	PackageVersion:       components.NewStringFlag(PackageVersion, "Package version.", func(f *components.StringFlag) { f.Mandatory = false }),
 	PackageRepoName:      components.NewStringFlag(PackageRepoName, "Package repository Name.", func(f *components.StringFlag) { f.Mandatory = false }),
 	TypeFlag:             components.NewStringFlag(TypeFlag, "Type can contain 'gh-commiter' value.", func(f *components.StringFlag) { f.Mandatory = false }),
-	ApplicationKey:       components.NewStringFlag(ApplicationKey, "Application key.", func(f *components.StringFlag) { f.Mandatory = false }),
+	ApplicationKey:       components.NewStringFlag(ApplicationKey, "Application key. With --application-version creates AppTrust application version evidence. With --entity-type scopes entity evidence. Alone, creates evidence on the application entity.", func(f *components.StringFlag) { f.Mandatory = false }),
 	ApplicationVersion:   components.NewStringFlag(ApplicationVersion, "Application version.", func(f *components.StringFlag) { f.Mandatory = false }),
+	EntityType:           components.NewStringFlag(EntityType, "Entity type (for example gitCommit or languageModel).", func(f *components.StringFlag) { f.Mandatory = false }),
+	EntityId:             components.NewStringFlag(EntityId, "Entity identifier (for example a git commit SHA).", func(f *components.StringFlag) { f.Mandatory = false }),
+	EntityRepo:           components.NewStringFlag(EntityRepo, "Explicit Artifactory repository key for entity evidence (used as the repo name as-is). Mutually exclusive with --project and --application-key, which derive {scope}-{entity-type}-entity instead.", func(f *components.StringFlag) { f.Mandatory = false }),
 
 	Predicate:        components.NewStringFlag(Predicate, "Path to the Predicate, arbitrary JSON. Mandatory unless --"+SigstoreBundle+" is used", func(f *components.StringFlag) { f.Mandatory = false }),
 	PredicateType:    components.NewStringFlag(PredicateType, "Type of the Predicate. Mandatory unless --"+SigstoreBundle+" is used", func(f *components.StringFlag) { f.Mandatory = false }),
@@ -87,7 +93,7 @@ var flagsMap = map[string]components.Flag{
 
 	ProviderId:                components.NewStringFlag(ProviderId, "Provider ID for the evidence.", func(f *components.StringFlag) { f.Mandatory = false }),
 	PublicKeys:                components.NewStringFlag(PublicKeys, "Array of paths to public keys for signatures verification with \";\" separator. Supported keys: 'ecdsa','rsa' and 'ed25519'.", func(f *components.StringFlag) { f.Mandatory = false }),
-	SigstoreBundle:            components.NewStringFlag(SigstoreBundle, "Path to a Sigstore bundle file with a pre-signed DSSE envelope. Incompatible with --"+Key+", --"+KeyAlias+", --"+Predicate+", --"+PredicateType+" and --"+SubjectSha256+".", func(f *components.StringFlag) { f.Mandatory = false }),
+	SigstoreBundle:            components.NewStringFlag(SigstoreBundle, "Path to a Sigstore bundle file with a pre-signed DSSE envelope. Works with artifact subjects and --entity-type/--entity-id. Incompatible with --"+Key+", --"+KeyAlias+", --"+Predicate+", --"+PredicateType+" and --"+SubjectSha256+".", func(f *components.StringFlag) { f.Mandatory = false }),
 	AttachLocal:               components.NewStringFlag(AttachLocal, "Path to a local file to attach to created evidence. Incompatible with --"+AttachArtifactoryPath+".", func(f *components.StringFlag) { f.Mandatory = false }),
 	AttachArtifactoryTempPath: components.NewStringFlag(AttachArtifactoryTempPath, "Temporary Artifactory upload path for --"+AttachLocal+" in format <repo/path[/name]>. Use trailing slash for directory targets. Can also be set via env var EVIDENCE_ATTACHMENT_ARTIFACTORY_TEMP_PATH or config key attachment.artifactoryTempPath. Once provided, the value is persisted for subsequent runs.", func(f *components.StringFlag) { f.Mandatory = false }),
 	AttachArtifactoryPath:     components.NewStringFlag(AttachArtifactoryPath, "Existing Artifactory file path to attach in format <repo/path>.", func(f *components.StringFlag) { f.Mandatory = false }),
@@ -116,6 +122,9 @@ var commandFlags = map[string][]string{
 		TypeFlag,
 		ApplicationKey,
 		ApplicationVersion,
+		EntityType,
+		EntityId,
+		EntityRepo,
 		Predicate,
 		PredicateType,
 		Markdown,
@@ -138,6 +147,7 @@ var commandFlags = map[string][]string{
 		PublicKeys,
 		Format,
 		Project,
+		ApplicationKey,
 		ReleaseBundle,
 		ReleaseBundleVersion,
 		SubjectRepoPath,
@@ -146,6 +156,9 @@ var commandFlags = map[string][]string{
 		PackageName,
 		PackageVersion,
 		PackageRepoName,
+		EntityType,
+		EntityId,
+		EntityRepo,
 		UseArtifactoryKeys,
 	},
 	GetEvidence: {
@@ -156,9 +169,13 @@ var commandFlags = map[string][]string{
 		Format,
 		Output,
 		Project,
+		ApplicationKey,
 		ReleaseBundle,
 		ReleaseBundleVersion,
 		SubjectRepoPath,
+		EntityType,
+		EntityId,
+		EntityRepo,
 		IncludePredicate,
 		ArtifactsLimit,
 	},

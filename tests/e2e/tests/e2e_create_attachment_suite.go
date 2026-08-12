@@ -30,7 +30,7 @@ func (r *EvidenceE2ETestsRunner) RunCreateEvidenceWithAttachment(t *testing.T) {
 
 	fixture := prepareAttachmentEvidenceFixture(t, r, "create-attachments")
 
-	createOutput := r.EvidenceUserCLI.RunCliCmdWithOutput(t,
+	createOutput := RunCliCmdWithStdOutputAndErrOutput(t, r.EvidenceUserCLI,
 		"create",
 		"--predicate", fixture.PredicatePath,
 		"--predicate-type", "https://slsa.dev/provenance/v1",

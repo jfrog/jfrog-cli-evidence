@@ -8,17 +8,18 @@ func GetDescription() string {
 }
 
 func GetAIDescription() string {
-	return `Verify every DSSE evidence attached to a subject by checking signatures against supplied or Artifactory-stored public keys, plus any attachment integrity. Use this when an agent needs to confirm that evidence on an artifact, build, package or release bundle is signed by a trusted key before continuing a pipeline.
+	return `Verify every DSSE evidence attached to a subject by checking signatures against supplied or Artifactory-stored public keys, plus any attachment integrity. Use this when an agent needs to confirm that evidence on an artifact, build, package, release bundle, or entity is signed by a trusted key before continuing a pipeline.
 
 When to use:
 - Gate a release on signed provenance/SBOM/scan evidence being present and valid.
 - Re-verify evidence after a key rotation by re-running with the new --public-keys.
 - Validate evidence with trust roots managed in Artifactory via --use-artifactory-keys.
+- Verify evidence attached to an entity via --entity-type/--entity-id.
 
 Prerequisites:
 - A configured JFrog Platform server (jf c add or jf login) using access-token auth.
 - One or more public keys provided via --public-keys (semicolon-separated paths or PEM bodies), JFROG_CLI_SIGNING_KEY, or --use-artifactory-keys.
-- Exactly one subject: --subject-repo-path, --build-name/--build-number, --package-name/--package-version/--package-repo-name, or --release-bundle/--release-bundle-version.
+- Exactly one subject: --subject-repo-path, --build-name/--build-number, --package-name/--package-version/--package-repo-name, --release-bundle/--release-bundle-version, --entity-type/--entity-id, or bare --application-key (application entity).
 - Supported key algorithms: ecdsa, rsa, ed25519.
 
 Common patterns:
@@ -27,11 +28,12 @@ Common patterns:
   $ jf evd verify --build-name my-build --build-number 42 --public-keys ./key1.pub;./key2.pub
   $ jf evd verify --release-bundle my-rb --release-bundle-version 1.0.0 --public-keys ./evidence.pub
   $ jf evd verify --package-name my-npm-pkg --package-version 1.2.3 --package-repo-name npm-local --use-artifactory-keys
+  $ jf evd verify --entity-type gitCommit --entity-id 57bb812f3733b80e270272ba063274e52c34bd23 --project my-proj --public-keys ./evidence.pub
 
 Gotchas:
 - JFROG_CLI_SIGNING_KEY is appended to whatever is passed via --public-keys; ensure the env var is unset if you only want explicit keys.
 - --public-keys uses ";" as the separator, not "," or whitespace.
-- --application-key subjects are not supported by verify (only create/get cover them).
+- AppTrust application-version subjects (--application-key with --application-version) are not supported by verify; bare --application-key verifies the application entity.
 - Failures from the verifier are wrapped as "evidence verification failed: ..."; check the wrapped cause for the specific signature, key or attachment mismatch.
 - --use-artifactory-keys still requires platform credentials with read access to the trusted-keys store.
 - Attachments referenced by evidence are also verified; mismatched or missing attachment files cause the whole verify to fail.
@@ -41,4 +43,17 @@ Related: jf evd create, jf evd get, jf evd gen-keys`
 
 func GetArguments() []components.Argument {
 	return []components.Argument{}
+}
+
+// GetUsageExamples returns entity-focused verify usage lines shown under the command's Usage help.
+func GetUsageExamples() []string {
+	return []string{
+		"jf evd verify --application-key my-app --public-keys ./evidence.pub",
+		"jf evd verify --build-name my-build --build-number 42 --public-keys ./key1.pub;./key2.pub",
+		"jf evd verify --package-name my-npm-pkg --package-version 1.2.3 --package-repo-name npm-local --use-artifactory-keys",
+		"jf evd verify --release-bundle my-rb --release-bundle-version 1.0.0 --public-keys ./evidence.pub",
+		"jf evd verify --subject-repo-path generic-local/app.tgz --public-keys ./evidence.pub",
+		"jf evd verify --entity-type gitCommit --entity-id 57bb812f3733b80e270272ba063274e52c34bd23 --project my-proj --public-keys ./evidence.pub",
+		"jf evd verify --entity-type gitCommit --entity-id 57bb812f3733b80e270272ba063274e52c34bd23 --project my-proj --use-artifactory-keys --format json",
+	}
 }

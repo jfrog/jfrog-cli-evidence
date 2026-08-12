@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/jfrog/jfrog-cli-evidence/evidence"
+	"github.com/jfrog/jfrog-cli-evidence/evidence/model"
 	"github.com/jfrog/jfrog-cli-evidence/evidence/utils"
 
 	cliUtils "github.com/jfrog/jfrog-cli-core/v2/artifactory/utils"
@@ -83,5 +84,5 @@ func (c *verifyEvidencePackage) Run() error {
 		return err
 	}
 	subjectPath := fmt.Sprintf("%s/%s/%s", c.packageService.GetPackageRepoName(), path, fileName)
-	return c.verifyEvidence(artifactoryClient, metadata, packageSha256, subjectPath)
+	return c.verifyEvidence(artifactoryClient, metadata, model.SubjectDigest{Type: model.Sha256DigestType, Value: packageSha256}, subjectPath)
 }

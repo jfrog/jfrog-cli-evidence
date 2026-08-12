@@ -431,7 +431,7 @@ func TestCreateEvidenceApplication_Run_Success_WithInjectedDeps(t *testing.T) {
 		projectKey:         "test-project", // Set project key directly to avoid apptrust service call
 	}
 
-	// Test the core functionality without calling fetchProjectKey
+	// Test the core functionality without calling ResolveApplicationProjectKey
 	// This simulates the Run() method but skips the external API call and signing
 	artifactoryClient, err := cmd.createArtifactoryClient()
 	assert.NoError(t, err)

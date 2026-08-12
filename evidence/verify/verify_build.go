@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/jfrog/jfrog-cli-evidence/evidence"
+	"github.com/jfrog/jfrog-cli-evidence/evidence/model"
 	"github.com/jfrog/jfrog-cli-evidence/evidence/utils"
 
 	"github.com/jfrog/jfrog-cli-core/v2/utils/config"
@@ -57,7 +58,7 @@ func (v *verifyEvidenceBuild) Run() error {
 	}
 
 	subjectPath := fmt.Sprintf("%s/%s/%s", repoKey, v.buildName, subjectFileName)
-	return v.verifyEvidence(client, metadata, buildInfoSha256, subjectPath)
+	return v.verifyEvidence(client, metadata, model.SubjectDigest{Type: model.Sha256DigestType, Value: buildInfoSha256}, subjectPath)
 }
 
 // ServerDetails returns the server details for the command.

@@ -67,8 +67,8 @@ type MockEvidenceVerifier struct {
 	LastPath string
 }
 
-func (m *MockEvidenceVerifier) Verify(subjectSha256 string, evidenceMetadata *[]model.SearchEvidenceEdge, subjectPath string) (*model.VerificationResponse, error) {
-	m.LastSha = subjectSha256
+func (m *MockEvidenceVerifier) Verify(expectedSubject model.SubjectDigest, evidenceMetadata *[]model.SearchEvidenceEdge, subjectPath string) (*model.VerificationResponse, error) {
+	m.LastSha = expectedSubject.Value
 	m.LastMeta = evidenceMetadata
 	m.LastPath = subjectPath
 	return m.Result, m.Err
@@ -651,7 +651,7 @@ func TestVerifyEvidence_UsesProvidedVerifier_Success(t *testing.T) {
 	}
 
 	metadata := []model.SearchEvidenceEdge{{}}
-	err := v.verifyEvidence(nil, &metadata, "sha-123", "some/path/file")
+	err := v.verifyEvidence(nil, &metadata, model.SubjectDigest{Type: model.Sha256DigestType, Value: "sha-123"}, "some/path/file")
 	assert.NoError(t, err)
 	assert.Equal(t, "sha-123", mockVerifier.LastSha)
 	assert.Equal(t, &metadata, mockVerifier.LastMeta)
@@ -663,7 +663,7 @@ func TestVerifyEvidence_ReturnsVerifierError(t *testing.T) {
 	v := &verifyEvidenceBase{verifier: mockVerifier}
 
 	metadata := []model.SearchEvidenceEdge{{}}
-	err := v.verifyEvidence(nil, &metadata, "sha-xyz", "subject/path")
+	err := v.verifyEvidence(nil, &metadata, model.SubjectDigest{Type: model.Sha256DigestType, Value: "sha-xyz"}, "subject/path")
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "verify failed")
 }
@@ -677,7 +677,7 @@ func TestVerifyEvidence_ReturnsCliErrorOnFailedStatus(t *testing.T) {
 	v := &verifyEvidenceBase{verifier: mockVerifier, format: "text"}
 
 	metadata := []model.SearchEvidenceEdge{{}}
-	err := v.verifyEvidence(nil, &metadata, "sha-000", "subject")
+	err := v.verifyEvidence(nil, &metadata, model.SubjectDigest{Type: model.Sha256DigestType, Value: "sha-000"}, "subject")
 	if assert.Error(t, err) {
 		var cliError coreutils.CliError
 		ok := errors.As(err, &cliError)
@@ -692,7 +692,7 @@ func TestVerifyEvidence_InitializesVerifierWhenNil_EmptyMetadataError(t *testing
 	v := &verifyEvidenceBase{verifier: nil, format: "json"}
 	var emptyMetadata []model.SearchEvidenceEdge
 
-	err := v.verifyEvidence(client, &emptyMetadata, "sha-empty", "subject")
+	err := v.verifyEvidence(client, &emptyMetadata, model.SubjectDigest{Type: model.Sha256DigestType, Value: "sha-empty"}, "subject")
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "no evidence metadata provided")
 }

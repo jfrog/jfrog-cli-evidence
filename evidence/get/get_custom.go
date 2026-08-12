@@ -1,7 +1,7 @@
 package get
 
 import (
-	"encoding/json"
+	"errors"
 	"fmt"
 	"path"
 	"strings"
@@ -66,86 +66,47 @@ func (g *getEvidenceCustom) Run() error {
 }
 
 func (g *getEvidenceCustom) getEvidence(onemodelClient onemodel.Manager) ([]byte, error) {
-	query, err := g.buildGraphqlQuery(g.subjectRepoPath, true)
+	queryWithAttachments, err := g.buildGraphqlQuery(g.subjectRepoPath, true)
 	if err != nil {
 		return nil, err
 	}
-	evidence, err := onemodelClient.GraphqlQuery(query)
-	if err != nil {
-		if evidenceutils.IsAttachmentsFieldNotFound(err) {
-			log.Debug("GraphQL schema does not support attachments field. Falling back to query without attachments.")
-			queryWithoutAttachments, qErr := g.buildGraphqlQuery(g.subjectRepoPath, false)
-			if qErr != nil {
-				return nil, qErr
-			}
-			evidence, err = onemodelClient.GraphqlQuery(queryWithoutAttachments)
-			if err != nil {
-				return nil, err
-			}
-		} else {
-			return nil, err
-		}
-	}
-
-	transformedEvidence, err := g.transformGraphQLOutput(evidence)
+	queryWithoutAttachments, err := g.buildGraphqlQuery(g.subjectRepoPath, false)
 	if err != nil {
 		return nil, err
 	}
-
-	return transformedEvidence, nil
+	evidenceArray, err := g.searchEvidence(onemodelClient, searchEvidenceQueries{
+		withAttachments:    queryWithAttachments,
+		withoutAttachments: queryWithoutAttachments,
+	})
+	if err != nil {
+		return nil, g.customSearchError(err)
+	}
+	return g.marshalEvidence(evidenceArray)
 }
 
 func (g *getEvidenceCustom) transformGraphQLOutput(rawEvidence []byte) ([]byte, error) {
-	var graphqlResponse map[string]any
-	if err := json.Unmarshal(rawEvidence, &graphqlResponse); err != nil {
-		return nil, fmt.Errorf("failed to unmarshal GraphQL response: %w", err)
-	}
-
-	evidenceData, ok := graphqlResponse["data"].(map[string]any)
-	if !ok {
-		return nil, fmt.Errorf("invalid GraphQL response structure: missing data field")
-	}
-
-	searchEvidence, ok := evidenceData["evidence"].(map[string]any)
-	if !ok {
-		return nil, fmt.Errorf("invalid GraphQL response structure: missing evidence field")
-	}
-
-	searchEvidenceData, ok := searchEvidence["searchEvidence"].(map[string]any)
-	if !ok {
-		return nil, fmt.Errorf("repository does not exist for subject repository path: %s", g.subjectRepoPath)
-	}
-
-	edges, ok := searchEvidenceData["edges"].([]any)
-	if !ok {
-		return nil, fmt.Errorf("artifact was not found in subject repository path: %s", g.subjectRepoPath)
-	}
-
-	evidenceArray := make([]EvidenceEntry, 0, len(edges))
-	for _, edge := range edges {
-		if edgeMap, ok := edge.(map[string]any); ok {
-			if node, ok := edgeMap["node"].(map[string]any); ok {
-				evidenceEntry := createOrderedEvidenceEntry(node, g.includePredicate)
-				evidenceArray = append(evidenceArray, evidenceEntry)
-			}
-		}
-	}
-
-	output := CustomEvidenceOutput{
-		SchemaVersion: SchemaVersion,
-		Type:          ArtifactType,
-		Result: CustomEvidenceResult{
-			RepoPath: g.subjectRepoPath,
-			Evidence: evidenceArray,
-		},
-	}
-
-	transformed, err := json.MarshalIndent(output, "", "  ")
+	evidenceArray, err := evidenceEntriesFromSearchResponse(rawEvidence, g.includePredicate)
 	if err != nil {
-		return nil, fmt.Errorf("failed to marshal transformed response: %w", err)
+		return nil, g.customSearchError(err)
 	}
+	return g.marshalEvidence(evidenceArray)
+}
 
-	return transformed, nil
+func (g *getEvidenceCustom) customSearchError(err error) error {
+	if errors.Is(err, errSearchEvidenceMissing) {
+		return fmt.Errorf("repository does not exist for subject repository path: %s", g.subjectRepoPath)
+	}
+	if errors.Is(err, errSearchEvidenceEdgesMissing) {
+		return fmt.Errorf("artifact was not found in subject repository path: %s", g.subjectRepoPath)
+	}
+	return err
+}
+
+func (g *getEvidenceCustom) marshalEvidence(evidenceArray []EvidenceEntry) ([]byte, error) {
+	return marshalSearchEvidenceOutput(ArtifactType, CustomEvidenceResult{
+		RepoPath: g.subjectRepoPath,
+		Evidence: evidenceArray,
+	})
 }
 
 func (g *getEvidenceCustom) buildGraphqlQuery(subjectRepoPath string, includeAttachments bool) ([]byte, error) {
@@ -153,19 +114,7 @@ func (g *getEvidenceCustom) buildGraphqlQuery(subjectRepoPath string, includeAtt
 	if err != nil {
 		return nil, err
 	}
-	nodeFields := evidenceutils.NewNodeFieldsBuilder(
-		evidenceutils.FieldPredicateSlug,
-		evidenceutils.FieldPredicateType,
-		evidenceutils.FieldDownloadPath,
-		evidenceutils.FieldVerified,
-		evidenceutils.FieldSigningKeyAlias,
-		evidenceutils.FieldCreatedBy,
-		evidenceutils.FieldCreatedAt,
-		evidenceutils.FieldSubjectSha256,
-	).
-		WithIf(includeAttachments, evidenceutils.AttachmentsFragment).
-		WithIf(g.includePredicate, evidenceutils.FieldPredicate).
-		Build()
+	nodeFields := g.buildSearchEvidenceNodeFields(evidenceutils.FieldSubjectSha256, includeAttachments)
 	queryTemplate := evidenceutils.BuildQuery(getCustomEvidenceQueryTemplate, nodeFields)
 	graphqlQuery := fmt.Sprintf(queryTemplate, repoKey, pathVal, name)
 	log.Debug("GraphQL query: ", graphqlQuery)

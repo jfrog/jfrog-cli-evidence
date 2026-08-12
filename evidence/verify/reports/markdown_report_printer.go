@@ -29,7 +29,21 @@ func (p *markdownReportPrinter) Print(result *model.VerificationResponse) error 
 	fmt.Println("## Evidence Verification Result Summary")
 	fmt.Println()
 	fmt.Printf("Subject path: `%s`  \n", result.Subject.Path)
-	fmt.Printf("Subject sha256: `%s`  \n", result.Subject.Sha256)
+	if result.Subject.Sha256 != "" {
+		fmt.Printf("Subject sha256: `%s`  \n", result.Subject.Sha256)
+	}
+	if result.Subject.EntityType != "" {
+		fmt.Printf("Entity type: `%s`  \n", result.Subject.EntityType)
+	}
+	if result.Subject.EntityId != "" {
+		fmt.Printf("Entity ID: `%s`  \n", result.Subject.EntityId)
+	}
+	if digests := subjectDigestsFromVerifications(result.EvidenceVerifications); len(digests) > 0 {
+		fmt.Println("Subject digests:")
+		for _, digest := range digests {
+			fmt.Printf("- `%s`  \n", digest)
+		}
+	}
 	fmt.Println()
 	fmt.Printf("**Overall attestation verification status:** %s  \n", getStatusDisplay(result.OverallVerificationStatus))
 

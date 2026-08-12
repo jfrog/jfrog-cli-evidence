@@ -14,6 +14,7 @@ import (
 	"github.com/jfrog/jfrog-cli-evidence/evidence/cli/command/application"
 	"github.com/jfrog/jfrog-cli-evidence/evidence/cli/command/artifacts"
 	"github.com/jfrog/jfrog-cli-evidence/evidence/cli/command/build"
+	"github.com/jfrog/jfrog-cli-evidence/evidence/cli/command/entity"
 	"github.com/jfrog/jfrog-cli-evidence/evidence/cli/command/flags"
 	"github.com/jfrog/jfrog-cli-evidence/evidence/cli/command/github"
 	_interface "github.com/jfrog/jfrog-cli-evidence/evidence/cli/command/interface"
@@ -59,6 +60,7 @@ func GetCommands() []components.Command {
 			Description:      create.GetDescription(),
 			AIDescription:    create.GetAIDescription(),
 			Arguments:        create.GetArguments(),
+			UsageOptions:     &components.UsageOptions{Usage: create.GetUsageExamples()},
 			Action:           createEvidence,
 			SupportedFormats: []format.OutputFormat{format.Json, format.Table},
 		},
@@ -69,6 +71,7 @@ func GetCommands() []components.Command {
 			Description:   get.GetDescription(),
 			AIDescription: get.GetAIDescription(),
 			Arguments:     get.GetArguments(),
+			UsageOptions:  &components.UsageOptions{Usage: get.GetUsageExamples()},
 			Action:        getEvidence,
 		},
 		{
@@ -78,6 +81,7 @@ func GetCommands() []components.Command {
 			Description:   verify.GetDescription(),
 			AIDescription: verify.GetAIDescription(),
 			Arguments:     verify.GetArguments(),
+			UsageOptions:  &components.UsageOptions{Usage: verify.GetUsageExamples()},
 			Action:        verifyEvidence,
 		},
 		{
@@ -87,6 +91,7 @@ func GetCommands() []components.Command {
 			Description:   generate.GetDescription(),
 			AIDescription: generate.GetAIDescription(),
 			Arguments:     generate.GetArguments(),
+			UsageOptions:  &components.UsageOptions{Usage: generate.GetUsageExamples()},
 			Action:        generateKeyPair,
 		},
 	}
@@ -137,6 +142,7 @@ func createEvidence(ctx *components.Context) error {
 			flags.BuildName:       build.NewEvidenceBuildCommand,
 			flags.PackageName:     _package.NewEvidencePackageCommand,
 			flags.ApplicationKey:  application.NewEvidenceApplicationCommand,
+			flags.EntityType:      entity.NewEvidenceEntityCommand,
 		}
 
 		if commandFunc, exists := evidenceCommands[evidenceType[0]]; exists {
@@ -174,6 +180,7 @@ func getEvidence(ctx *components.Context) error {
 	evidenceCommands := map[string]func(*components.Context, commandUtils.ExecCommandFunc) _interface.EvidenceCommands{
 		flags.SubjectRepoPath: artifacts.NewEvidenceCustomCommand,
 		flags.ReleaseBundle:   releasebundle.NewEvidenceReleaseBundleCommand,
+		flags.EntityType:      entity.NewEvidenceEntityCommand,
 	}
 
 	if commandFunc, exists := evidenceCommands[evidenceType[0]]; exists {
@@ -214,6 +221,7 @@ func verifyEvidence(ctx *components.Context) error {
 		flags.ReleaseBundle:   releasebundle.NewEvidenceReleaseBundleCommand,
 		flags.BuildName:       build.NewEvidenceBuildCommand,
 		flags.PackageName:     _package.NewEvidencePackageCommand,
+		flags.EntityType:      entity.NewEvidenceEntityCommand,
 	}
 	if commandFunc, exists := evidenceCommands[subjectType[0]]; exists {
 		err = commandFunc(ctx, execFunc).VerifyEvidence(ctx, serverDetails)
@@ -391,6 +399,10 @@ func setKeyAliasIfProvided(ctx *components.Context, keyAlias string) {
 }
 
 func getAndValidateSubject(ctx *components.Context) ([]string, error) {
+	if err := applyApplicationEntityShorthand(ctx); err != nil {
+		return nil, err
+	}
+
 	var foundSubjects []string
 	for _, key := range commandUtils.SubjectTypes {
 		if ctx.GetStringFlagValue(key) != "" {
@@ -413,7 +425,50 @@ func getAndValidateSubject(ctx *components.Context) ([]string, error) {
 		return nil, err
 	}
 
+	// --entity-type is allowed to come together with --application-key
+	if slices.Contains(foundSubjects, flags.EntityType) {
+		return []string{flags.EntityType}, nil
+	}
+
 	return foundSubjects, nil
+}
+
+// applyApplicationEntityShorthand maps bare --application-key (without --application-version)
+// to entity evidence on subject_type=application.
+//
+// When --entity-type is set to a non-application type, --application-key is left alone so it can
+// be used as entity scope. When the command is treated as the application-entity shorthand,
+// --entity-type must be empty or "application", and --entity-id must be empty or equal to the
+// application key.
+func applyApplicationEntityShorthand(ctx *components.Context) error {
+	applicationKey := ctx.GetStringFlagValue(flags.ApplicationKey)
+	applicationVersion := ctx.GetStringFlagValue(flags.ApplicationVersion)
+	if applicationKey == "" || applicationVersion != "" {
+		return nil
+	}
+
+	entityType := ctx.GetStringFlagValue(flags.EntityType)
+	if entityType != "" && entityType != "application" {
+		// --application-key is being used as scope for a non-application entity.
+		return nil
+	}
+
+	for _, key := range []string{flags.SubjectRepoPath, flags.ReleaseBundle, flags.BuildName, flags.PackageName, flags.TypeFlag} {
+		if ctx.GetStringFlagValue(key) != "" {
+			return errorutils.CheckErrorf("multiple subjects found: [%s, %s]", flags.ApplicationKey, key)
+		}
+	}
+
+	entityID := ctx.GetStringFlagValue(flags.EntityId)
+	if entityID != "" && entityID != applicationKey {
+		return errorutils.CheckErrorf("--%s must be empty or equal to --%s when using bare --%s for application entity evidence",
+			flags.EntityId, flags.ApplicationKey, flags.ApplicationKey)
+	}
+
+	ctx.AddStringFlag(flags.EntityType, "application")
+	ctx.AddStringFlag(flags.EntityId, applicationKey)
+	ctx.SetStringFlagValue(flags.ApplicationKey, "")
+	return nil
 }
 
 func attemptSetBuildNameAndNumber(ctx *components.Context) bool {
@@ -454,6 +509,17 @@ func validateFoundSubjects(ctx *components.Context, foundSubjects []string) erro
 	}
 
 	if slices.Contains(foundSubjects, flags.TypeFlag) && attemptSetBuildNameAndNumber(ctx) {
+		return nil
+	}
+
+	if slices.Contains(foundSubjects, flags.EntityType) {
+		// --entity-type can be alone or with --application-key
+		if len(foundSubjects) == 1 {
+			return nil
+		}
+		if len(foundSubjects) > 2 || !slices.Contains(foundSubjects, flags.ApplicationKey) {
+			return errorutils.CheckErrorf("multiple subjects found: [%s]", strings.Join(foundSubjects, ", "))
+		}
 		return nil
 	}
 

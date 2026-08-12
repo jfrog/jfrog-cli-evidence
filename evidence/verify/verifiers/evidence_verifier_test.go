@@ -3,6 +3,7 @@ package verifiers
 import (
 	"bytes"
 	"encoding/base64"
+	"encoding/json"
 	"errors"
 	"io"
 	"testing"
@@ -18,7 +19,7 @@ func TestVerify_NilEvidenceMetadata(t *testing.T) {
 	mockClient := createMockArtifactoryClient([]byte{})
 	verifier := NewEvidenceVerifier(nil, true, mockClient, nil)
 
-	result, err := verifier.Verify("test-sha256", nil, "")
+	result, err := verifier.Verify(model.SubjectDigest{Type: model.Sha256DigestType, Value: "test-sha256"}, nil, "")
 	assert.EqualError(t, err, "no evidence metadata provided")
 	assert.Nil(t, result)
 }
@@ -28,7 +29,7 @@ func TestVerify_EmptyEvidenceMetadata(t *testing.T) {
 	verifier := NewEvidenceVerifier(nil, true, mockClient, nil)
 	emptyMetadata := &[]model.SearchEvidenceEdge{}
 
-	result, err := verifier.Verify("test-sha256", emptyMetadata, "")
+	result, err := verifier.Verify(model.SubjectDigest{Type: model.Sha256DigestType, Value: "test-sha256"}, emptyMetadata, "")
 	assert.EqualError(t, err, "no evidence metadata provided")
 	assert.Nil(t, result)
 }
@@ -41,7 +42,7 @@ func TestVerify_FileReadError(t *testing.T) {
 	var clientInterface artifactory.ArtifactoryServicesManager = mockClient
 	verifier := NewEvidenceVerifier(nil, true, &clientInterface, nil)
 
-	_, err := verifier.Verify(createTestSHA256(), evidence, "/path/to/file")
+	_, err := verifier.Verify(model.SubjectDigest{Type: model.Sha256DigestType, Value: createTestSHA256()}, evidence, "/path/to/file")
 	assert.EqualError(t, err, "failed to read envelope: failed to read remote file: file read error")
 }
 
@@ -80,7 +81,7 @@ func TestVerify_MultipleEvidence(t *testing.T) {
 	var clientInterface artifactory.ArtifactoryServicesManager = mockClient
 	verifier := NewEvidenceVerifier(nil, false, &clientInterface, nil)
 
-	result, err := verifier.Verify(testSha256, evidence, "/path/to/file")
+	result, err := verifier.Verify(model.SubjectDigest{Type: model.Sha256DigestType, Value: testSha256}, evidence, "/path/to/file")
 
 	assert.NoError(t, err)
 	assert.NotNil(t, result)
@@ -108,7 +109,7 @@ func TestVerify_NilEvidence(t *testing.T) {
 		sigstoreVerifier: newSigstoreVerifier(),
 	}
 
-	result, err := verifier.verifyEvidence(nil, createTestSHA256())
+	result, err := verifier.verifyEvidence(nil, model.SubjectDigest{Type: model.Sha256DigestType, Value: createTestSHA256()})
 	assert.EqualError(t, err, "nil evidence provided")
 	assert.Nil(t, result)
 }
@@ -149,7 +150,7 @@ func TestVerify_OverallStatus(t *testing.T) {
 	var clientInterface artifactory.ArtifactoryServicesManager = mockClient
 	verifier := NewEvidenceVerifier(nil, false, &clientInterface, nil)
 
-	result, err := verifier.Verify(createTestSHA256(), evidence, "/path/to/file")
+	result, err := verifier.Verify(model.SubjectDigest{Type: model.Sha256DigestType, Value: createTestSHA256()}, evidence, "/path/to/file")
 
 	assert.NoError(t, err)
 	assert.NotNil(t, result)
@@ -169,19 +170,6 @@ func TestVerify_OverallStatus(t *testing.T) {
 		// Each verification should have a checksum status since we're providing SHA256
 		assert.NotEqual(t, model.VerificationStatus(""), verification.VerificationResult.Sha256VerificationStatus)
 	}
-}
-
-func TestVerifyChecksum_Success(t *testing.T) {
-	sha256 := createTestSHA256()
-	result := verifyChecksum(sha256, sha256)
-	assert.Equal(t, model.Success, result)
-}
-
-func TestVerifyChecksum_Failed(t *testing.T) {
-	sha256a := createTestSHA256()
-	sha256b := "1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef"
-	result := verifyChecksum(sha256a, sha256b)
-	assert.Equal(t, model.Failed, result)
 }
 
 func TestVerify_ChecksumVerificationFailure(t *testing.T) {
@@ -210,7 +198,7 @@ func TestVerify_ChecksumVerificationFailure(t *testing.T) {
 	var clientInterface artifactory.ArtifactoryServicesManager = mockClient
 	verifier := NewEvidenceVerifier(nil, false, &clientInterface, nil)
 
-	result, err := verifier.Verify(subjectSha256, evidence, "/path/to/file")
+	result, err := verifier.Verify(model.SubjectDigest{Type: model.Sha256DigestType, Value: subjectSha256}, evidence, "/path/to/file")
 
 	assert.NoError(t, err)
 	assert.NotNil(t, result)
@@ -219,12 +207,10 @@ func TestVerify_ChecksumVerificationFailure(t *testing.T) {
 
 	verification := (*result.EvidenceVerifications)[0]
 
-	// Verify that checksum verification was performed and failed
+	// Metadata checksum is reported for display, but verification status comes from the signed statement.
 	assert.Equal(t, differentSha256, verification.SubjectChecksum)
-	assert.Equal(t, model.Failed, verification.VerificationResult.Sha256VerificationStatus)
-
-	// Overall status should be failed due to checksum mismatch
-	assert.Equal(t, model.Failed, result.OverallVerificationStatus)
+	assert.Equal(t, model.Success, verification.VerificationResult.Sha256VerificationStatus)
+	assert.Equal(t, model.Success, verification.VerificationResult.SubjectDigestVerificationStatus)
 }
 
 func TestVerify_ChecksumVerificationAlwaysCalled(t *testing.T) {
@@ -254,15 +240,11 @@ func TestVerify_ChecksumVerificationAlwaysCalled(t *testing.T) {
 	var clientInterface artifactory.ArtifactoryServicesManager = mockClient
 	verifier := NewEvidenceVerifier(nil, false, &clientInterface, nil)
 
-	_, err := verifier.Verify(subjectSha256, evidence, "/path/to/file")
+	_, err := verifier.Verify(model.SubjectDigest{Type: model.Sha256DigestType, Value: subjectSha256}, evidence, "/path/to/file")
 
-	// Should get an error due to invalid data, but checksum verification should still be called
+	// Should get an error due to invalid data before subject-digest verification can complete.
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to read envelope")
-
-	// The error should occur after checksum verification, so we can't check the result
-	// But we can verify that the verifyChecksum function is called by checking the implementation
-	// The checksum verification happens before parsing, so it should always be called
 }
 
 type fakeProgressMgr struct {
@@ -291,7 +273,7 @@ func TestVerify_WithProgressMgr_Increments(t *testing.T) {
 	var clientInterface artifactory.ArtifactoryServicesManager = mockClient
 	pm := &fakeProgressMgr{}
 	verifier := NewEvidenceVerifier(nil, false, &clientInterface, pm)
-	_, err := verifier.Verify(createTestSHA256(), evidence, "/path")
+	_, err := verifier.Verify(model.SubjectDigest{Type: model.Sha256DigestType, Value: createTestSHA256()}, evidence, "/path")
 	assert.NoError(t, err)
 	assert.True(t, pm.inited)
 	assert.Equal(t, 1, pm.increments)
@@ -306,7 +288,7 @@ func TestVerify_WithProgressMgr_InitializesAndIncrements_Multiple(t *testing.T) 
 	var clientInterface artifactory.ArtifactoryServicesManager = mockClient
 	pm := &fakeProgressMgr{}
 	verifier := NewEvidenceVerifier(nil, false, &clientInterface, pm)
-	_, err := verifier.Verify(createTestSHA256(), evidence, "/path")
+	_, err := verifier.Verify(model.SubjectDigest{Type: model.Sha256DigestType, Value: createTestSHA256()}, evidence, "/path")
 	assert.NoError(t, err)
 	assert.True(t, pm.inited)
 	assert.Equal(t, 2, pm.increments)
@@ -344,7 +326,7 @@ func TestVerify_AttachmentsVerificationSuccess(t *testing.T) {
 	var clientInterface artifactory.ArtifactoryServicesManager = mockClient
 	verifier := NewEvidenceVerifier(nil, false, &clientInterface, nil)
 
-	result, err := verifier.Verify(createTestSHA256(), evidence, "/path/to/file")
+	result, err := verifier.Verify(model.SubjectDigest{Type: model.Sha256DigestType, Value: createTestSHA256()}, evidence, "/path/to/file")
 	assert.NoError(t, err)
 	assert.Equal(t, model.Success, result.OverallVerificationStatus)
 	assert.Equal(t, model.Success, (*result.EvidenceVerifications)[0].VerificationResult.AttachmentsVerificationStatus)
@@ -369,7 +351,7 @@ func TestVerify_AttachmentsVerificationFailsWhenMetadataMissing(t *testing.T) {
 	var clientInterface artifactory.ArtifactoryServicesManager = mockClient
 	verifier := NewEvidenceVerifier(nil, false, &clientInterface, nil)
 
-	result, err := verifier.Verify(createTestSHA256(), evidence, "/path/to/file")
+	result, err := verifier.Verify(model.SubjectDigest{Type: model.Sha256DigestType, Value: createTestSHA256()}, evidence, "/path/to/file")
 	assert.NoError(t, err)
 	assert.Equal(t, model.Failed, result.OverallVerificationStatus)
 	verification := (*result.EvidenceVerifications)[0]
@@ -397,7 +379,7 @@ func TestVerify_AttachmentsVerificationReturnsErrorWhenMetadataUnavailableViaFal
 	var clientInterface artifactory.ArtifactoryServicesManager = mockClient
 	verifier := NewEvidenceVerifier(nil, false, &clientInterface, nil)
 
-	result, err := verifier.Verify(createTestSHA256(), evidence, "/path/to/file")
+	result, err := verifier.Verify(model.SubjectDigest{Type: model.Sha256DigestType, Value: createTestSHA256()}, evidence, "/path/to/file")
 	assert.EqualError(t, err, "unable to get attachment metadata from GraphQL (query without attachments)")
 	assert.Nil(t, result)
 }
@@ -435,7 +417,7 @@ func TestVerify_AttachmentsVerificationFailsWhenChecksumMismatch(t *testing.T) {
 	var clientInterface artifactory.ArtifactoryServicesManager = mockClient
 	verifier := NewEvidenceVerifier(nil, false, &clientInterface, nil)
 
-	result, err := verifier.Verify(createTestSHA256(), evidence, "/path/to/file")
+	result, err := verifier.Verify(model.SubjectDigest{Type: model.Sha256DigestType, Value: createTestSHA256()}, evidence, "/path/to/file")
 	assert.NoError(t, err)
 	assert.Equal(t, model.Failed, result.OverallVerificationStatus)
 	verification := (*result.EvidenceVerifications)[0]
@@ -469,7 +451,7 @@ func TestVerify_AttachmentsVerificationReturnsErrorWhenFileInfoFailsWithNon404(t
 	var clientInterface artifactory.ArtifactoryServicesManager = mockClient
 	verifier := NewEvidenceVerifier(nil, false, &clientInterface, nil)
 
-	result, err := verifier.Verify(createTestSHA256(), evidence, "/path/to/file")
+	result, err := verifier.Verify(model.SubjectDigest{Type: model.Sha256DigestType, Value: createTestSHA256()}, evidence, "/path/to/file")
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to resolve attachment file info")
 	assert.Contains(t, err.Error(), "500 internal server error")
@@ -504,7 +486,7 @@ func TestVerify_AttachmentsVerificationReturnsErrorWhenChecksumIsUnavailable(t *
 	var clientInterface artifactory.ArtifactoryServicesManager = mockClient
 	verifier := NewEvidenceVerifier(nil, false, &clientInterface, nil)
 
-	result, err := verifier.Verify(createTestSHA256(), evidence, "/path/to/file")
+	result, err := verifier.Verify(model.SubjectDigest{Type: model.Sha256DigestType, Value: createTestSHA256()}, evidence, "/path/to/file")
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to resolve attachment checksum")
 	assert.Contains(t, err.Error(), "sha256 is empty")
@@ -516,4 +498,138 @@ func createDsseEnvelopeWithAttachmentMeta(t *testing.T, sha256 string) []byte {
 	payload := `{"_type":"https://in-toto.io/Statement/v1","subject":[{"digest":{"sha256":"` + createTestSHA256() + `"}}],"predicateType":"https://example.com","predicate":{},"attachments":[{"name":"report.txt","sha256":"` + sha256 + `","type":"text/plain"}]}`
 	envelope := `{"payload":"` + base64.StdEncoding.EncodeToString([]byte(payload)) + `","payloadType":"application/vnd.in-toto+json","signatures":[{"keyid":"k","sig":"dGVzdA=="}]}`
 	return []byte(envelope)
+}
+
+func entityEvidenceEnvelopeBytes(t *testing.T, digest string) []byte {
+	t.Helper()
+	envelope := entityEnvelope(t, digest)
+	data, err := json.Marshal(envelope)
+	assert.NoError(t, err)
+	return data
+}
+
+func TestVerify_Sha256Subject_FailsWhenSignedDigestDiffers(t *testing.T) {
+	subjectSha256 := createTestSHA256()
+	signedSha256 := "1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef"
+	evidence := &[]model.SearchEvidenceEdge{{
+		Node: model.EvidenceMetadata{
+			DownloadPath: "test/path",
+			// The metadata claims the expected checksum, but the signed statement does not.
+			Subject: model.EvidenceSubject{Sha256: subjectSha256},
+		},
+	}}
+	mockClient := &MockArtifactoryServicesManagerVerifier{
+		ReadRemoteFileFunc: func() io.ReadCloser {
+			return io.NopCloser(bytes.NewReader(entityEvidenceEnvelopeBytes(t, `{"sha256":"`+signedSha256+`"}`)))
+		},
+	}
+	var clientInterface artifactory.ArtifactoryServicesManager = mockClient
+	verifier := NewEvidenceVerifier(nil, false, &clientInterface, nil)
+
+	result, err := verifier.Verify(model.SubjectDigest{Type: model.Sha256DigestType, Value: subjectSha256}, evidence, "/path/to/file")
+
+	assert.NoError(t, err)
+	verification := (*result.EvidenceVerifications)[0]
+	// The metadata checksum matches, so only the signed statement can reveal the mismatch.
+	assert.Equal(t, model.Failed, verification.VerificationResult.Sha256VerificationStatus)
+	assert.Equal(t, model.Failed, verification.VerificationResult.SubjectDigestVerificationStatus)
+	assert.Equal(t, model.Failed, result.OverallVerificationStatus)
+}
+
+func TestVerify_Sha256Subject_VerifiesSignedDigest(t *testing.T) {
+	subjectSha256 := createTestSHA256()
+	evidence := &[]model.SearchEvidenceEdge{{
+		Node: model.EvidenceMetadata{
+			DownloadPath: "test/path",
+			Subject:      model.EvidenceSubject{Sha256: subjectSha256},
+		},
+	}}
+	mockClient := &MockArtifactoryServicesManagerVerifier{
+		ReadRemoteFileFunc: func() io.ReadCloser {
+			return io.NopCloser(bytes.NewReader(entityEvidenceEnvelopeBytes(t, `{"sha256":"`+subjectSha256+`"}`)))
+		},
+	}
+	var clientInterface artifactory.ArtifactoryServicesManager = mockClient
+	verifier := NewEvidenceVerifier(nil, false, &clientInterface, nil)
+
+	result, err := verifier.Verify(model.SubjectDigest{Type: model.Sha256DigestType, Value: subjectSha256}, evidence, "/path/to/file")
+
+	assert.NoError(t, err)
+	verification := (*result.EvidenceVerifications)[0]
+	assert.Equal(t, model.Success, verification.VerificationResult.Sha256VerificationStatus)
+	assert.Equal(t, model.Success, verification.VerificationResult.SubjectDigestVerificationStatus)
+	assert.Equal(t, map[string]string{"sha256": subjectSha256}, verification.SignedSubjectDigest)
+}
+
+func TestVerify_EntitySubject_VerifiesSignedDigest(t *testing.T) {
+	evidence := &[]model.SearchEvidenceEdge{{
+		Node: model.EvidenceMetadata{
+			DownloadPath:  "test/path",
+			PredicateType: "https://jfrog.com/evidence/commit-approval/v1",
+			// The service reports the sha256 of an empty payload for entity subjects.
+			Subject: model.EvidenceSubject{Sha256: createTestSHA256()},
+		},
+	}}
+	mockClient := &MockArtifactoryServicesManagerVerifier{
+		ReadRemoteFileFunc: func() io.ReadCloser {
+			return io.NopCloser(bytes.NewReader(entityEvidenceEnvelopeBytes(t, `{"gitCommit":"`+testGitCommitID+`"}`)))
+		},
+	}
+	var clientInterface artifactory.ArtifactoryServicesManager = mockClient
+	verifier := NewEvidenceVerifier(nil, false, &clientInterface, nil)
+
+	result, err := verifier.Verify(model.SubjectDigest{Type: "gitCommit", Value: testGitCommitID}, evidence, "gitCommit/"+testGitCommitID)
+
+	assert.NoError(t, err)
+	// No sha256 is claimed for an entity subject, so no sha256 status is reported.
+	assert.Empty(t, result.Subject.Sha256)
+	assert.Equal(t, "gitCommit", result.Subject.EntityType)
+	assert.Equal(t, testGitCommitID, result.Subject.EntityId)
+	verification := (*result.EvidenceVerifications)[0]
+	assert.Empty(t, verification.SubjectChecksum)
+	assert.Empty(t, verification.VerificationResult.Sha256VerificationStatus)
+	assert.Equal(t, model.Success, verification.VerificationResult.SubjectDigestVerificationStatus)
+	assert.Equal(t, map[string]string{"gitCommit": testGitCommitID}, verification.SignedSubjectDigest)
+}
+
+func TestVerify_EntitySubject_FailsWhenSignedDigestMissing(t *testing.T) {
+	evidence := &[]model.SearchEvidenceEdge{{
+		Node: model.EvidenceMetadata{
+			DownloadPath: "test/path",
+			Subject:      model.EvidenceSubject{Sha256: createTestSHA256()},
+		},
+	}}
+	mockClient := &MockArtifactoryServicesManagerVerifier{
+		ReadRemoteFileFunc: func() io.ReadCloser {
+			return io.NopCloser(bytes.NewReader(entityEvidenceEnvelopeBytes(t, `{"sha256":"`+createTestSHA256()+`"}`)))
+		},
+	}
+	var clientInterface artifactory.ArtifactoryServicesManager = mockClient
+	verifier := NewEvidenceVerifier(nil, false, &clientInterface, nil)
+
+	result, err := verifier.Verify(model.SubjectDigest{Type: "gitCommit", Value: testGitCommitID}, evidence, "gitCommit/"+testGitCommitID)
+
+	assert.NoError(t, err)
+	assert.Equal(t, model.Failed, result.OverallVerificationStatus)
+	verification := (*result.EvidenceVerifications)[0]
+	assert.Equal(t, model.Failed, verification.VerificationResult.SubjectDigestVerificationStatus)
+	assert.Empty(t, verification.VerificationResult.Sha256VerificationStatus)
+}
+
+func TestVerify_EntitySubject_FailsWhenEntityIDDiffers(t *testing.T) {
+	evidence := &[]model.SearchEvidenceEdge{{
+		Node: model.EvidenceMetadata{DownloadPath: "test/path"},
+	}}
+	mockClient := &MockArtifactoryServicesManagerVerifier{
+		ReadRemoteFileFunc: func() io.ReadCloser {
+			return io.NopCloser(bytes.NewReader(entityEvidenceEnvelopeBytes(t, `{"gitCommit":"0000000000000000000000000000000000000000"}`)))
+		},
+	}
+	var clientInterface artifactory.ArtifactoryServicesManager = mockClient
+	verifier := NewEvidenceVerifier(nil, false, &clientInterface, nil)
+
+	result, err := verifier.Verify(model.SubjectDigest{Type: "gitCommit", Value: testGitCommitID}, evidence, "gitCommit/"+testGitCommitID)
+
+	assert.NoError(t, err)
+	assert.Equal(t, model.Failed, result.OverallVerificationStatus)
 }
