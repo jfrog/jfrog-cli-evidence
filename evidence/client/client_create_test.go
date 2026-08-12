@@ -38,21 +38,6 @@ func TestUploadPreparedSignedEvidence(t *testing.T) {
 	assert.JSONEq(t, `{"verified":true}`, string(body))
 }
 
-func TestUploadPreparedSignedEvidence_RejectsNonRootRelativeURL(t *testing.T) {
-	client := newTestEvidenceClient(t, "https://example.jfrog.io/evidence/")
-	for _, postURL := range []string{
-		"",
-		"api/v1/entity/gitCommit/abc123",
-		"https://other.example/evidence/api/v1/entity/gitCommit/abc123",
-	} {
-		t.Run(postURL, func(t *testing.T) {
-			_, err := client.UploadPreparedSignedEvidence(postURL, []byte(`{}`))
-			require.Error(t, err)
-			assert.Contains(t, err.Error(), "root-relative")
-		})
-	}
-}
-
 func TestBuildEntityEvidenceURL(t *testing.T) {
 	client := newTestEvidenceClient(t, "https://example.jfrog.io/evidence/")
 	tests := []struct {

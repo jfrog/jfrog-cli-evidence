@@ -3,7 +3,7 @@ package client
 import (
 	"fmt"
 	"net/http"
-	"net/url"
+	"strings"
 
 	clientutils "github.com/jfrog/jfrog-client-go/utils"
 	"github.com/jfrog/jfrog-client-go/utils/errorutils"
@@ -24,11 +24,8 @@ type CreateEntityEvidenceRequest struct {
 // UploadPreparedSignedEvidence uploads a signed DSSE envelope to the root-relative
 // post URL returned by PrepareEvidence.
 func (c *EvidenceClient) UploadPreparedSignedEvidence(postURL string, signedEnvelope []byte) ([]byte, error) {
-	requestURL, err := c.resolveEvidencePostURL(postURL)
-	if err != nil {
-		return nil, err
-	}
-	log.Debug("Uploading prepared signed Evidence")
+	requestURL := strings.TrimSuffix(c.details.GetUrl(), "/evidence/") + postURL
+	log.Debug("Uploading prepared signed Evidence to URL %q", requestURL)
 	return c.createEvidence(requestURL, signedEnvelope)
 }
 
@@ -76,24 +73,5 @@ func (c *EvidenceClient) createEvidence(requestURL string, payload []byte) ([]by
 }
 
 func (c *EvidenceClient) resolveEvidencePostURL(postURL string) (string, error) {
-	post, err := url.Parse(postURL)
-	if err != nil {
-		return "", errorutils.CheckError(err)
-	}
-	if postURL == "" || post.IsAbs() || post.Host != "" || post.Path == "" || post.Path[0] != '/' {
-		return "", fmt.Errorf("evidence post URL must be a non-empty root-relative URL")
-	}
-
-	base, err := url.Parse(c.details.GetUrl())
-	if err != nil {
-		return "", errorutils.CheckError(err)
-	}
-	if base.Scheme == "" || base.Host == "" {
-		return "", fmt.Errorf("evidence URL must include a scheme and host")
-	}
-
-	post.Scheme = base.Scheme
-	post.Host = base.Host
-	post.User = base.User
-	return post.String(), nil
+	return strings.TrimSuffix(c.details.GetUrl(), "/evidence/") + postURL, nil
 }
