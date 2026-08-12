@@ -71,7 +71,3 @@ func (c *EvidenceClient) createEvidence(requestURL string, payload []byte) ([]by
 	}
 	return body, errorutils.CheckResponseStatusWithBody(resp, body, http.StatusOK, http.StatusCreated)
 }
-
-func (c *EvidenceClient) resolveEvidencePostURL(postURL string) (string, error) {
-	return strings.TrimSuffix(c.details.GetUrl(), "/evidence/") + postURL, nil
-}
