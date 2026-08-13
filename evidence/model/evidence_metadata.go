@@ -32,7 +32,8 @@ type EvidenceMetadata struct {
 	Predicate         string          `json:"predicate"`
 	CreatedAt         string          `json:"createdAt"`
 	CreatedBy         string          `json:"createdBy"`
-	Verified          string          `json:"verified"`
+	// Verified is Evidence GraphQL Evidence.verified (DB evidence_verified after ingest).
+	Verified          bool            `json:"verified"`
 	Subject           EvidenceSubject `json:"subject"`
 	ProviderId        string          `json:"providerId"`
 	SigningKey        SingingKey      `json:"signingKey"`

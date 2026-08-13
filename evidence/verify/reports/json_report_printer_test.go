@@ -13,10 +13,22 @@ func TestJsonPrinter_Success(t *testing.T) {
 			Sha256: "test-checksum",
 		},
 		OverallVerificationStatus: model.Success,
+		EvidenceVerifications: &[]model.EvidenceVerification{{
+			VerificationResult: model.EvidenceVerificationResult{
+				Sha256VerificationStatus:     model.Success,
+				SignaturesVerificationStatus: model.Success,
+				SignaturesVerificationNote:   "federated verification note",
+			},
+		}},
 	}
 
-	err := JsonReportPrinter.Print(resp)
-	assert.NoError(t, err)
+	out := captureOutput(func() {
+		err := JsonReportPrinter.Print(resp)
+		assert.NoError(t, err)
+	})
+
+	assert.Contains(t, out, `"signaturesVerificationNote": "federated verification note"`)
+	assert.NotContains(t, out, `"source"`)
 }
 
 func TestJsonPrinter_NilResponse(t *testing.T) {

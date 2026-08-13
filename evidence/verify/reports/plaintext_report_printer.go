@@ -90,6 +90,9 @@ func (p *plaintextReportPrinter) printVerificationResult(verification *model.Evi
 	}
 	if verification.MediaType == model.SimpleDSSE {
 		fmt.Printf("    - Signatures verification status:  %s\n", p.getColoredStatus(verification.VerificationResult.SignaturesVerificationStatus))
+		if verification.VerificationResult.SignaturesVerificationNote != "" {
+			fmt.Printf("    - Signatures verification note:    %s\n", verification.VerificationResult.SignaturesVerificationNote)
+		}
 	}
 	if verification.MediaType == model.SigstoreBundle {
 		fmt.Printf("    - Sigstore verification status:    %s\n", p.getColoredStatus(verification.VerificationResult.SigstoreBundleVerificationStatus))

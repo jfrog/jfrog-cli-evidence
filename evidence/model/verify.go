@@ -72,6 +72,7 @@ type EvidenceVerificationResult struct {
 	SubjectDigestVerificationStatus  VerificationStatus         `json:"subjectDigestVerificationStatus,omitempty"`
 	SignaturesVerificationStatus     VerificationStatus         `json:"signaturesVerificationStatus,omitempty"`
 	SigstoreBundleVerificationStatus VerificationStatus         `json:"sigstoreBundleVerificationStatus,omitempty"`
+	SignaturesVerificationNote       string                     `json:"signaturesVerificationNote,omitempty"`
 	KeySource                        string                     `json:"keySource,omitempty"`
 	KeyFingerprint                   string                     `json:"keyFingerprint,omitempty"`
 	SigstoreBundleVerificationResult *verify.VerificationResult `json:"sigstoreBundleVerificationResult,omitempty"`

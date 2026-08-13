@@ -187,6 +187,7 @@ func (v *verifyEvidenceBase) buildSearchEvidenceQuery(includeAttachments bool) s
 		evidenceutils.FieldPredicateType,
 		evidenceutils.FieldCreatedAt,
 		evidenceutils.FieldCreatedBy,
+		evidenceutils.FieldVerified,
 		evidenceutils.FieldSubjectSha256,
 	).
 		WithIf(includeAttachments, evidenceutils.AttachmentsFragment).
