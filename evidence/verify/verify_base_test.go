@@ -256,7 +256,7 @@ func TestVerifyEvidenceBase_QueryEvidenceMetadata_CreateOneModelClient(t *testin
 func TestVerifyEvidenceBase_SearchEvidenceQueryExactMatch(t *testing.T) {
 	v := &verifyEvidenceBase{useArtifactoryKeys: true}
 	builtQuery := v.buildSearchEvidenceQuery(true)
-	expectedQuery := `{"query":"{ evidence { searchEvidence( where: { hasSubjectWith: { repositoryKey: \"%s\", path: \"%s\", name: \"%s\" }} ) { edges { cursor node { downloadPath predicateType createdAt createdBy subject { sha256 } attachments { name sha256 type downloadPath } signingKey {alias, publicKey} } } } } }"}`
+	expectedQuery := `{"query":"{ evidence { searchEvidence( where: { hasSubjectWith: { repositoryKey: \"%s\", path: \"%s\", name: \"%s\" }} ) { edges { cursor node { downloadPath predicateType createdAt createdBy verified subject { sha256 } attachments { name sha256 type downloadPath } signingKey {alias, publicKey} } } } } }"}`
 
 	assert.Equal(t, expectedQuery, builtQuery,
 		"Built query with publicKey+attachments has been modified. "+
@@ -290,6 +290,7 @@ func TestVerifyEvidenceBase_SearchEvidenceQueryWithoutPublicKey(t *testing.T) {
 	builtQuery := v.buildSearchEvidenceQuery(true)
 
 	assert.Contains(t, builtQuery, "attachments")
+	assert.Contains(t, builtQuery, "verified")
 	assert.NotContains(t, builtQuery, "publicKey")
 	assert.NotContains(t, builtQuery, "signingKey")
 

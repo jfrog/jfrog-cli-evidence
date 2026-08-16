@@ -141,6 +141,31 @@ func TestPlaintext_Print_WithFullDetails(t *testing.T) {
 	assert.Contains(t, out, "Key fingerprint:                 test-fingerprint")
 }
 
+func TestPlaintext_Print_RecordedVerificationNote(t *testing.T) {
+	resp := &model.VerificationResponse{
+		OverallVerificationStatus: model.Success,
+		EvidenceVerifications: &[]model.EvidenceVerification{{
+			MediaType: model.SimpleDSSE,
+			VerificationResult: model.EvidenceVerificationResult{
+				Sha256VerificationStatus:     model.Success,
+				SignaturesVerificationStatus: model.Success,
+				SignaturesVerificationNote:   "recorded verification note",
+			},
+		}},
+	}
+
+	out := captureOutput(func() {
+		err := PlaintextReportPrinter.Print(resp)
+		assert.NoError(t, err)
+	})
+
+	assert.Contains(t, out, "Signatures verification status:  ")
+	assert.Contains(t, out, "(recorded result, not verified in this run)")
+	assert.Contains(t, out, "Signatures verification note:    recorded verification note")
+	assert.NotContains(t, out, "Verification source:")
+	assert.NotContains(t, out, "Origin:")
+}
+
 func TestGetColoredStatus_AllStatuses(t *testing.T) {
 	assert.Equal(t, PlaintextReportPrinter.success, PlaintextReportPrinter.getColoredStatus(model.Success))
 	assert.Equal(t, PlaintextReportPrinter.failed, PlaintextReportPrinter.getColoredStatus(model.Failed))

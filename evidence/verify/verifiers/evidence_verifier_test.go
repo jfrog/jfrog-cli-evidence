@@ -311,6 +311,7 @@ func TestVerify_AttachmentsVerificationSuccess(t *testing.T) {
 			},
 		},
 	}
+	(*evidence)[0].Node.Verified = true
 	mockClient := &MockArtifactoryServicesManagerVerifier{
 		ReadRemoteFileFunc: func() io.ReadCloser {
 			return io.NopCloser(bytes.NewReader(createDsseEnvelopeWithAttachmentMeta(t, attachmentSha)))
@@ -371,6 +372,7 @@ func TestVerify_AttachmentsVerificationReturnsErrorWhenMetadataUnavailableViaFal
 			},
 		},
 	}
+	(*evidence)[0].Node.Verified = true
 	mockClient := &MockArtifactoryServicesManagerVerifier{
 		ReadRemoteFileFunc: func() io.ReadCloser {
 			return io.NopCloser(bytes.NewReader(createDsseEnvelopeWithAttachmentMeta(t, attachmentSha)))
