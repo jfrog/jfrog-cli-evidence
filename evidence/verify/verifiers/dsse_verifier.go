@@ -14,6 +14,11 @@ import (
 const localKeySource = "User Provided Key"
 const artifactoryKeySource = "Artifactory Key"
 
+const (
+	recordedVerdictNote        = "no public key was available; use --public-keys, or upload the key to Artifactory and use --use-artifactory-keys, to verify cryptographically"
+	noPublicKeyAvailableReason = "no public key available"
+)
+
 type dsseVerifierInterface interface {
 	verify(evidence *model.SearchEvidenceEdge, result *model.EvidenceVerification) error
 }
@@ -22,6 +27,7 @@ type dsseVerifier struct {
 	keys               []string
 	useArtifactoryKeys bool
 	localKeys          []dsse.Verifier
+	artifactoryClient  *artifactory.ArtifactoryServicesManager
 	attachmentVerifier attachmentVerifierInterface
 }
 
@@ -29,6 +35,7 @@ func newDsseVerifier(keys []string, useArtifactoryKeys bool, client *artifactory
 	return &dsseVerifier{
 		keys:               keys,
 		useArtifactoryKeys: useArtifactoryKeys,
+		artifactoryClient:  client,
 		attachmentVerifier: newAttachmentVerifier(*client),
 	}
 }
@@ -41,23 +48,59 @@ func (v *dsseVerifier) verify(evidence *model.SearchEvidenceEdge, result *model.
 	if err != nil && v.keys != nil && len(v.keys) > 0 {
 		return err
 	}
-	signatureVerified := false
-	if len(localVerifiers) > 0 && verifyEnvelope(localVerifiers, result.DsseEnvelope, result) {
-		result.VerificationResult.KeySource = localKeySource
-		signatureVerified = true
-	}
 
-	if !signatureVerified && v.useArtifactoryKeys {
-		artifactoryVerifiers, err := getArtifactoryVerifiers(evidence)
+	var artifactoryVerifiers []dsse.Verifier
+	if v.useArtifactoryKeys {
+		artifactoryVerifiers, err = getArtifactoryVerifiers(evidence)
 		if err != nil {
 			return err
 		}
-		if verifyEnvelope(artifactoryVerifiers, result.DsseEnvelope, result) {
-			result.VerificationResult.KeySource = artifactoryKeySource
-		}
 	}
 
-	return v.attachmentVerifier.verify(evidence, result)
+	var failureReason string
+	if len(localVerifiers) > 0 || len(artifactoryVerifiers) > 0 {
+		v.verifyWithKeys(localVerifiers, artifactoryVerifiers, result)
+	} else {
+		failureReason = verifyViaEvidenceVerified(evidence, result)
+	}
+
+	if err := v.attachmentVerifier.verify(evidence, result); err != nil {
+		return err
+	}
+	// An attachment failure carries a more specific reason, so it keeps the field.
+	if failureReason != "" && result.VerificationResult.FailureReason == "" {
+		result.VerificationResult.FailureReason = failureReason
+	}
+	return nil
+}
+
+func (v *dsseVerifier) verifyWithKeys(localVerifiers, artifactoryVerifiers []dsse.Verifier, result *model.EvidenceVerification) {
+	if len(localVerifiers) > 0 && verifyEnvelope(localVerifiers, result.DsseEnvelope, result) {
+		result.VerificationResult.KeySource = localKeySource
+		return
+	}
+	if len(artifactoryVerifiers) > 0 && verifyEnvelope(artifactoryVerifiers, result.DsseEnvelope, result) {
+		result.VerificationResult.KeySource = artifactoryKeySource
+		return
+	}
+	// Keys were present but signature invalid — do not fall back to the recorded verified flag.
+	if result.VerificationResult.SignaturesVerificationStatus == "" {
+		result.VerificationResult.SignaturesVerificationStatus = model.Failed
+	}
+}
+
+// verifyViaEvidenceVerified trusts Evidence GraphQL verified (DB) when no public key is available.
+// That flag is the verification result recorded with the evidence (source create or federated
+// ingest). On an edge after Distribution override it is false, so verify stays not verified
+// without a Trusted Key.
+func verifyViaEvidenceVerified(evidence *model.SearchEvidenceEdge, result *model.EvidenceVerification) string {
+	result.VerificationResult.SignaturesVerificationStatus = model.Failed
+	if evidence != nil && evidence.Node.Verified {
+		result.VerificationResult.SignaturesVerificationStatus = model.Success
+		result.VerificationResult.SignaturesVerificationNote = recordedVerdictNote
+		return ""
+	}
+	return noPublicKeyAvailableReason
 }
 
 func (v *dsseVerifier) getLocalVerifiers() ([]dsse.Verifier, error) {

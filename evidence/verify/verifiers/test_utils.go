@@ -107,6 +107,9 @@ type MockArtifactoryServicesManagerVerifier struct {
 	FileInfoResponse       *artUtils.FileInfo
 	FileInfoError          error
 	FileInfoFunc           func(path string) (*artUtils.FileInfo, error)
+	ItemProps              *artUtils.ItemProperties
+	ItemPropsError         error
+	ItemPropsCalled        bool
 }
 
 func (m *MockArtifactoryServicesManagerVerifier) ReadRemoteFile(_ string) (io.ReadCloser, error) {
@@ -127,6 +130,17 @@ func (m *MockArtifactoryServicesManagerVerifier) FileInfo(path string) (*artUtil
 		return m.FileInfoFunc(path)
 	}
 	return m.FileInfoResponse, nil
+}
+
+func (m *MockArtifactoryServicesManagerVerifier) GetItemProps(_ string) (*artUtils.ItemProperties, error) {
+	m.ItemPropsCalled = true
+	if m.ItemPropsError != nil {
+		return nil, m.ItemPropsError
+	}
+	if m.ItemProps != nil {
+		return m.ItemProps, nil
+	}
+	return &artUtils.ItemProperties{}, nil
 }
 
 type MockDSSEVerifier struct {

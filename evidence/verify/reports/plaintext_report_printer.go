@@ -89,7 +89,17 @@ func (p *plaintextReportPrinter) printVerificationResult(verification *model.Evi
 		fmt.Printf("    - Subject digest verification:     %s\n", p.getColoredStatus(verification.VerificationResult.SubjectDigestVerificationStatus))
 	}
 	if verification.MediaType == model.SimpleDSSE {
-		fmt.Printf("    - Signatures verification status:  %s\n", p.getColoredStatus(verification.VerificationResult.SignaturesVerificationStatus))
+		signaturesStatus := p.getColoredStatus(verification.VerificationResult.SignaturesVerificationStatus)
+		// Recorded-result path (no key available): the JSON status stays a plain enum, so the
+		// plaintext view carries the caveat inline to make it impossible to miss.
+		if verification.VerificationResult.SignaturesVerificationStatus == model.Success &&
+			verification.VerificationResult.SignaturesVerificationNote != "" {
+			signaturesStatus = fmt.Sprintf("%s (recorded result, not verified in this run)", signaturesStatus)
+		}
+		fmt.Printf("    - Signatures verification status:  %s\n", signaturesStatus)
+		if verification.VerificationResult.SignaturesVerificationNote != "" {
+			fmt.Printf("    - Signatures verification note:    %s\n", verification.VerificationResult.SignaturesVerificationNote)
+		}
 	}
 	if verification.MediaType == model.SigstoreBundle {
 		fmt.Printf("    - Sigstore verification status:    %s\n", p.getColoredStatus(verification.VerificationResult.SigstoreBundleVerificationStatus))

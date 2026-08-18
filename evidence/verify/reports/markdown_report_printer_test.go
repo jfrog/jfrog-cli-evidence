@@ -37,6 +37,7 @@ func TestMarkdown_Print_Success(t *testing.T) {
 	assert.Contains(t, out, "## Evidence Verification Result Summary")
 	assert.Contains(t, out, "| pred-1 | evidence.dsse | - | - | ✅ Verified | - |")
 	assert.Contains(t, out, "| pred-2 | sigstore.bundle | - | - | ❌ Failed | - |")
+	assert.NotContains(t, out, "| Source |")
 	assert.Contains(t, out, "## Attestation Verification Full Results")
 }
 

@@ -14,6 +14,7 @@ import (
 
 	"github.com/jfrog/jfrog-cli-evidence/evidence/dsse"
 	"github.com/jfrog/jfrog-cli-evidence/evidence/model"
+	"github.com/jfrog/jfrog-client-go/artifactory"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 )
@@ -236,14 +237,19 @@ func TestDsseVerifier_VerifyWithLocalKeys(t *testing.T) {
 func TestDsseVerifier_VerifyNoKeysAvailable(t *testing.T) {
 	envelope := createMockDsseEnvelope()
 	result := &model.EvidenceVerification{
+		DownloadPath:       "repo/.evidence/file.evd",
 		DsseEnvelope:       &envelope,
 		VerificationResult: model.EvidenceVerificationResult{},
 	}
 	evidence := &model.SearchEvidenceEdge{
 		Node: model.EvidenceMetadata{
 			SigningKey: model.SingingKey{}, // No public key
+			Verified:   false,
 		},
 	}
+
+	mockClient := &MockArtifactoryServicesManagerVerifier{}
+	var clientInterface artifactory.ArtifactoryServicesManager = mockClient
 
 	mockAttVerifier := &MockAttachmentVerifier{}
 	mockAttVerifier.On("verify", mock.Anything, mock.Anything).Return(nil)
@@ -251,12 +257,171 @@ func TestDsseVerifier_VerifyNoKeysAvailable(t *testing.T) {
 	verifier := &dsseVerifier{
 		useArtifactoryKeys: true,
 		localKeys:          []dsse.Verifier{},
+		artifactoryClient:  &clientInterface,
 		attachmentVerifier: mockAttVerifier,
 	}
 
 	err := verifier.verify(evidence, result)
 	assert.NoError(t, err)
 	assert.Equal(t, model.Failed, result.VerificationResult.SignaturesVerificationStatus)
+	assert.False(t, mockClient.ItemPropsCalled)
+	assert.Equal(t, noPublicKeyAvailableReason, result.VerificationResult.FailureReason)
+	assert.Empty(t, result.VerificationResult.SignaturesVerificationNote)
+}
+
+func TestDsseVerifier_Verify_NoKeys_VerifiedFalse_ReportsKeyUnavailable(t *testing.T) {
+	envelope := createMockDsseEnvelope()
+	result := &model.EvidenceVerification{
+		DownloadPath:       "repo/.evidence/file.evd",
+		DsseEnvelope:       &envelope,
+		VerificationResult: model.EvidenceVerificationResult{},
+	}
+	evidence := &model.SearchEvidenceEdge{
+		Node: model.EvidenceMetadata{
+			SigningKey: model.SingingKey{},
+			Verified:   false,
+		},
+	}
+
+	mockClient := &MockArtifactoryServicesManagerVerifier{}
+	var clientInterface artifactory.ArtifactoryServicesManager = mockClient
+
+	mockAttVerifier := &MockAttachmentVerifier{}
+	mockAttVerifier.On("verify", mock.Anything, mock.Anything).Return(nil)
+
+	verifier := &dsseVerifier{
+		useArtifactoryKeys: false,
+		localKeys:          []dsse.Verifier{},
+		artifactoryClient:  &clientInterface,
+		attachmentVerifier: mockAttVerifier,
+	}
+
+	err := verifier.verify(evidence, result)
+	assert.NoError(t, err)
+	assert.Equal(t, model.Failed, result.VerificationResult.SignaturesVerificationStatus)
+	assert.Equal(t, noPublicKeyAvailableReason, result.VerificationResult.FailureReason)
+	assert.Empty(t, result.VerificationResult.SignaturesVerificationNote)
+}
+
+func TestDsseVerifier_Verify_NoKeys_VerifiedTrue(t *testing.T) {
+	envelope := createMockDsseEnvelope()
+	result := &model.EvidenceVerification{
+		DownloadPath:       "repo/.evidence/file.evd",
+		DsseEnvelope:       &envelope,
+		VerificationResult: model.EvidenceVerificationResult{},
+	}
+	evidence := &model.SearchEvidenceEdge{
+		Node: model.EvidenceMetadata{
+			SigningKey: model.SingingKey{},
+			Verified:   true,
+		},
+	}
+
+	mockClient := &MockArtifactoryServicesManagerVerifier{}
+	var clientInterface artifactory.ArtifactoryServicesManager = mockClient
+
+	mockAttVerifier := &MockAttachmentVerifier{}
+	mockAttVerifier.On("verify", mock.Anything, mock.Anything).Return(nil)
+
+	verifier := &dsseVerifier{
+		useArtifactoryKeys: false,
+		localKeys:          []dsse.Verifier{},
+		artifactoryClient:  &clientInterface,
+		attachmentVerifier: mockAttVerifier,
+	}
+
+	err := verifier.verify(evidence, result)
+	assert.NoError(t, err)
+	assert.Equal(t, model.Success, result.VerificationResult.SignaturesVerificationStatus)
+	assert.Equal(t, recordedVerdictNote, result.VerificationResult.SignaturesVerificationNote)
+	assert.Empty(t, result.VerificationResult.FailureReason)
+	assert.False(t, mockClient.ItemPropsCalled)
+}
+
+func TestDsseVerifier_Verify_KeysPresent_BadSignature_NoVerifiedFallback(t *testing.T) {
+	mockVerifier := &MockDSSEVerifier{
+		KeyIDValue: "test-key-id",
+		PublicKey:  &rsa.PublicKey{N: big.NewInt(1), E: 65537},
+	}
+	mockVerifier.On("Verify", mock.Anything, mock.Anything).Return(errors.New("verification failed"))
+
+	envelope := createMockDsseEnvelope()
+	result := &model.EvidenceVerification{
+		DownloadPath:       "repo/.evidence/file.evd",
+		DsseEnvelope:       &envelope,
+		VerificationResult: model.EvidenceVerificationResult{},
+	}
+	evidence := &model.SearchEvidenceEdge{
+		Node: model.EvidenceMetadata{
+			Subject: model.EvidenceSubject{
+				Sha256: createTestSHA256(),
+			},
+			SigningKey: model.SingingKey{},
+			Verified:   true, // must not rescue a bad crypto signature
+		},
+	}
+
+	mockClient := &MockArtifactoryServicesManagerVerifier{}
+	var clientInterface artifactory.ArtifactoryServicesManager = mockClient
+
+	mockAttVerifier := &MockAttachmentVerifier{}
+	mockAttVerifier.On("verify", mock.Anything, mock.Anything).Return(nil)
+
+	verifier := &dsseVerifier{
+		keys:               []string{"test-key"},
+		useArtifactoryKeys: false,
+		localKeys:          []dsse.Verifier{mockVerifier},
+		artifactoryClient:  &clientInterface,
+		attachmentVerifier: mockAttVerifier,
+	}
+
+	err := verifier.verify(evidence, result)
+	assert.NoError(t, err)
+	assert.Equal(t, model.Failed, result.VerificationResult.SignaturesVerificationStatus)
+	assert.Empty(t, result.VerificationResult.FailureReason)
+	assert.Empty(t, result.VerificationResult.SignaturesVerificationNote)
+	assert.False(t, mockClient.ItemPropsCalled)
+}
+
+func TestDsseVerifier_Verify_CryptoSuccess_DoesNotSetFederatedNote(t *testing.T) {
+	mockVerifier := &MockDSSEVerifier{
+		KeyIDValue: "test-key-id",
+		PublicKey:  &rsa.PublicKey{N: big.NewInt(1), E: 65537},
+	}
+	mockVerifier.On("Verify", mock.Anything, mock.Anything).Return(nil)
+
+	envelope := createMockDsseEnvelope()
+	result := &model.EvidenceVerification{
+		DownloadPath:       "repo/.evidence/file.evd",
+		DsseEnvelope:       &envelope,
+		VerificationResult: model.EvidenceVerificationResult{},
+	}
+	evidence := &model.SearchEvidenceEdge{
+		Node: model.EvidenceMetadata{
+			Subject:  model.EvidenceSubject{Sha256: createTestSHA256()},
+			Verified: false, // a good signature verifies regardless of the recorded verdict
+		},
+	}
+
+	mockClient := &MockArtifactoryServicesManagerVerifier{}
+	var clientInterface artifactory.ArtifactoryServicesManager = mockClient
+
+	mockAttVerifier := &MockAttachmentVerifier{}
+	mockAttVerifier.On("verify", mock.Anything, mock.Anything).Return(nil)
+
+	verifier := &dsseVerifier{
+		keys:               []string{"test-key"},
+		useArtifactoryKeys: false,
+		localKeys:          []dsse.Verifier{mockVerifier},
+		artifactoryClient:  &clientInterface,
+		attachmentVerifier: mockAttVerifier,
+	}
+
+	err := verifier.verify(evidence, result)
+	assert.NoError(t, err)
+	assert.Equal(t, model.Success, result.VerificationResult.SignaturesVerificationStatus)
+	assert.Empty(t, result.VerificationResult.SignaturesVerificationNote)
+	assert.False(t, mockClient.ItemPropsCalled)
 }
 
 func TestDsseVerifier_GetLocalVerifiers(t *testing.T) {
