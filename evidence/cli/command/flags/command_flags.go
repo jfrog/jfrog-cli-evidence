@@ -85,7 +85,7 @@ var flagsMap = map[string]components.Flag{
 	Predicate:        components.NewStringFlag(Predicate, "Path to the Predicate, arbitrary JSON. Mandatory unless --"+SigstoreBundle+" is used", func(f *components.StringFlag) { f.Mandatory = false }),
 	PredicateType:    components.NewStringFlag(PredicateType, "Type of the Predicate. Mandatory unless --"+SigstoreBundle+" is used", func(f *components.StringFlag) { f.Mandatory = false }),
 	IncludePredicate: components.NewBoolFlag(IncludePredicate, "Include the Predicate data in the get evidence Output.", components.WithBoolDefaultValueFalse()),
-	Markdown:         components.NewStringFlag(Markdown, "Markdown of the Predicate.", func(f *components.StringFlag) { f.Mandatory = false }),
+	Markdown:         components.NewStringFlag(Markdown, "Markdown of the Predicate. Not supported with --"+SigstoreBundle+".", func(f *components.StringFlag) { f.Mandatory = false }),
 	SubjectRepoPath:  components.NewStringFlag(SubjectRepoPath, "Full path to some subject location.", func(f *components.StringFlag) { f.Mandatory = false }),
 	SubjectSha256:    components.NewStringFlag(SubjectSha256, "Subject checksum sha256.", func(f *components.StringFlag) { f.Mandatory = false }),
 	Key:              components.NewStringFlag(Key, "Path to a private key that will sign the DSSE. Supported keys: 'ecdsa','rsa' and 'ed25519'.", func(f *components.StringFlag) { f.Mandatory = false }),
@@ -93,7 +93,7 @@ var flagsMap = map[string]components.Flag{
 
 	ProviderId:                components.NewStringFlag(ProviderId, "Provider ID for the evidence.", func(f *components.StringFlag) { f.Mandatory = false }),
 	PublicKeys:                components.NewStringFlag(PublicKeys, "Array of paths to public keys for signatures verification with \";\" separator. Supported keys: 'ecdsa','rsa' and 'ed25519'.", func(f *components.StringFlag) { f.Mandatory = false }),
-	SigstoreBundle:            components.NewStringFlag(SigstoreBundle, "Path to a Sigstore bundle file with a pre-signed DSSE envelope. Works with artifact subjects and --entity-type/--entity-id. Incompatible with --"+Key+", --"+KeyAlias+", --"+Predicate+", --"+PredicateType+" and --"+SubjectSha256+".", func(f *components.StringFlag) { f.Mandatory = false }),
+	SigstoreBundle:            components.NewStringFlag(SigstoreBundle, "Path to a Sigstore bundle file with a pre-signed DSSE envelope. Works with artifact subjects and --entity-type/--entity-id. Incompatible with --"+Key+", --"+KeyAlias+", --"+Predicate+", --"+PredicateType+", --"+Markdown+", --"+SubjectSha256+" and all --attach-* flags.", func(f *components.StringFlag) { f.Mandatory = false }),
 	AttachLocal:               components.NewStringFlag(AttachLocal, "Path to a local file to attach to created evidence. Incompatible with --"+AttachArtifactoryPath+".", func(f *components.StringFlag) { f.Mandatory = false }),
 	AttachArtifactoryTempPath: components.NewStringFlag(AttachArtifactoryTempPath, "Temporary Artifactory upload path for --"+AttachLocal+" in format <repo/path[/name]>. Use trailing slash for directory targets. Can also be set via env var EVIDENCE_ATTACHMENT_ARTIFACTORY_TEMP_PATH or config key attachment.artifactoryTempPath. Once provided, the value is persisted for subsequent runs.", func(f *components.StringFlag) { f.Mandatory = false }),
 	AttachArtifactoryPath:     components.NewStringFlag(AttachArtifactoryPath, "Existing Artifactory file path to attach in format <repo/path>.", func(f *components.StringFlag) { f.Mandatory = false }),

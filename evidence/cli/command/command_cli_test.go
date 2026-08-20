@@ -500,6 +500,15 @@ func TestCreateEvidenceValidation_SigstoreBundle(t *testing.T) {
 			errorContains: "The following parameters cannot be used with --sigstore-bundle: --predicate-type",
 		},
 		{
+			name: "InvalidContext_-_SigstoreBundle_With_Markdown",
+			flags: []components.Flag{
+				test.SetDefaultValue(flags.SigstoreBundle, "/path/to/bundle.json"),
+				test.SetDefaultValue(flags.Markdown, "/path/to/notes.md"),
+			},
+			expectError:   true,
+			errorContains: "The following parameters cannot be used with --sigstore-bundle: --markdown",
+		},
+		{
 			name: "InvalidContext_-_SigstoreBundle_With_Multiple_Conflicting_Params",
 			flags: []components.Flag{
 				test.SetDefaultValue(flags.SigstoreBundle, "/path/to/bundle.json"),
@@ -751,6 +760,15 @@ func TestValidateSigstoreBundleConflicts(t *testing.T) {
 			},
 			expectError:   true,
 			errorContains: "--key",
+		},
+		{
+			name: "Conflict_With_Markdown",
+			flags: []components.Flag{
+				test.SetDefaultValue(flags.SigstoreBundle, "/path/to/bundle.json"),
+				test.SetDefaultValue(flags.Markdown, "/path/to/notes.md"),
+			},
+			expectError:   true,
+			errorContains: "--markdown",
 		},
 		{
 			name: "Conflict_With_Multiple_Params",
