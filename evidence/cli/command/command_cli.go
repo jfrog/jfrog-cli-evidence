@@ -354,6 +354,9 @@ func validateSigstoreBundleArgsConflicts(ctx *components.Context) error {
 	if ctx.IsFlagSet(flags.AttachArtifactoryPath) && ctx.GetStringFlagValue(flags.AttachArtifactoryPath) != "" {
 		conflictingParams = append(conflictingParams, "--"+flags.AttachArtifactoryPath)
 	}
+	if ctx.IsFlagSet(flags.Markdown) && ctx.GetStringFlagValue(flags.Markdown) != "" {
+		conflictingParams = append(conflictingParams, "--"+flags.Markdown)
+	}
 
 	if len(conflictingParams) > 0 {
 		return errorutils.CheckErrorf("The following parameters cannot be used with --%s: %s. These values are extracted from the bundle itself:", flags.SigstoreBundle, strings.Join(conflictingParams, ", "))
