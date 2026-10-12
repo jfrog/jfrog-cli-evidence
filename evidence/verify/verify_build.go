@@ -40,9 +40,11 @@ func (v *verifyEvidenceBuild) Run() error {
 	}
 
 	repoKey := utils.BuildBuildInfoRepoKey(v.project)
+	buildPath := utils.EncodeBuildInfoPathSegment(v.buildName)
+	buildFilePrefix := utils.EncodeBuildInfoPathSegment(v.buildNumber)
 
 	v.setHeadline("Searching build")
-	result, err := utils.ExecuteAqlQuery(fmt.Sprintf(aqlBuildQueryTemplate, repoKey, v.buildName, v.buildNumber), client)
+	result, err := utils.ExecuteAqlQuery(fmt.Sprintf(aqlBuildQueryTemplate, repoKey, buildPath, buildFilePrefix), client)
 	if err != nil {
 		return fmt.Errorf("failed to execute AQL query: %w", err)
 	}
@@ -52,12 +54,12 @@ func (v *verifyEvidenceBuild) Run() error {
 	buildInfoSha256 := result.Results[0].Sha256
 	subjectFileName := result.Results[0].Name
 
-	metadata, err := v.queryEvidenceMetadata(repoKey, v.buildName, subjectFileName)
+	metadata, err := v.queryEvidenceMetadata(repoKey, buildPath, subjectFileName)
 	if err != nil {
 		return err
 	}
 
-	subjectPath := fmt.Sprintf("%s/%s/%s", repoKey, v.buildName, subjectFileName)
+	subjectPath := fmt.Sprintf("%s/%s/%s", repoKey, buildPath, subjectFileName)
 	return v.verifyEvidence(client, metadata, model.SubjectDigest{Type: model.Sha256DigestType, Value: buildInfoSha256}, subjectPath)
 }
 
