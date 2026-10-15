@@ -213,3 +213,32 @@ func TestPrepareSignedStatement_ReadsMarkdown(t *testing.T) {
 	var decoded map[string]any
 	require.NoError(t, json.Unmarshal(evidenceServiceClient.prepareReq.Predicate, &decoded))
 }
+
+func TestPrepareSignedStatement_EmbedsMarkdownImages(t *testing.T) {
+	dir := t.TempDir()
+	predicatePath := filepath.Join(dir, "predicate.json")
+	markdownPath := filepath.Join(dir, "notes.md")
+	imagePath := filepath.Join(dir, "image.svg")
+	require.NoError(t, os.WriteFile(predicatePath, []byte(`{}`), 0o600))
+	require.NoError(t, os.WriteFile(markdownPath, []byte("![image](./image.svg)"), 0o600))
+	require.NoError(t, os.WriteFile(imagePath, []byte(`<svg width="10" height="10" xmlns="http://www.w3.org/2000/svg"><rect width="10" height="10" fill="red"/></svg>`), 0o600))
+
+	evidenceServiceClient := &captureEvidenceServiceClient{
+		prepareResp: &client.PrepareEvidenceResponse{DSSEPayload: base64.StdEncoding.EncodeToString([]byte(`{}`))},
+	}
+	cmd := &createEvidenceEntity{
+		createEvidenceBase: createEvidenceBase{
+			predicateFilePath:     predicatePath,
+			predicateType:         "https://example.com/v1",
+			markdownFilePath:      markdownPath,
+			evidenceServiceClient: evidenceServiceClient,
+		},
+		EntitySubject: model.EntitySubject{
+			EntityType: "languageModel",
+			EntityID:   "model-1",
+		},
+	}
+	_, err := cmd.buildEvidenceStatement(nil)
+	require.NoError(t, err)
+	assert.Equal(t, "![image](data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTAiIGhlaWdodD0iMTAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PHJlY3Qgd2lkdGg9IjEwIiBoZWlnaHQ9IjEwIiBmaWxsPSJyZWQiLz48L3N2Zz4=)", evidenceServiceClient.prepareReq.Markdown)
+}
