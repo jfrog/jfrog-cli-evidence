@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"mime"
 	"os"
+	"path"
 	"path/filepath"
 	"strings"
 
@@ -73,6 +74,9 @@ func (c *createEvidenceBase) uploadLocalAttachment(client artifactory.Artifactor
 	if err != nil {
 		return nil, nil, err
 	}
+	if err = ensureAttachmentTargetAbsent(client, target.TargetPath); err != nil {
+		return nil, nil, err
+	}
 
 	uploadParams := services.UploadParams{
 		CommonParams: &artUtils.CommonParams{
@@ -88,7 +92,7 @@ func (c *createEvidenceBase) uploadLocalAttachment(client artifactory.Artifactor
 		return nil, nil, errorutils.CheckErrorf("failed to upload --%s file to '%s'", flags.AttachLocal, target.TargetPath)
 	}
 
-	repository, path, err := splitRepoPath(target.TargetPath)
+	repository, relPath, err := splitRepoPath(target.TargetPath)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -100,30 +104,16 @@ func (c *createEvidenceBase) uploadLocalAttachment(client artifactory.Artifactor
 		return nil, nil, errorutils.CheckErrorf("uploaded attachment '%s' is invalid: sha256 checksum is missing", target.TargetPath)
 	}
 
+	uploadedSha := fileInfo.Checksums.Sha256
 	cleanup := func() {
-		deleteParams := services.NewDeleteParams()
-		deleteParams.Pattern = target.TargetPath
-		reader, err := client.GetPathsToDelete(deleteParams)
-		if err != nil {
-			log.Warn("Failed to create cleanup plan for temporary attachment:", target.TargetPath, "error:", err)
-			return
-		}
-		if reader == nil {
-			return
-		}
-		defer func() {
-			_ = reader.Close()
-		}()
-		if _, err = client.DeleteFiles(reader); err != nil {
-			log.Warn("Failed to cleanup temporary attachment:", target.TargetPath, "error:", err)
-		}
+		cleanupUploadedAttachment(client, target.TargetPath, uploadedSha)
 	}
 
 	return &statementAttachment{
 		Repository: repository,
-		Path:       path,
+		Path:       relPath,
 		Sha256:     fileInfo.Checksums.Sha256,
-		Name:       filepath.Base(path),
+		Name:       filepath.Base(relPath),
 		Type:       detectMimeType(c.attachLocalPath),
 	}, cleanup, nil
 }
@@ -184,9 +174,17 @@ func parseAttachmentArtifactoryTempPath(target, localFilePath string) (*parsedTa
 	if strings.HasPrefix(target, "/") {
 		return nil, errorutils.CheckErrorf("invalid --%s '%s': leading '/' is not allowed", flags.AttachArtifactoryTempPath, target)
 	}
+	if strings.ContainsAny(target, "*?[]\\") {
+		return nil, errorutils.CheckErrorf("invalid --%s '%s': wildcard characters are not allowed", flags.AttachArtifactoryTempPath, target)
+	}
 	segments := strings.Split(target, "/")
 	if len(segments) == 0 || segments[0] == "" {
 		return nil, errorutils.CheckErrorf("invalid --%s '%s': repository segment is required", flags.AttachArtifactoryTempPath, target)
+	}
+	for i, segment := range segments {
+		if segment == ".." || (segment == "" && i != len(segments)-1) {
+			return nil, errorutils.CheckErrorf("invalid --%s '%s': path segments must be literal", flags.AttachArtifactoryTempPath, target)
+		}
 	}
 	repo := segments[0]
 
@@ -207,6 +205,72 @@ func parseAttachmentArtifactoryTempPath(target, localFilePath string) (*parsedTa
 		Repository: repo,
 		TargetPath: finalPath,
 	}, nil
+}
+
+func ensureAttachmentTargetAbsent(client artifactory.ArtifactoryServicesManager, targetPath string) error {
+	info, err := client.FileInfo(targetPath)
+	if err != nil {
+		if isArtifactoryNotFound(err) {
+			return nil
+		}
+		return errorutils.CheckErrorf("failed to check whether '%s' already exists: %v", targetPath, err)
+	}
+	if info != nil {
+		return errorutils.CheckErrorf("refusing to upload --%s over existing artifact '%s'", flags.AttachLocal, targetPath)
+	}
+	return nil
+}
+
+func cleanupUploadedAttachment(client artifactory.ArtifactoryServicesManager, targetPath, sha256 string) {
+	info, err := client.FileInfo(targetPath)
+	if err != nil || info == nil || info.Checksums.Sha256 == "" || info.Checksums.Sha256 != sha256 {
+		log.Warn("Skipping cleanup of temporary attachment", targetPath, "because it does not match the uploaded checksum")
+		return
+	}
+	aql, err := exactAttachmentCleanupAQL(targetPath, sha256)
+	if err != nil {
+		log.Warn("Failed to build cleanup query for temporary attachment:", targetPath, "error:", err)
+		return
+	}
+	deleteParams := services.NewDeleteParams()
+	deleteParams.Aql = artUtils.Aql{ItemsFind: aql}
+	reader, err := client.GetPathsToDelete(deleteParams)
+	if err != nil {
+		log.Warn("Failed to create cleanup plan for temporary attachment:", targetPath, "error:", err)
+		return
+	}
+	if reader == nil {
+		return
+	}
+	defer func() {
+		_ = reader.Close()
+	}()
+	if _, err = client.DeleteFiles(reader); err != nil {
+		log.Warn("Failed to cleanup temporary attachment:", targetPath, "error:", err)
+	}
+}
+
+func exactAttachmentCleanupAQL(repoPath, sha256 string) (string, error) {
+	repository, relPath, err := splitRepoPath(repoPath)
+	if err != nil {
+		return "", err
+	}
+	find := map[string]string{
+		"repo":   repository,
+		"path":   path.Dir(relPath),
+		"name":   path.Base(relPath),
+		"sha256": sha256,
+		"type":   "file",
+	}
+	raw, err := json.Marshal(find)
+	if err != nil {
+		return "", err
+	}
+	return string(raw), nil
+}
+
+func isArtifactoryNotFound(err error) bool {
+	return err != nil && strings.Contains(err.Error(), "404")
 }
 
 func splitRepoPath(repoPath string) (string, string, error) {
