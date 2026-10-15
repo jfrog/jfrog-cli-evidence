@@ -147,8 +147,8 @@ func getBuildLatestTimestamp(name string, number string, project string, artifac
 }
 
 func buildBuildInfoPath(repoKey string, name string, number string, timestamp string) string {
-	jsonFile := fmt.Sprintf("%s-%s.json", number, timestamp)
-	return fmt.Sprintf("%s/%s/%s", repoKey, name, jsonFile)
+	jsonFile := fmt.Sprintf("%s-%s.json", utils.EncodeBuildInfoPathSegment(number), timestamp)
+	return fmt.Sprintf("%s/%s/%s", repoKey, utils.EncodeBuildInfoPathSegment(name), jsonFile)
 }
 
 func getBuildInfoPathChecksum(buildInfoPath string, artifactoryClient artifactory.ArtifactoryServicesManager) (string, error) {
