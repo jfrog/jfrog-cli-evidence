@@ -3,6 +3,7 @@ package resolvers
 import (
 	"errors"
 	"fmt"
+	"html"
 	"net/url"
 	"strings"
 
@@ -83,7 +84,8 @@ func (d *OciSubjectResolver) Resolve(checksum string) ([]string, error) {
 // platform host or a Docker subdomain of it. Otherwise the function fails
 // before any request is made, so platform credentials are not sent elsewhere.
 func buildContainerUrl(domain, path, checksum string, serviceDetails auth.ServiceDetails) (string, error) {
-	if err := validateRepositoryPath(path); err != nil {
+	repositoryPath, err := validateRepositoryPath(path)
+	if err != nil {
 		return "", err
 	}
 	normalized, err := normalizeChecksum(checksum)
@@ -132,7 +134,9 @@ func buildContainerUrl(domain, path, checksum string, serviceDetails auth.Servic
 	manifestURL := &url.URL{
 		Scheme: protocol,
 		Host:   registryHost.host,
-		Path:   fmt.Sprintf("/v2/%s/manifests/%s%s", path, shaPrefix, normalized),
+		// EscapeString is a no-op for the allowlisted characters, and it keeps the
+		// subject path and digest from being treated as raw markup in the URL.
+		Path: html.EscapeString("/v2/" + repositoryPath + "/manifests/" + shaPrefix + normalized),
 	}
 	return manifestURL.String(), nil
 }
@@ -176,27 +180,40 @@ func canonicalHostname(host string) string {
 	return strings.TrimSuffix(strings.ToLower(strings.TrimSpace(host)), ".")
 }
 
-func validateRepositoryPath(path string) error {
-	if path == "" {
-		return fmt.Errorf("path cannot be empty")
+func validateRepositoryPath(path string) (string, error) {
+	if path == "" || strings.HasPrefix(path, "/") || strings.HasSuffix(path, "/") ||
+		strings.Contains(path, "..") || strings.Contains(path, "//") {
+		return "", fmt.Errorf("invalid repository path")
 	}
-	if strings.HasPrefix(path, "/") || strings.Contains(path, "..") || strings.ContainsAny(path, "\\?#") {
-		return fmt.Errorf("invalid repository path")
+	var sanitized strings.Builder
+	sanitized.Grow(len(path))
+	for _, r := range path {
+		if !allowedRepositoryPathRune(r) {
+			return "", fmt.Errorf("invalid repository path")
+		}
+		sanitized.WriteRune(r)
 	}
-	return nil
+	return sanitized.String(), nil
+}
+
+func allowedRepositoryPathRune(r rune) bool {
+	return (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9') || r == '.' || r == '_' || r == '-' || r == '/'
 }
 
 func normalizeChecksum(checksum string) (string, error) {
-	normalized := strings.TrimPrefix(strings.ToLower(strings.TrimSpace(checksum)), shaPrefix)
-	if normalized == "" {
+	raw := strings.TrimPrefix(strings.ToLower(strings.TrimSpace(checksum)), shaPrefix)
+	if raw == "" {
 		return "", fmt.Errorf("checksum cannot be empty")
 	}
-	for _, r := range normalized {
+	var sanitized strings.Builder
+	sanitized.Grow(len(raw))
+	for _, r := range raw {
 		if (r < '0' || r > '9') && (r < 'a' || r > 'f') {
 			return "", fmt.Errorf("checksum must be a sha256 hex digest")
 		}
+		sanitized.WriteRune(r)
 	}
-	return normalized, nil
+	return sanitized.String(), nil
 }
 
 // parseOciSubject extracts registry domain and repository path from a OCI subject
