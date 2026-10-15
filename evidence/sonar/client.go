@@ -78,18 +78,21 @@ func (c *httpClient) GetSonarIntotoStatement(ceTaskID string) ([]byte, error) {
 	if ceTaskID == "" {
 		return nil, errorutils.CheckError(fmt.Errorf("missing ce task id for enterprise endpoint"))
 	}
-	u, _ := url.Parse(c.baseURL)
-	hostname := u.Hostname()
 
-	cloudUrl := c.prepareCloudFormatUrl(ceTaskID, hostname)
-	log.Debug(fmt.Sprintf("Getting intoto statement using cloud format sonar endpoint %s", cloudUrl))
-	body, statusCode, err := c.doGET(cloudUrl)
-
-	if !utils.IsHttpStatusSuccessful(statusCode) {
-		serverURL := c.prepareServerFormatUrl(ceTaskID)
-		log.Debug(fmt.Sprintf("Getting intoto statement using server format sonar endpoint %s", serverURL))
-		body, statusCode, err = c.doGET(serverURL)
+	var body []byte
+	var statusCode int
+	var err error
+	if cloudURL := c.prepareCloudFormatUrl(ceTaskID); cloudURL != "" {
+		log.Debug(fmt.Sprintf("Getting intoto statement using cloud format sonar endpoint %s", cloudURL))
+		body, statusCode, err = c.doGET(cloudURL)
+		if utils.IsHttpStatusSuccessful(statusCode) {
+			return body, nil
+		}
 	}
+
+	serverURL := c.prepareServerFormatUrl(ceTaskID)
+	log.Debug(fmt.Sprintf("Getting intoto statement using server format sonar endpoint %s", serverURL))
+	body, statusCode, err = c.doGET(serverURL)
 
 	if err != nil {
 		return nil, errorutils.CheckErrorf("enterprise endpoint failed with status %d and response %s %v", statusCode, string(body), err)
@@ -119,13 +122,23 @@ func (c *httpClient) GetTaskDetails(ceTaskID string) (*TaskDetails, error) {
 	return &response, nil
 }
 
-func (c *httpClient) prepareCloudFormatUrl(ceTaskID string, hostname string) string {
-	cloudBaseURL := c.baseURL
-	if !strings.HasPrefix(hostname, "api.") {
-		cloudBaseURL = strings.Replace(c.baseURL, "://", "://api.", 1)
+func (c *httpClient) prepareCloudFormatUrl(ceTaskID string) string {
+	parsedURL, err := url.Parse(c.baseURL)
+	if err != nil {
+		return ""
 	}
-	cloudURL := fmt.Sprintf("%s/dop-translation/jfrog-evidence/%s", cloudBaseURL, url.QueryEscape(ceTaskID))
-	return cloudURL
+
+	var apiHost string
+	switch strings.ToLower(parsedURL.Hostname()) {
+	case "sonarcloud.io", "api.sonarcloud.io":
+		apiHost = "api.sonarcloud.io"
+	case "sonarqube.us", "api.sonarqube.us":
+		apiHost = "api.sonarqube.us"
+	default:
+		return ""
+	}
+
+	return fmt.Sprintf("%s://%s/dop-translation/jfrog-evidence/%s", parsedURL.Scheme, apiHost, url.QueryEscape(ceTaskID))
 }
 
 func (c *httpClient) prepareServerFormatUrl(ceTaskID string) string {

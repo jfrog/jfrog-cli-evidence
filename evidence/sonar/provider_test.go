@@ -39,6 +39,21 @@ func TestNewSonarProviderWithManager(t *testing.T) {
 	assert.Equal(t, mockManager, provider.client)
 }
 
+func TestNewSonarProviderWithCredentials_RejectsInsecureURL(t *testing.T) {
+	provider, err := NewSonarProviderWithCredentials("http://sonar.example.com", "test-token")
+
+	assert.Nil(t, provider)
+	assert.ErrorContains(t, err, "must use HTTPS")
+}
+
+func TestNewSonarProviderWithCredentials_TrimsURL(t *testing.T) {
+	provider, err := NewSonarProviderWithCredentials("  https://sonar.example.com/  ", "test-token")
+
+	assert.NoError(t, err)
+	client := provider.(*Provider).client.(*httpClient)
+	assert.Equal(t, "https://sonar.example.com", client.baseURL)
+}
+
 func TestBuildStatement_SuccessDirect(t *testing.T) {
 	mockManager := &MockSonarManager{}
 	provider := &Provider{client: mockManager}

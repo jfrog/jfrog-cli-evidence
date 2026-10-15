@@ -70,6 +70,7 @@ func TestResolver_ResolveStatementWithConfig_Success(t *testing.T) {
 	res := &statementResolver{providerFactory: cf}
 
 	t.Setenv("SONAR_TOKEN", "token-123")
+	t.Setenv("SONAR_URL", serverURL)
 
 	cfg := &conf.EvidenceConfig{Sonar: &conf.SonarConfig{ReportTaskFile: reportPath}}
 	stmt, err := res.resolveStatementWithConfig(cfg)
@@ -80,12 +81,12 @@ func TestResolver_ResolveStatementWithConfig_Success(t *testing.T) {
 	assert.Equal(t, ceTaskID, fprov.lastCeTaskID)
 }
 
-func TestResolver_OverridesBaseURLFromConfig(t *testing.T) {
+func TestResolver_UsesTrustedEnvironmentURLInsteadOfReportOrRepositoryConfig(t *testing.T) {
 	dir := t.TempDir()
-	serverURL := "https://sonar.local"
-	overrideURL := "https://override.local"
+	reportURL := "https://attacker.example"
+	trustedURL := "https://sonar.local"
 	ceTaskID := "task-abc"
-	reportPath := writeReportTask(t, dir, serverURL, ceTaskID)
+	reportPath := writeReportTask(t, dir, reportURL, ceTaskID)
 
 	fprov := &fakeProvider{nextResult: []byte("ok2"), nextErr: nil}
 	cf := &capturingFactory{provider: fprov}
@@ -94,12 +95,51 @@ func TestResolver_OverridesBaseURLFromConfig(t *testing.T) {
 	t.Setenv("SONARQUBE_TOKEN", "fallback-token")
 	// Ensure SONAR_TOKEN is empty so fallback is used
 	t.Setenv("SONAR_TOKEN", "")
+	t.Setenv("SONAR_URL", trustedURL)
 
-	cfg := &conf.EvidenceConfig{Sonar: &conf.SonarConfig{ReportTaskFile: reportPath, URL: overrideURL}}
+	cfg := &conf.EvidenceConfig{Sonar: &conf.SonarConfig{
+		ReportTaskFile: reportPath,
+		URL:            "https://repository-controlled.example",
+	}}
 	stmt, err := res.resolveStatementWithConfig(cfg)
 	assert.NoError(t, err)
 	assert.Equal(t, []byte("ok2"), stmt)
-	assert.Equal(t, overrideURL, cf.lastURL)
+	assert.Equal(t, trustedURL, cf.lastURL)
 	assert.Equal(t, "fallback-token", cf.lastToken)
 	assert.Equal(t, ceTaskID, fprov.lastCeTaskID)
+}
+
+func TestResolver_RejectsRepositoryControlledURLWithoutTrustedURL(t *testing.T) {
+	dir := t.TempDir()
+	reportPath := writeReportTask(t, dir, "https://attacker.example", "task-abc")
+	cf := &capturingFactory{provider: &fakeProvider{}}
+	res := &statementResolver{providerFactory: cf}
+
+	t.Setenv("SONAR_URL", "")
+	t.Setenv("SONAR_HOST_URL", "")
+	t.Setenv("JFROG_CLI_HOME_DIR", filepath.Join(dir, "jfrog-home"))
+
+	cfg := &conf.EvidenceConfig{Sonar: &conf.SonarConfig{
+		ReportTaskFile: reportPath,
+		URL:            "https://repository-controlled.example",
+	}}
+	_, err := res.resolveStatementWithConfig(cfg)
+
+	assert.ErrorContains(t, err, "trusted SonarQube URL is required")
+	assert.Empty(t, cf.lastURL)
+}
+
+func TestResolver_RejectsInsecureTrustedURL(t *testing.T) {
+	dir := t.TempDir()
+	reportPath := writeReportTask(t, dir, "http://sonar.local", "task-abc")
+	cf := &capturingFactory{provider: &fakeProvider{}}
+	res := &statementResolver{providerFactory: cf}
+
+	t.Setenv("SONAR_URL", "http://sonar.local")
+
+	cfg := &conf.EvidenceConfig{Sonar: &conf.SonarConfig{ReportTaskFile: reportPath}}
+	_, err := res.resolveStatementWithConfig(cfg)
+
+	assert.ErrorContains(t, err, "must use HTTPS")
+	assert.Empty(t, cf.lastURL)
 }

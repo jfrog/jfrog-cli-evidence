@@ -25,6 +25,7 @@ const (
 
 	envReportTaskFile         = "SONAR_REPORT_TASK_FILE"
 	envSonarURL               = "SONAR_URL"
+	envSonarHostURL           = "SONAR_HOST_URL"
 	envPollingMaxRetries      = "SONAR_POLLING_MAX_RETRIES"
 	envPollingRetryIntervalMs = "SONAR_POLLING_RETRY_INTERVAL_MS"
 
@@ -75,6 +76,30 @@ func LoadEvidenceConfig() *EvidenceConfig {
 	}
 
 	return nil
+}
+
+// ResolveTrustedSonarURL returns a SonarQube URL from operator-controlled
+// configuration. Repository-level evidence configuration is intentionally
+// excluded because it may be controlled by code being scanned in CI.
+func ResolveTrustedSonarURL() string {
+	if sonarURL := os.Getenv(envSonarURL); sonarURL != "" {
+		return sonarURL
+	}
+	if sonarURL := os.Getenv(envSonarHostURL); sonarURL != "" {
+		return sonarURL
+	}
+
+	home, err := coreutils.GetJfrogHomeDir()
+	if err != nil || home == "" {
+		return ""
+	}
+	for _, fileName := range []string{evidenceFileYml, evidenceFileYaml} {
+		cfg := readConfigWithEnv(filepath.Join(home, evidenceDir, fileName))
+		if cfg != nil && cfg.Sonar != nil && cfg.Sonar.URL != "" {
+			return cfg.Sonar.URL
+		}
+	}
+	return ""
 }
 
 func readConfigWithEnv(path string) *EvidenceConfig {

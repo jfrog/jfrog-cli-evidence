@@ -902,6 +902,8 @@ func TestValidateSonarQubeRequirements(t *testing.T) {
 	// Save original environment variables
 	originalSonarToken := os.Getenv("SONAR_TOKEN")
 	originalSonarQubeToken := os.Getenv("SONARQUBE_TOKEN")
+	originalSonarURL := os.Getenv("SONAR_URL")
+	originalSonarHostURL := os.Getenv("SONAR_HOST_URL")
 	defer func() {
 		err := os.Setenv("SONAR_TOKEN", originalSonarToken)
 		if err != nil {
@@ -911,12 +913,21 @@ func TestValidateSonarQubeRequirements(t *testing.T) {
 		if err != nil {
 			assert.FailNow(t, err.Error())
 		}
+		err = os.Setenv("SONAR_URL", originalSonarURL)
+		if err != nil {
+			assert.FailNow(t, err.Error())
+		}
+		err = os.Setenv("SONAR_HOST_URL", originalSonarHostURL)
+		if err != nil {
+			assert.FailNow(t, err.Error())
+		}
 	}()
 
 	tests := []struct {
 		name           string
 		sonarToken     string
 		sonarQubeToken string
+		sonarURL       string
 		expectError    bool
 		errorContains  string
 	}{
@@ -924,18 +935,21 @@ func TestValidateSonarQubeRequirements(t *testing.T) {
 			name:           "Valid_With_SONAR_TOKEN",
 			sonarToken:     "test-token",
 			sonarQubeToken: "",
+			sonarURL:       "https://sonar.example.com",
 			expectError:    false,
 		},
 		{
 			name:           "Valid_With_SONARQUBE_TOKEN",
 			sonarToken:     "",
 			sonarQubeToken: "test-token",
+			sonarURL:       "https://sonar.example.com",
 			expectError:    false,
 		},
 		{
 			name:           "Valid_With_Both_Tokens",
 			sonarToken:     "test-token-1",
 			sonarQubeToken: "test-token-2",
+			sonarURL:       "https://sonar.example.com",
 			expectError:    false,
 		},
 		{
@@ -944,6 +958,19 @@ func TestValidateSonarQubeRequirements(t *testing.T) {
 			sonarQubeToken: "",
 			expectError:    true,
 			errorContains:  "SonarQube token is required",
+		},
+		{
+			name:          "Invalid_No_Trusted_URL",
+			sonarToken:    "test-token",
+			expectError:   true,
+			errorContains: "trusted SonarQube URL is required",
+		},
+		{
+			name:          "Invalid_Insecure_URL",
+			sonarToken:    "test-token",
+			sonarURL:      "http://sonar.example.com",
+			expectError:   true,
+			errorContains: "must use HTTPS",
 		},
 	}
 
@@ -955,6 +982,14 @@ func TestValidateSonarQubeRequirements(t *testing.T) {
 				assert.FailNow(t, err.Error())
 			}
 			err = os.Setenv("SONARQUBE_TOKEN", tt.sonarQubeToken)
+			if err != nil {
+				assert.FailNow(t, err.Error())
+			}
+			err = os.Setenv("SONAR_URL", tt.sonarURL)
+			if err != nil {
+				assert.FailNow(t, err.Error())
+			}
+			err = os.Setenv("SONAR_HOST_URL", "")
 			if err != nil {
 				assert.FailNow(t, err.Error())
 			}

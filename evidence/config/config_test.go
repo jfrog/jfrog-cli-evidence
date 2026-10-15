@@ -69,6 +69,85 @@ func TestLoadEvidenceConfig_EnvOnly(t *testing.T) {
 	}
 }
 
+func TestResolveTrustedSonarURL_EnvironmentTakesPrecedence(t *testing.T) {
+	home := t.TempDir()
+	configDir := filepath.Join(home, evidenceDir)
+	if err := os.MkdirAll(configDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(configDir, evidenceFileYml), []byte("sonar:\n  url: https://home-sonar\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("JFROG_CLI_HOME_DIR", home)
+	t.Setenv(envSonarURL, "https://env-sonar")
+	t.Setenv(envSonarHostURL, "https://scanner-sonar")
+
+	if got := ResolveTrustedSonarURL(); got != "https://env-sonar" {
+		t.Fatalf("expected environment URL, got %q", got)
+	}
+}
+
+func TestResolveTrustedSonarURL_UsesOfficialScannerEnvironment(t *testing.T) {
+	t.Setenv(envSonarURL, "")
+	t.Setenv(envSonarHostURL, "https://scanner-sonar")
+
+	if got := ResolveTrustedSonarURL(); got != "https://scanner-sonar" {
+		t.Fatalf("expected scanner environment URL, got %q", got)
+	}
+}
+
+func TestResolveTrustedSonarURL_UsesHomeConfig(t *testing.T) {
+	workspace := t.TempDir()
+	repositoryConfigDir := filepath.Join(workspace, jfrogDir, evidenceDir)
+	if err := os.MkdirAll(repositoryConfigDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(repositoryConfigDir, evidenceFileYml), []byte("sonar:\n  url: https://repository-controlled.example\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	old, _ := os.Getwd()
+	_ = os.Chdir(workspace)
+	t.Cleanup(func() { _ = os.Chdir(old) })
+
+	home := t.TempDir()
+	homeConfigDir := filepath.Join(home, evidenceDir)
+	if err := os.MkdirAll(homeConfigDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(homeConfigDir, evidenceFileYml), []byte("sonar:\n  url: https://home-sonar\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("JFROG_CLI_HOME_DIR", home)
+	t.Setenv(envSonarURL, "")
+	t.Setenv(envSonarHostURL, "")
+
+	if got := ResolveTrustedSonarURL(); got != "https://home-sonar" {
+		t.Fatalf("expected home-level URL, got %q", got)
+	}
+}
+
+func TestResolveTrustedSonarURL_IgnoresRepositoryConfig(t *testing.T) {
+	workspace := t.TempDir()
+	repositoryConfigDir := filepath.Join(workspace, jfrogDir, evidenceDir)
+	if err := os.MkdirAll(repositoryConfigDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(repositoryConfigDir, evidenceFileYml), []byte("sonar:\n  url: https://repository-controlled.example\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	old, _ := os.Getwd()
+	_ = os.Chdir(workspace)
+	t.Cleanup(func() { _ = os.Chdir(old) })
+
+	t.Setenv("JFROG_CLI_HOME_DIR", t.TempDir())
+	t.Setenv(envSonarURL, "")
+	t.Setenv(envSonarHostURL, "")
+
+	if got := ResolveTrustedSonarURL(); got != "" {
+		t.Fatalf("expected repository URL to be ignored, got %q", got)
+	}
+}
+
 func TestResolveAttachmentArtifactoryTempPath_EnvPrecedence(t *testing.T) {
 	dir := t.TempDir()
 	jf := filepath.Join(dir, ".jfrog", "evidence")

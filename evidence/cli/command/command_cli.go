@@ -564,6 +564,10 @@ func validateSonarQubeRequirements() error {
 		return errorutils.CheckErrorf("SonarQube token is required when using --%s %s. Please set SONAR_TOKEN or SONARQUBE_TOKEN environment variable", flags.Integration, evidenceUtils.SonarIntegration)
 	}
 
+	if _, err := sonarhelper.GetTrustedSonarURL(); err != nil {
+		return err
+	}
+
 	// Check if report-task.txt exists using the detector or config
 	reportPath := sonarhelper.GetReportTaskPath()
 	if reportPath == "" {

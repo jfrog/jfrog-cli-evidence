@@ -1,7 +1,9 @@
 package sonar
 
 import (
+	"net/url"
 	"os"
+	"strings"
 
 	conf "github.com/jfrog/jfrog-cli-evidence/evidence/config"
 	"github.com/jfrog/jfrog-client-go/utils/errorutils"
@@ -46,9 +48,9 @@ func (d *statementResolver) resolveStatementWithConfig(cfg *conf.EvidenceConfig)
 
 	log.Info("Parsed report-task file at", reportPath, "with ceTaskID:", rt.CeTaskID)
 
-	sonarBaseURL := resolveSonarBaseURL(rt.CeTaskURL, rt.ServerURL)
-	if cfg != nil && cfg.Sonar != nil && cfg.Sonar.URL != "" {
-		sonarBaseURL = cfg.Sonar.URL
+	sonarBaseURL, err := GetTrustedSonarURL()
+	if err != nil {
+		return nil, err
 	}
 
 	token := os.Getenv("SONAR_TOKEN")
@@ -68,6 +70,28 @@ func (d *statementResolver) resolveStatementWithConfig(cfg *conf.EvidenceConfig)
 	}
 
 	return provider.GetStatement(rt.CeTaskID, pollingMaxRetries, pollingRetryIntervalMs)
+}
+
+func GetTrustedSonarURL() (string, error) {
+	sonarURL := strings.TrimSpace(conf.ResolveTrustedSonarURL())
+	if sonarURL == "" {
+		return "", errorutils.CheckErrorf("trusted SonarQube URL is required; set SONAR_URL, SONAR_HOST_URL, or configure sonar.url in the user-level JFrog evidence config")
+	}
+	if err := validateTrustedSonarURL(sonarURL); err != nil {
+		return "", err
+	}
+	return sonarURL, nil
+}
+
+func validateTrustedSonarURL(sonarURL string) error {
+	parsedURL, err := url.Parse(strings.TrimSpace(sonarURL))
+	if err != nil || parsedURL.Host == "" {
+		return errorutils.CheckErrorf("invalid trusted SonarQube URL")
+	}
+	if !strings.EqualFold(parsedURL.Scheme, "https") {
+		return errorutils.CheckErrorf("trusted SonarQube URL must use HTTPS")
+	}
+	return nil
 }
 
 type providerFactory interface {
