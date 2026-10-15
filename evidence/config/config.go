@@ -104,23 +104,29 @@ func readConfigWithEnv(path string) *EvidenceConfig {
 	return cfg
 }
 
+// ResolveAttachmentArtifactoryTempPath returns an operator-controlled upload target.
+// A repository .jfrog/evidence/evidence.yml is ignored: that file is part of the checkout,
+// and this path is both uploaded and later deleted.
 func ResolveAttachmentArtifactoryTempPath() string {
 	if envValue := os.Getenv(EnvAttachmentArtifactoryTempPath); envValue != "" {
 		return envValue
 	}
-	cfg := LoadEvidenceConfig()
-	if cfg != nil && cfg.Attachment != nil && cfg.Attachment.ArtifactoryTempPath != "" {
-		return cfg.Attachment.ArtifactoryTempPath
+	cfg, err := readHomeEvidenceConfig()
+	if err != nil || cfg == nil || cfg.Attachment == nil {
+		return ""
 	}
-	return ""
+	return cfg.Attachment.ArtifactoryTempPath
 }
 
 func PersistAttachmentArtifactoryTempPath(artifactoryTempPath string) error {
-	path, err := resolveWritableConfigPath()
+	path, err := homeEvidenceConfigPath()
 	if err != nil {
 		return err
 	}
-	cfg := LoadEvidenceConfig()
+	cfg, err := readEvidenceConfigFile(path)
+	if err != nil {
+		return errorutils.CheckError(err)
+	}
 	if cfg == nil {
 		cfg = &EvidenceConfig{}
 	}
@@ -141,13 +147,44 @@ func PersistAttachmentArtifactoryTempPath(artifactoryTempPath string) error {
 	return nil
 }
 
-func resolveWritableConfigPath() (string, error) {
-	if root, exists, _ := fileutils.FindUpstream(jfrogDir, fileutils.Dir); exists {
-		return filepath.Join(root, jfrogDir, evidenceDir, evidenceFileYml), nil
-	}
+func homeEvidenceConfigPath() (string, error) {
 	home, err := coreutils.GetJfrogHomeDir()
 	if err != nil {
 		return "", err
 	}
-	return filepath.Join(home, evidenceDir, evidenceFileYml), nil
+	yml := filepath.Join(home, evidenceDir, evidenceFileYml)
+	yamlPath := filepath.Join(home, evidenceDir, evidenceFileYaml)
+	// Keep an existing evidence.yaml when evidence.yml was never created.
+	if evidenceFileExists(yamlPath) && !evidenceFileExists(yml) {
+		return yamlPath, nil
+	}
+	return yml, nil
+}
+
+func evidenceFileExists(path string) bool {
+	info, err := os.Stat(path)
+	return err == nil && !info.IsDir()
+}
+
+func readHomeEvidenceConfig() (*EvidenceConfig, error) {
+	path, err := homeEvidenceConfigPath()
+	if err != nil {
+		return nil, err
+	}
+	return readEvidenceConfigFile(path)
+}
+
+func readEvidenceConfigFile(path string) (*EvidenceConfig, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return &EvidenceConfig{}, nil
+		}
+		return nil, err
+	}
+	cfg := &EvidenceConfig{}
+	if err = yaml.Unmarshal(data, cfg); err != nil {
+		return nil, err
+	}
+	return cfg, nil
 }

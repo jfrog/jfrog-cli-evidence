@@ -316,7 +316,7 @@ func validateAttachmentFlags(ctx *components.Context) error {
 	if attachLocal != "" && attachArtifactoryTempPath == "" {
 		defaultTarget := evdConfig.ResolveAttachmentArtifactoryTempPath()
 		if defaultTarget == "" {
-			return errorutils.CheckErrorf("--%s is required with --%s (or set %s / %s)", flags.AttachArtifactoryTempPath, flags.AttachLocal, evdConfig.EnvAttachmentArtifactoryTempPath, evdConfig.KeyAttachmentArtifactoryTempPath)
+			return errorutils.CheckErrorf("--%s is required with --%s (set the flag, %s, or attachment.artifactoryTempPath in the user home evidence config). A repository .jfrog/evidence/evidence.yml value is ignored", flags.AttachArtifactoryTempPath, flags.AttachLocal, evdConfig.EnvAttachmentArtifactoryTempPath)
 		}
 		ctx.AddStringFlag(flags.AttachArtifactoryTempPath, defaultTarget)
 	}

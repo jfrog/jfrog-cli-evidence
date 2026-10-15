@@ -11,6 +11,7 @@ import (
 	"github.com/jfrog/jfrog-client-go/artifactory/services"
 	"github.com/jfrog/jfrog-client-go/artifactory/services/utils"
 	"github.com/jfrog/jfrog-client-go/http/jfroghttpclient"
+	"github.com/jfrog/jfrog-client-go/utils/io/content"
 	"github.com/jfrog/jfrog-client-go/utils/io/httputils"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -27,10 +28,13 @@ type BaseMockArtifactoryServicesManager struct {
 type SimpleMockServicesManager struct {
 	artifactory.EmptyArtifactoryServicesManager
 	// Define fields for common return values
-	FileInfoFunc     func(string) (*utils.FileInfo, error)
-	GetBuildInfoFunc func(services.BuildInfoParams) (*entities.PublishedBuildInfo, bool, error)
-	AqlFunc          func(string) (io.ReadCloser, error)
-	GetVersionFunc   func() (string, error)
+	FileInfoFunc         func(string) (*utils.FileInfo, error)
+	GetBuildInfoFunc     func(services.BuildInfoParams) (*entities.PublishedBuildInfo, bool, error)
+	AqlFunc              func(string) (io.ReadCloser, error)
+	GetVersionFunc       func() (string, error)
+	UploadFilesFunc      func(artifactory.UploadServiceOptions, ...services.UploadParams) (int, int, error)
+	GetPathsToDeleteFunc func(services.DeleteParams) (*content.ContentReader, error)
+	DeleteFilesFunc      func(*content.ContentReader) (int, error)
 }
 
 func (m *SimpleMockServicesManager) FileInfo(path string) (*utils.FileInfo, error) {
@@ -66,6 +70,27 @@ func (m *SimpleMockServicesManager) Aql(query string) (io.ReadCloser, error) {
 	}
 	// Default empty result
 	return io.NopCloser(strings.NewReader(`{"results":[]}`)), nil
+}
+
+func (m *SimpleMockServicesManager) UploadFiles(options artifactory.UploadServiceOptions, params ...services.UploadParams) (int, int, error) {
+	if m.UploadFilesFunc != nil {
+		return m.UploadFilesFunc(options, params...)
+	}
+	return 0, 0, nil
+}
+
+func (m *SimpleMockServicesManager) GetPathsToDelete(params services.DeleteParams) (*content.ContentReader, error) {
+	if m.GetPathsToDeleteFunc != nil {
+		return m.GetPathsToDeleteFunc(params)
+	}
+	return content.NewEmptyContentReader("results"), nil
+}
+
+func (m *SimpleMockServicesManager) DeleteFiles(reader *content.ContentReader) (int, error) {
+	if m.DeleteFilesFunc != nil {
+		return m.DeleteFilesFunc(reader)
+	}
+	return 0, nil
 }
 
 func (m *SimpleMockServicesManager) GetVersion() (string, error) {

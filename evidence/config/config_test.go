@@ -4,6 +4,8 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/jfrog/jfrog-cli-core/v2/utils/coreutils"
 )
 
 func TestLoadEvidenceConfig_Upstream(t *testing.T) {
@@ -92,20 +94,74 @@ func TestResolveAttachmentArtifactoryTempPath_EnvPrecedence(t *testing.T) {
 	}
 }
 
+func TestResolveAttachmentArtifactoryTempPath_IgnoresWorkspaceConfig(t *testing.T) {
+	dir := t.TempDir()
+	home := t.TempDir()
+	t.Setenv(coreutils.HomeDir, home)
+	t.Setenv(EnvAttachmentArtifactoryTempPath, "")
+	writeEvidenceYml(t, filepath.Join(dir, ".jfrog", "evidence", "evidence.yml"), "attachment:\n  artifactoryTempPath: workspace-repo/prod.jar\n")
+	t.Chdir(dir)
+
+	if target := ResolveAttachmentArtifactoryTempPath(); target != "" {
+		t.Fatalf("workspace evidence.yml must not choose the temp path, got %q", target)
+	}
+}
+
+func TestResolveAttachmentArtifactoryTempPath_HomeWhenEnvUnset(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv(coreutils.HomeDir, home)
+	t.Setenv(EnvAttachmentArtifactoryTempPath, "")
+	writeEvidenceYml(t, filepath.Join(home, "evidence", "evidence.yml"), "attachment:\n  artifactoryTempPath: home-repo/tmp/\n")
+
+	if target := ResolveAttachmentArtifactoryTempPath(); target != "home-repo/tmp/" {
+		t.Fatalf("expected home config, got %q", target)
+	}
+}
+
 func TestPersistAttachmentArtifactoryTempPath(t *testing.T) {
 	dir := t.TempDir()
-	if err := os.MkdirAll(filepath.Join(dir, ".jfrog"), 0755); err != nil {
-		t.Fatal(err)
-	}
-	old, _ := os.Getwd()
-	_ = os.Chdir(dir)
-	defer func() { _ = os.Chdir(old) }()
+	home := t.TempDir()
+	t.Setenv(coreutils.HomeDir, home)
+	t.Setenv(EnvAttachmentArtifactoryTempPath, "")
+	workspace := filepath.Join(dir, ".jfrog", "evidence", "evidence.yml")
+	workspaceBody := "sonar:\n  url: https://workspace\nattachment:\n  artifactoryTempPath: workspace-repo/prod.jar\n"
+	writeEvidenceYml(t, workspace, workspaceBody)
+	writeEvidenceYml(t, filepath.Join(home, "evidence", "evidence.yml"), "sonar:\n  url: https://home\n")
+	t.Chdir(dir)
 
 	if err := PersistAttachmentArtifactoryTempPath("repo/path/"); err != nil {
 		t.Fatal(err)
 	}
-	cfg := LoadEvidenceConfig()
+
+	unchanged, err := os.ReadFile(workspace)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(unchanged) != workspaceBody {
+		t.Fatalf("workspace evidence.yml was modified:\n%s", unchanged)
+	}
+
+	cfg, err := readHomeEvidenceConfig()
+	if err != nil {
+		t.Fatal(err)
+	}
 	if cfg == nil || cfg.Attachment == nil || cfg.Attachment.ArtifactoryTempPath != "repo/path/" {
 		t.Fatalf("persisted artifactory temp path mismatch: %+v", cfg)
+	}
+	if cfg.Sonar == nil || cfg.Sonar.URL != "https://home" {
+		t.Fatalf("home sonar config was not preserved: %+v", cfg)
+	}
+	if target := ResolveAttachmentArtifactoryTempPath(); target != "repo/path/" {
+		t.Fatalf("expected persisted home path, got %q", target)
+	}
+}
+
+func writeEvidenceYml(t *testing.T, path, body string) {
+	t.Helper()
+	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, []byte(body), 0600); err != nil {
+		t.Fatal(err)
 	}
 }

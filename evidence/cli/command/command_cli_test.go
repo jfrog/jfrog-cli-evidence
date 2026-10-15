@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"flag"
 	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/jfrog/jfrog-cli-core/v2/common/commands"
@@ -981,6 +982,7 @@ func TestValidateCreateEvidenceCommonContext_Attachments(t *testing.T) {
 	app := cli.NewApp()
 	app.Commands = []cli.Command{{Name: "create"}}
 	ctx := cli.NewContext(app, &flag.FlagSet{}, nil)
+	t.Setenv(coreUtils.HomeDir, t.TempDir())
 
 	t.Run("local and artifactory conflict", func(t *testing.T) {
 		c, err := components.ConvertContext(ctx,
@@ -996,8 +998,7 @@ func TestValidateCreateEvidenceCommonContext_Attachments(t *testing.T) {
 	})
 
 	t.Run("temp target from env", func(t *testing.T) {
-		assert.NoError(t, os.Setenv(evdConfig.EnvAttachmentArtifactoryTempPath, "repo/tmp/"))
-		defer func() { _ = os.Unsetenv(evdConfig.EnvAttachmentArtifactoryTempPath) }()
+		t.Setenv(evdConfig.EnvAttachmentArtifactoryTempPath, "repo/tmp/")
 		c, err := components.ConvertContext(ctx,
 			test.SetDefaultValue(flags.SubjectRepoPath, "repo/path/file"),
 			test.SetDefaultValue(flags.Predicate, "/tmp/p.json"),
@@ -1020,6 +1021,28 @@ func TestValidateCreateEvidenceCommonContext_Attachments(t *testing.T) {
 		)
 		assert.NoError(t, err)
 		assert.Error(t, validateCreateEvidenceCommonContext(c))
+	})
+
+	t.Run("workspace evidence.yml is ignored", func(t *testing.T) {
+		dir := t.TempDir()
+		t.Setenv(coreUtils.HomeDir, t.TempDir())
+		t.Setenv(evdConfig.EnvAttachmentArtifactoryTempPath, "")
+		configDir := filepath.Join(dir, ".jfrog", "evidence")
+		assert.NoError(t, os.MkdirAll(configDir, 0755))
+		assert.NoError(t, os.WriteFile(filepath.Join(configDir, "evidence.yml"), []byte("attachment:\n  artifactoryTempPath: repo/prod/app.jar\n"), 0600))
+		t.Chdir(dir)
+		c, err := components.ConvertContext(ctx,
+			test.SetDefaultValue(flags.SubjectRepoPath, "repo/path/file"),
+			test.SetDefaultValue(flags.Predicate, "/tmp/p.json"),
+			test.SetDefaultValue(flags.PredicateType, "ptype"),
+			test.SetDefaultValue(flags.Key, "k"),
+			test.SetDefaultValue(flags.AttachLocal, "/tmp/a.txt"),
+		)
+		assert.NoError(t, err)
+		err = validateCreateEvidenceCommonContext(c)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "repository .jfrog/evidence/evidence.yml")
+		assert.Empty(t, c.GetStringFlagValue(flags.AttachArtifactoryTempPath))
 	})
 }
 
