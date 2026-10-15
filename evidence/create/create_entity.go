@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-	"strings"
 
 	"github.com/jfrog/jfrog-cli-core/v2/artifactory/utils/commandsummary"
 	"github.com/jfrog/jfrog-cli-core/v2/utils/config"
@@ -194,7 +193,7 @@ func (c *createEvidenceEntity) buildEvidenceStatement(attachment *statementAttac
 		}}
 	}
 
-	markdown, err := c.readMarkdown()
+	markdown, err := c.readEmbeddedMarkdown()
 	if err != nil {
 		return nil, err
 	}
@@ -202,20 +201,6 @@ func (c *createEvidenceEntity) buildEvidenceStatement(attachment *statementAttac
 
 	log.Debug("Preparing entity evidence:", c.EntityType, c.EntityID)
 	return c.evidenceServiceClient.PrepareEvidence(request, false)
-}
-
-func (c *createEvidenceEntity) readMarkdown() (string, error) {
-	if c.markdownFilePath == "" {
-		return "", nil
-	}
-	if !strings.HasSuffix(c.markdownFilePath, ".md") {
-		return "", fmt.Errorf("file '%s' does not have a .md extension", c.markdownFilePath)
-	}
-	markdown, err := os.ReadFile(c.markdownFilePath)
-	if err != nil {
-		return "", err
-	}
-	return string(markdown), nil
 }
 
 func toAttachmentRefs(attachments []client.PrepareEvidenceAttachment) []attachmentRef {
