@@ -154,12 +154,16 @@ func homeEvidenceConfigPath() (string, error) {
 	}
 	yml := filepath.Join(home, evidenceDir, evidenceFileYml)
 	yamlPath := filepath.Join(home, evidenceDir, evidenceFileYaml)
-	if _, statErr := os.Stat(yamlPath); statErr == nil {
-		if _, ymlErr := os.Stat(yml); ymlErr != nil {
-			return yamlPath, nil
-		}
+	// Keep an existing evidence.yaml when evidence.yml was never created.
+	if evidenceFileExists(yamlPath) && !evidenceFileExists(yml) {
+		return yamlPath, nil
 	}
 	return yml, nil
+}
+
+func evidenceFileExists(path string) bool {
+	info, err := os.Stat(path)
+	return err == nil && !info.IsDir()
 }
 
 func readHomeEvidenceConfig() (*EvidenceConfig, error) {
