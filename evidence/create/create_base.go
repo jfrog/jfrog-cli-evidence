@@ -227,23 +227,32 @@ func (c *createEvidenceBase) buildIntotoStatementJsonWithPredicateAndPredicateTy
 }
 
 func (c *createEvidenceBase) setMarkdown(statement *intoto.Statement) error {
-	if c.markdownFilePath != "" {
-		if !strings.HasSuffix(c.markdownFilePath, ".md") {
-			return fmt.Errorf("file '%s' does not have a .md extension", c.markdownFilePath)
-		}
-		markdown, err := os.ReadFile(c.markdownFilePath)
-		if err != nil {
-			log.Warn(fmt.Sprintf("failed to read markdown file '%s'", c.markdownFilePath))
-			return err
-		}
-		result, err := markdownUtils.EmbedMarkdownImages(markdown, filepath.Dir(c.markdownFilePath), maxImageSizePixels, maxImageSizePixels)
-		if err != nil {
-			log.Warn(fmt.Sprintf("failed to embed markdown images for '%v'", err))
-			statement.SetMarkdown(markdown)
-		}
-		statement.SetMarkdown(result)
+	markdown, err := c.readEmbeddedMarkdown()
+	if err != nil || markdown == "" {
+		return err
 	}
+	statement.SetMarkdown([]byte(markdown))
 	return nil
+}
+
+func (c *createEvidenceBase) readEmbeddedMarkdown() (string, error) {
+	if c.markdownFilePath == "" {
+		return "", nil
+	}
+	if !strings.HasSuffix(c.markdownFilePath, ".md") {
+		return "", fmt.Errorf("file '%s' does not have a .md extension", c.markdownFilePath)
+	}
+	markdown, err := os.ReadFile(c.markdownFilePath)
+	if err != nil {
+		log.Warn(fmt.Sprintf("failed to read markdown file '%s'", c.markdownFilePath))
+		return "", err
+	}
+	embedded, err := markdownUtils.EmbedMarkdownImages(markdown, filepath.Dir(c.markdownFilePath), maxImageSizePixels, maxImageSizePixels)
+	if err != nil {
+		log.Warn(fmt.Sprintf("failed to embed markdown images for '%v'", err))
+		return string(markdown), nil
+	}
+	return string(embedded), nil
 }
 
 func (c *createEvidenceBase) uploadEvidence(evidencePayload []byte, repoPath string, attachment *statementAttachment) (*model.CreateResponse, error) {
