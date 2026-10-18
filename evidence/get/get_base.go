@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/jfrog/jfrog-cli-core/v2/utils/config"
 	evidenceutils "github.com/jfrog/jfrog-cli-evidence/evidence/utils"
@@ -23,11 +24,19 @@ const (
 	EntityType        SubjectType = "entity"
 )
 
+// Query template placeholders for the includeRevoked opt-in. They are replaced with an empty
+// string when --include-revoked is not set, so the query text stays as it was for older servers.
+const (
+	searchWhereArgsPlaceholder        = "{{SEARCH_WHERE_ARGS}}"
+	evidenceConnectionArgsPlaceholder = "{{EVIDENCE_CONNECTION_ARGS}}"
+)
+
 type getEvidenceBase struct {
 	serverDetails    *config.ServerDetails
 	outputFileName   string
 	format           string
 	includePredicate bool
+	includeRevoked   bool
 }
 
 type searchEvidenceQueries struct {
@@ -46,6 +55,9 @@ type EvidenceEntry struct {
 	PredicateType string               `json:"predicateType,omitempty"`
 	DownloadPath  string               `json:"downloadPath"`
 	Verified      bool                 `json:"verified"`
+	Revoked       *bool                `json:"revoked,omitempty"`
+	RevokedAt     string               `json:"revokedAt,omitempty"`
+	RevokedBy     string               `json:"revokedBy,omitempty"`
 	SigningKey    map[string]any       `json:"signingKey,omitempty"`
 	Subject       map[string]any       `json:"subject"`
 	CreatedBy     string               `json:"createdBy"`
@@ -117,12 +129,40 @@ func graphqlQueryWithAttachmentsFallback(client onemodel.Manager, queryWithAttac
 	return client.GraphqlQuery(queryWithoutAttachments)
 }
 
+func (g *getEvidenceBase) queryEvidence(client onemodel.Manager, queryWithAttachments, queryWithoutAttachments []byte) ([]byte, error) {
+	if g.includeRevoked {
+		if err := evidenceutils.EnsureEvidenceRevocationSupported(client); err != nil {
+			return nil, err
+		}
+	}
+	return graphqlQueryWithAttachmentsFallback(client, queryWithAttachments, queryWithoutAttachments)
+}
+
 func (g *getEvidenceBase) searchEvidence(client onemodel.Manager, queries searchEvidenceQueries) ([]EvidenceEntry, error) {
-	response, err := graphqlQueryWithAttachmentsFallback(client, queries.withAttachments, queries.withoutAttachments)
+	response, err := g.queryEvidence(client, queries.withAttachments, queries.withoutAttachments)
 	if err != nil {
 		return nil, err
 	}
 	return evidenceEntriesFromSearchResponse(response, g.includePredicate)
+}
+
+func (g *getEvidenceBase) applyRevokedArgs(template string) string {
+	searchWhereArgs := ""
+	if g.includeRevoked {
+		searchWhereArgs = ", " + evidenceutils.IncludeRevokedArgument
+	}
+	template = strings.ReplaceAll(template, searchWhereArgsPlaceholder, searchWhereArgs)
+	return strings.ReplaceAll(template, evidenceConnectionArgsPlaceholder, g.evidenceConnectionArgs())
+}
+
+func (g *getEvidenceBase) evidenceConnectionArgs(args ...string) string {
+	if g.includeRevoked {
+		args = append(args, evidenceutils.IncludeRevokedArgument)
+	}
+	if len(args) == 0 {
+		return ""
+	}
+	return "(" + strings.Join(args, ", ") + ")"
 }
 
 func (g *getEvidenceBase) buildSearchEvidenceNodeFields(subjectField string, includeAttachments bool) string {
@@ -138,6 +178,8 @@ func (g *getEvidenceBase) buildSearchEvidenceNodeFields(subjectField string, inc
 	).
 		WithIf(includeAttachments, evidenceutils.AttachmentsFragment).
 		WithIf(g.includePredicate, evidenceutils.FieldPredicate).
+		WithIf(g.includeRevoked, evidenceutils.FieldRevoked).
+		WithIf(g.includeRevoked, evidenceutils.FieldRevocation).
 		Build()
 }
 
@@ -368,6 +410,15 @@ func createOrderedEvidenceEntry(node map[string]any, includePredicate bool) Evid
 
 	if verified, ok := node["verified"].(bool); ok {
 		entry.Verified = verified
+	}
+
+	if revoked, ok := node["revoked"].(bool); ok {
+		entry.Revoked = &revoked
+	}
+
+	if revocation, ok := node["revocation"].(map[string]any); ok {
+		entry.RevokedAt, _ = revocation["revokedAt"].(string)
+		entry.RevokedBy, _ = revocation["revokedBy"].(string)
 	}
 
 	if signingKeyRaw, exists := node["signingKey"]; exists && signingKeyRaw != nil {

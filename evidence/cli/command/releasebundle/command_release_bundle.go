@@ -65,6 +65,7 @@ func (erc *evidenceReleaseBundleCommand) GetEvidence(ctx *components.Context, se
 		erc.ctx.GetStringFlagValue(flags.Output),
 		erc.ctx.GetStringFlagValue(flags.ArtifactsLimit),
 		erc.ctx.GetBoolFlagValue(flags.IncludePredicate),
+		erc.ctx.GetBoolFlagValue(flags.IncludeRevoked),
 	)
 	return erc.execute(getCmd)
 }
