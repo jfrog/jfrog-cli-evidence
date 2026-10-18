@@ -367,14 +367,9 @@ func validateSigstoreBundleArgsConflicts(ctx *components.Context) error {
 
 func resolveAndNormalizeKey(ctx *components.Context, key string) error {
 	if commandUtils.AssertValueProvided(ctx, key) == nil {
-		// Trim whitespace and newlines from the flag value
 		keyValue := ctx.GetStringFlagValue(key)
-		log.Debug(fmt.Sprintf("Flag '%s' original value: %q (length: %d)", key, keyValue, len(keyValue)))
-
 		trimmedKeyValue := strings.TrimSpace(keyValue)
-		log.Debug(fmt.Sprintf("Flag '%s' trimmed value: %q (length: %d)", key, trimmedKeyValue, len(trimmedKeyValue)))
-
-		// Always update the flag value with the trimmed version
+		logNormalizedSigningKey("flag", key, keyValue, trimmedKeyValue)
 		ctx.AddStringFlag(key, trimmedKeyValue)
 		return nil
 	}
@@ -384,14 +379,27 @@ func resolveAndNormalizeKey(ctx *components.Context, key string) error {
 		return errorutils.CheckErrorf("JFROG_CLI_SIGNING_KEY env variable or --%s flag must be provided when creating evidence", key)
 	}
 
-	log.Debug(fmt.Sprintf("Environment variable '%s' original value: %q (length: %d)", coreUtils.SigningKey, signingKeyValue, len(signingKeyValue)))
-
-	// Trim whitespace and newlines from the environment variable
+	originalSigningKeyValue := signingKeyValue
 	signingKeyValue = strings.TrimSpace(signingKeyValue)
-	log.Debug(fmt.Sprintf("Environment variable '%s' trimmed value: %q (length: %d)", coreUtils.SigningKey, signingKeyValue, len(signingKeyValue)))
-
+	logNormalizedSigningKey("environment variable", coreUtils.SigningKey, originalSigningKeyValue, signingKeyValue)
 	ctx.AddStringFlag(key, signingKeyValue)
 	return nil
+}
+
+// logNormalizedSigningKey records how the signing key was supplied. The value may be a
+// filesystem path or an inline PEM private key, so the key body is never written.
+func logNormalizedSigningKey(source, name, original, trimmed string) {
+	log.Debug(fmt.Sprintf(
+		"Normalized signing key from %s '%s': form=%s originalLength=%d trimmedLength=%d whitespaceTrimmed=%t",
+		source, name, signingKeyForm(trimmed), len(original), len(trimmed), original != trimmed,
+	))
+}
+
+func signingKeyForm(value string) string {
+	if strings.Contains(value, "-----BEGIN") {
+		return "inline-pem"
+	}
+	return "path"
 }
 
 func setKeyAliasIfProvided(ctx *components.Context, keyAlias string) {
