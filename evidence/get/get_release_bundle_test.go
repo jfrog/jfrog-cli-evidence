@@ -41,7 +41,7 @@ func (m *mockOnemodelManagerReleaseBundleFallback) GraphqlQuery(_ []byte) ([]byt
 
 func TestNewGetEvidenceReleaseBundle(t *testing.T) {
 	serverDetails := &config.ServerDetails{}
-	cmd := NewGetEvidenceReleaseBundle(serverDetails, "myBundle", SchemaVersion, "myProject", "json", "output.json", "1000", true)
+	cmd := NewGetEvidenceReleaseBundle(serverDetails, "myBundle", SchemaVersion, "myProject", "json", "output.json", "1000", true, true)
 
 	bundle, ok := cmd.(*getEvidenceReleaseBundle)
 
@@ -54,6 +54,7 @@ func TestNewGetEvidenceReleaseBundle(t *testing.T) {
 	assert.Equal(t, "json", bundle.format)
 	assert.Equal(t, "output.json", bundle.outputFileName)
 	assert.True(t, bundle.includePredicate)
+	assert.True(t, bundle.includeRevoked)
 }
 
 func TestGetEvidence(t *testing.T) {

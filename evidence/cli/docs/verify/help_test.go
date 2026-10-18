@@ -25,3 +25,9 @@ func TestGetUsageExamples(t *testing.T) {
 	assert.True(t, strings.HasPrefix(examples[0], "jf evd verify"))
 	assert.Contains(t, strings.Join(examples, "\n"), "jf evd verify --entity-type")
 }
+
+func TestVerifyHelp_DocumentsRevokedEvidenceIsNotVerified(t *testing.T) {
+	description := GetAIDescription()
+	assert.Contains(t, description, "Revoked evidence is never verified")
+	assert.NotContains(t, strings.Join(GetUsageExamples(), "\n"), "--include-revoked")
+}
