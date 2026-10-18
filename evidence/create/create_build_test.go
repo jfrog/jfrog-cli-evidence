@@ -14,6 +14,7 @@ import (
 	"github.com/jfrog/jfrog-cli-core/v2/utils/config"
 	"github.com/jfrog/jfrog-cli-core/v2/utils/coreutils"
 	"github.com/jfrog/jfrog-cli-evidence/evidence/model"
+	"github.com/jfrog/jfrog-cli-evidence/evidence/utils"
 	"github.com/jfrog/jfrog-client-go/utils/io/fileutils"
 )
 
@@ -455,7 +456,7 @@ func TestCreateEvidenceBuild_URLEncodingWithSpaces(t *testing.T) {
 			// The subject URI should contain the build name and be properly formatted
 			assert.Contains(t, uploader.capturedSubjectUri, expectedRepoKey,
 				"Subject URI should contain the correct repo key")
-			assert.Contains(t, uploader.capturedSubjectUri, tc.buildName,
+			assert.Contains(t, uploader.capturedSubjectUri, utils.EncodeBuildInfoPathSegment(tc.buildName),
 				"Subject URI should contain the build name")
 			assert.Contains(t, uploader.capturedSubjectUri, tc.buildNumber,
 				"Subject URI should contain the build number")
@@ -518,17 +519,31 @@ func TestBuildBuildInfoPath_SpecialCharacters(t *testing.T) {
 			timestamp:    "1705529045000",
 			expectedPath: "simple-build-info/SimpleBuild/3-1705529045000.json",
 		},
+		{
+			name:         "Build name with slash",
+			repoKey:      "artifactory-build-info",
+			buildName:    "abc/abc",
+			buildNumber:  "1",
+			timestamp:    "1705529045000",
+			expectedPath: "artifactory-build-info/abc%2Fabc/1-1705529045000.json",
+		},
+		{
+			name:         "Build number with slash",
+			repoKey:      "artifactory-build-info",
+			buildName:    "num-slash",
+			buildNumber:  "1/2",
+			timestamp:    "1705529045000",
+			expectedPath: "artifactory-build-info/num-slash/1%2F2-1705529045000.json",
+		},
 	}
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			result := buildBuildInfoPath(tc.repoKey, tc.buildName, tc.buildNumber, tc.timestamp)
 			assert.Equal(t, tc.expectedPath, result)
-
-			// Verify the path components
 			assert.Contains(t, result, tc.repoKey)
-			assert.Contains(t, result, tc.buildName)
-			assert.Contains(t, result, tc.buildNumber+"-"+tc.timestamp+".json")
+			assert.Contains(t, result, utils.EncodeBuildInfoPathSegment(tc.buildName))
+			assert.Contains(t, result, utils.EncodeBuildInfoPathSegment(tc.buildNumber)+"-"+tc.timestamp+".json")
 		})
 	}
 }
