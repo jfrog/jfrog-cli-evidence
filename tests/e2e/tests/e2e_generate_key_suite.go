@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"testing"
 	"time"
 
@@ -162,7 +163,10 @@ func (r *EvidenceE2ETestsRunner) RunGenerateKeyPairWithUpload(t *testing.T) {
 
 	// Step 4: Verify upload succeeded (validation happens in step 2)
 	t.Log("Step 4: Verifying key pair generation completed successfully...")
-	require.NotContains(t, generateOutput, "403", "Should not have permission error")
+	// Match a standalone 403. A substring check also matches temp paths such as
+	// ...1403575049..., which contain those digits and are not an HTTP status.
+	http403 := regexp.MustCompile(`(?:^|[^0-9])403(?:[^0-9]|$)`)
+	require.NotRegexp(t, http403, generateOutput, "Should not have permission error")
 	require.NotContains(t, generateOutput, "failed to upload", "Should not have upload failure")
 	t.Log("✓ Key pair generation with upload completed successfully")
 
