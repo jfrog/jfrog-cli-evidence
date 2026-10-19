@@ -1,7 +1,6 @@
 package create
 
 import (
-	"errors"
 	"fmt"
 
 	"github.com/jfrog/jfrog-cli-evidence/evidence/model"
@@ -12,8 +11,6 @@ import (
 	"github.com/jfrog/jfrog-cli-evidence/evidence"
 	"github.com/jfrog/jfrog-cli-evidence/evidence/utils"
 	"github.com/jfrog/jfrog-client-go/artifactory"
-	"github.com/jfrog/jfrog-client-go/artifactory/services"
-	"github.com/jfrog/jfrog-client-go/utils/errorutils"
 	"github.com/jfrog/jfrog-client-go/utils/log"
 )
 
@@ -69,7 +66,7 @@ func (c *createEvidenceBuild) Run() error {
 		defer cleanup()
 	}
 
-	timestamp, err := getBuildLatestTimestamp(c.buildName, c.buildNumber, c.project, artifactoryClient)
+	timestamp, err := utils.GetBuildLatestTimestamp(c.buildName, c.buildNumber, c.project, artifactoryClient)
 	if err != nil {
 		return err
 	}
@@ -124,30 +121,8 @@ func (c *createEvidenceBuild) recordSummary(subject string, sha256 string, respo
 	}
 }
 
-func getBuildLatestTimestamp(name string, number string, project string, artifactoryClient artifactory.ArtifactoryServicesManager) (string, error) {
-	buildInfo := services.BuildInfoParams{
-		BuildName:   name,
-		BuildNumber: number,
-		ProjectKey:  project,
-	}
-	log.Debug("Getting build info for buildName:", name, "buildNumber:", number, "project:", project)
-	res, ok, err := artifactoryClient.GetBuildInfo(buildInfo)
-	if err != nil {
-		return "", fmt.Errorf("failed to get build info for buildName: %s, buildNumber: %s, project: %s, error: %w", name, number, project, err)
-	}
-	if !ok {
-		errorMessage := fmt.Sprintf("failed to find buildName, name:%s, number:%s, project: %s", name, number, project)
-		return "", errorutils.CheckError(errors.New(errorMessage))
-	}
-	timestamp, err := utils.ParseIsoTimestamp(res.BuildInfo.Started)
-	if err != nil {
-		return "", err
-	}
-	return fmt.Sprintf("%d", timestamp.UnixMilli()), nil
-}
-
 func buildBuildInfoPath(repoKey string, name string, number string, timestamp string) string {
-	jsonFile := fmt.Sprintf("%s-%s.json", number, timestamp)
+	jsonFile := utils.BuildInfoFileName(number, timestamp)
 	return fmt.Sprintf("%s/%s/%s", repoKey, name, jsonFile)
 }
 
