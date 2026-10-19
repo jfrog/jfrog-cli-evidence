@@ -15,6 +15,7 @@ import (
 	"github.com/jfrog/jfrog-client-go/onemodel"
 	ioUtils "github.com/jfrog/jfrog-client-go/utils/io"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // MockOneModelManagerBase for base tests
@@ -57,6 +58,16 @@ func (m *MockOneModelManagerWithQueryCapture) GraphqlQuery(query []byte) ([]byte
 
 // Satisfy interface for onemodel.Manager
 var _ onemodel.Manager = (*MockOneModelManagerBase)(nil)
+
+// graphqlQueryText decodes a GraphQL request body ({"query":"..."}) and returns the query it carries.
+func graphqlQueryText(t *testing.T, body []byte) string {
+	t.Helper()
+	var request struct {
+		Query string `json:"query"`
+	}
+	require.NoError(t, json.Unmarshal(body, &request))
+	return request.Query
+}
 
 // MockEvidenceVerifier implements the EvidenceVerifierInterface for unit testing verifyEvidence
 type MockEvidenceVerifier struct {
@@ -736,4 +747,18 @@ func TestVerifyEvidenceBase_Progress_QueryEvidenceMetadata(t *testing.T) {
 	_, err := v.queryEvidenceMetadata("repo", "p", "n")
 	assert.NoError(t, err)
 	assert.True(t, len(pm.headlines) >= 1)
+}
+
+func TestVerifyEvidenceBase_QueryEvidenceMetadata_EscapesSubjectValues(t *testing.T) {
+	mockManager := &MockOneModelManagerWithQueryCapture{
+		GraphqlResponse: []byte(`{"data":{"evidence":{"searchEvidence":{"edges":[{"node":{"subject":{"sha256":"test-sha256"}}}]}}}}`),
+	}
+	v := &verifyEvidenceBase{oneModelClient: mockManager}
+
+	_, err := v.queryEvidenceMetadata(`my"repo`, `build\name`, `1-1700000000000".json`)
+	require.NoError(t, err)
+
+	require.Len(t, mockManager.CapturedQueries, 1)
+	assert.Contains(t, graphqlQueryText(t, mockManager.CapturedQueries[0]),
+		`hasSubjectWith: { repositoryKey: "my\"repo", path: "build\\name", name: "1-1700000000000\".json" }`)
 }

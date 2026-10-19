@@ -10,7 +10,7 @@ import (
 	"github.com/jfrog/jfrog-cli-core/v2/utils/config"
 )
 
-const aqlReleaseBundleQueryTemplate = "items.find({\"repo\": \"%s\",\"path\": \"%s\",\"name\": \"%s\"}).include(\"repo\",\"path\",\"name\",\"sha256\")"
+const aqlReleaseBundleQueryTemplate = "items.find({\"repo\": %s,\"path\": %s,\"name\": %s}).include(\"repo\",\"path\",\"name\",\"sha256\")"
 
 // verifyEvidenceReleaseBundle verifies evidence for a release bundle.
 type verifyEvidenceReleaseBundle struct {
@@ -53,7 +53,11 @@ func (c *verifyEvidenceReleaseBundle) Run() error {
 
 	path := fmt.Sprintf("%s/%s", c.releaseBundle, c.releaseBundleVersion)
 	c.setHeadline("Searching release bundle")
-	result, err := utils.ExecuteAqlQuery(fmt.Sprintf(aqlReleaseBundleQueryTemplate, repoKey, path, "release-bundle.json.evd"), artifactoryClient)
+	query, err := utils.FormatAqlQuery(aqlReleaseBundleQueryTemplate, repoKey, path, "release-bundle.json.evd")
+	if err != nil {
+		return err
+	}
+	result, err := utils.ExecuteAqlQuery(query, artifactoryClient)
 	if err != nil {
 		return fmt.Errorf("failed to execute AQL query: %w", err)
 	}

@@ -108,6 +108,7 @@ func (v *verifyEvidenceBase) createArtifactoryClient() (*artifactory.Artifactory
 
 // queryEvidenceMetadata queries evidence metadata for a given repo, path, and name.
 func (v *verifyEvidenceBase) queryEvidenceMetadata(repo string, path string, name string) (*[]model.SearchEvidenceEdge, error) {
+	repo, path, name = evidenceutils.EscapeGraphQLString(repo), evidenceutils.EscapeGraphQLString(path), evidenceutils.EscapeGraphQLString(name)
 	queryWithAttachments := fmt.Sprintf(v.buildSearchEvidenceQuery(true), repo, path, name)
 	queryWithoutAttachments := fmt.Sprintf(v.buildSearchEvidenceQuery(false), repo, path, name)
 	return v.queryEvidenceMetadataWithQueries(queryWithAttachments, queryWithoutAttachments)
