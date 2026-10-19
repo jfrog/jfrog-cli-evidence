@@ -14,6 +14,7 @@ import (
 	"github.com/jfrog/jfrog-cli-core/v2/utils/config"
 	"github.com/jfrog/jfrog-cli-core/v2/utils/coreutils"
 	"github.com/jfrog/jfrog-cli-evidence/evidence/model"
+	"github.com/jfrog/jfrog-cli-evidence/evidence/utils"
 	"github.com/jfrog/jfrog-client-go/utils/io/fileutils"
 )
 
@@ -56,7 +57,7 @@ func TestBuildInfo(t *testing.T) {
 			c, ok := NewCreateEvidenceBuild(nil, "", "", "", "", "", tt.project, tt.buildName, tt.buildNumber, "", "", "", "", "").(*createEvidenceBuild)
 			assert.True(t, ok, "should create createEvidenceBuild instance")
 			aa := createMockArtifactoryManagerForBuildTests()
-			timestamp, err := getBuildLatestTimestamp(tt.buildName, tt.buildNumber, tt.project, aa)
+			timestamp, err := utils.GetBuildLatestTimestamp(tt.buildName, tt.buildNumber, tt.project, aa)
 			assert.NoError(t, err)
 			path, sha256, err := c.buildBuildInfoSubjectPath(aa, timestamp)
 			if tt.expectError {
