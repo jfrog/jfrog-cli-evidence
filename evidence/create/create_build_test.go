@@ -233,7 +233,7 @@ func TestCreateEvidenceBuild_RecordSummary(t *testing.T) {
 	evidence := NewCreateEvidenceBuild(
 		serverDetails,
 		predicateFile,
-		"test-predicate-type",
+		"https://example.com/test-predicate-type/v1",
 		"",
 		"test-key",
 		"test-key-id",
@@ -274,7 +274,7 @@ func TestCreateEvidenceBuild_RecordSummary(t *testing.T) {
 
 			assert.Equal(t, expectedSubject, summaryData.Subject)
 			assert.Equal(t, expectedSha256, summaryData.SubjectSha256)
-			assert.Equal(t, "test-predicate-type", summaryData.PredicateType)
+			assert.Equal(t, "https://example.com/test-predicate-type/v1", summaryData.PredicateType)
 			assert.Equal(t, "test-slug", summaryData.PredicateSlug)
 			assert.True(t, summaryData.Verified)
 			assert.Equal(t, "testBuild 123", summaryData.DisplayName)

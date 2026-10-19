@@ -317,7 +317,34 @@ func (c *createEvidenceBase) recordEvidenceSummary(summaryData commandsummary.Ev
 		return err
 	}
 
-	return evidenceSummary.Record(summaryData)
+	return evidenceSummary.Record(validateSummaryData(summaryData))
+}
+
+const maxPredicateSlugLength = 128
+
+// validateSummaryData drops predicate values that are unsafe to render in the GitHub job summary.
+// The Evidence service only requires the predicate type to be ASCII, and derives the slug from it,
+// so most printable characters such as "_", "+" and ":" are allowed.
+// Only whitespace, non-printable characters and markup characters are rejected.
+func validateSummaryData(summaryData commandsummary.EvidenceSummaryData) commandsummary.EvidenceSummaryData {
+	if summaryData.PredicateSlug != "" && (len(summaryData.PredicateSlug) > maxPredicateSlugLength || !isSafeSummaryValue(summaryData.PredicateSlug)) {
+		log.Debug(fmt.Sprintf("Omitting invalid predicate slug from the evidence summary: %q", summaryData.PredicateSlug))
+		summaryData.PredicateSlug = ""
+	}
+	if summaryData.PredicateType != "" && !isSafeSummaryValue(summaryData.PredicateType) {
+		log.Debug(fmt.Sprintf("Omitting invalid predicate type from the evidence summary: %q", summaryData.PredicateType))
+		summaryData.PredicateType = ""
+	}
+	return summaryData
+}
+
+func isSafeSummaryValue(value string) bool {
+	for _, r := range value {
+		if r <= ' ' || r > '~' || strings.ContainsRune(`<>"'`, r) {
+			return false
+		}
+	}
+	return true
 }
 
 func (c *createEvidenceBase) createArtifactoryClient() (artifactory.ArtifactoryServicesManager, error) {
