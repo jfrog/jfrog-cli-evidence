@@ -40,7 +40,7 @@ func (r *EvidenceE2ETestsRunner) RunGenerateKeyPairBasic(t *testing.T) {
 
 	// Step 2: Generate key pair using User CLI (no upload)
 	t.Log("Step 2: Generating key pair using User CLI...")
-	keyAlias := fmt.Sprintf("e2e-basic-key-%d", time.Now().Unix())
+	keyAlias := fmt.Sprintf("e2e-basic-key-%d", time.Now().UnixNano())
 	keyFileName := "basic-key"
 
 	generateOutput := RunCliCmdWithStdOutputAndErrOutput(t, r.EvidenceUserCLI,
@@ -79,7 +79,7 @@ func (r *EvidenceE2ETestsRunner) RunGenerateKeyPairWithCustomPath(t *testing.T) 
 
 	// Step 2: Generate key pair in custom path using User CLI
 	t.Log("Step 2: Generating key pair in custom nested path using User CLI...")
-	keyAlias := fmt.Sprintf("e2e-custom-path-key-%d", time.Now().Unix())
+	keyAlias := fmt.Sprintf("e2e-custom-path-key-%d", time.Now().UnixNano())
 	keyFileName := "custom-key"
 
 	generateOutput := RunCliCmdWithStdOutputAndErrOutput(t, r.EvidenceUserCLI,
@@ -127,7 +127,7 @@ func (r *EvidenceE2ETestsRunner) RunGenerateKeyPairWithUpload(t *testing.T) {
 
 	// Step 2: Generate key pair with upload using Admin CLI (requires MANAGE_TRUSTED_KEYS permission)
 	t.Log("Step 2: Generating key pair with upload using Admin CLI...")
-	keyAlias := fmt.Sprintf("e2e-upload-key-%d", time.Now().Unix())
+	keyAlias := fmt.Sprintf("e2e-upload-key-%d", time.Now().UnixNano())
 	keyFileName := "upload-key"
 
 	generateOutput := RunCliCmdWithStdOutputAndErrOutput(t, r.EvidenceAdminCLI,
