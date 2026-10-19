@@ -9,37 +9,26 @@ import (
 
 	"github.com/jfrog/jfrog-cli-core/v2/utils/config"
 	"github.com/jfrog/jfrog-cli-evidence/evidence/client"
+	"github.com/jfrog/jfrog-cli-evidence/evidence/dsse"
 	"github.com/jfrog/jfrog-cli-evidence/evidence/model"
+	"github.com/jfrog/jfrog-client-go/artifactory/services/utils"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 type captureEvidenceServiceClient struct {
-	prepareReq  client.PrepareEvidenceRequest
-	prepareResp *client.PrepareEvidenceResponse
-	prepareErr  error
-	createReq   client.CreateEntityEvidenceRequest
-	uploadURL   string
-	uploadBody  []byte
-	uploadResp  []byte
-	uploadErr   error
+	createReq  client.CreateEntityEvidenceRequest
+	uploadBody []byte
+	uploadResp []byte
+	uploadErr  error
 }
 
-func (c *captureEvidenceServiceClient) PrepareEvidence(request client.PrepareEvidenceRequest, _ bool) (*client.PrepareEvidenceResponse, error) {
-	c.prepareReq = request
-	if c.prepareErr != nil {
-		return nil, c.prepareErr
-	}
-	return c.prepareResp, nil
+func (c *captureEvidenceServiceClient) PrepareEvidence(client.PrepareEvidenceRequest, bool) (*client.PrepareEvidenceResponse, error) {
+	return nil, nil
 }
 
-func (c *captureEvidenceServiceClient) UploadPreparedSignedEvidence(postURL string, signedEnvelope []byte) ([]byte, error) {
-	c.uploadURL = postURL
-	c.uploadBody = signedEnvelope
-	if c.uploadErr != nil {
-		return nil, c.uploadErr
-	}
-	return c.uploadResp, nil
+func (c *captureEvidenceServiceClient) UploadPreparedSignedEvidence(string, []byte) ([]byte, error) {
+	return nil, nil
 }
 
 func (c *captureEvidenceServiceClient) CreateEntityEvidence(request client.CreateEntityEvidenceRequest, payload []byte) ([]byte, error) {
@@ -104,32 +93,23 @@ func TestCreateEvidenceEntity_Run_SigstoreBundle(t *testing.T) {
 	assert.True(t, cmd.CollectedResponses()[0].Verified)
 }
 
-func TestCreateEvidenceEntity_Run_PrepareSignUpload(t *testing.T) {
+func TestCreateEvidenceEntity_Run_SignsClientBuiltStatement(t *testing.T) {
 	dir := t.TempDir()
 	predicatePath := filepath.Join(dir, "predicate.json")
 	require.NoError(t, os.WriteFile(predicatePath, []byte(`{"result":"ok"}`), 0o600))
+	keyContent, err := os.ReadFile(filepath.Join("../..", "tests/testdata/ecdsa_key.pem"))
+	require.NoError(t, err)
 
 	evidenceServiceClient := &captureEvidenceServiceClient{
-		prepareResp: &client.PrepareEvidenceResponse{
-			PostURL:         "/evidence/api/v1/entity/gitCommit/abc123?project=proj",
-			DSSEPayload:     base64.StdEncoding.EncodeToString([]byte(`{"_type":"https://in-toto.io/Statement/v1","predicateType":"https://example.com/v1","predicate":{"result":"ok"},"subject":[{"digest":{"gitCommit":"abc123"}}]}`)),
-			DSSEPayloadType: "application/vnd.in-toto+json",
-			Attachments: []client.PrepareEvidenceAttachment{{
-				Repository: "reports-local",
-				Path:       "reports/a.txt",
-				SHA256:     "deadbeef",
-			}},
-		},
 		uploadResp: []byte(`{"verified":true,"predicate_slug":"example"}`),
 	}
-
 	cmd := &createEvidenceEntity{
 		createEvidenceBase: createEvidenceBase{
-			serverDetails:         &config.ServerDetails{Url: "https://example.jfrog.io/"},
+			serverDetails:         &config.ServerDetails{Url: "https://example.jfrog.io/", User: "alice"},
 			predicateFilePath:     predicatePath,
 			predicateType:         "https://example.com/v1",
 			providerId:            "ci",
-			key:                   "not-a-real-key",
+			key:                   string(keyContent),
 			evidenceServiceClient: evidenceServiceClient,
 		},
 		EntitySubject: model.EntitySubject{
@@ -139,65 +119,85 @@ func TestCreateEvidenceEntity_Run_PrepareSignUpload(t *testing.T) {
 		},
 	}
 
-	err := cmd.Run()
-	require.Error(t, err) // signing key invalid
-	assert.Equal(t, "gitCommit", evidenceServiceClient.prepareReq.Subject.EntityType)
-	assert.Equal(t, "abc123", evidenceServiceClient.prepareReq.Subject.EntityID)
-	assert.Equal(t, client.SubjectTypeEntity, evidenceServiceClient.prepareReq.Subject.SubjectType)
-	assert.Equal(t, "proj", evidenceServiceClient.prepareReq.ProjectKey)
-	assert.Equal(t, "ci", evidenceServiceClient.prepareReq.ProviderID)
-	assert.JSONEq(t, `{"result":"ok"}`, string(evidenceServiceClient.prepareReq.Predicate))
+	require.NoError(t, cmd.Run())
+	assert.Equal(t, client.CreateEntityEvidenceRequest{
+		EntityType: "gitCommit",
+		EntityID:   "abc123",
+		ProjectKey: "proj",
+		ProviderID: "ci",
+	}, evidenceServiceClient.createReq)
+
+	statement := signedStatementFromUpload(t, evidenceServiceClient.uploadBody)
+	assert.Equal(t, "https://in-toto.io/Statement/v1", statement["_type"])
+	assert.Equal(t, "https://example.com/v1", statement["predicateType"])
+	assert.Equal(t, "alice", statement["createdBy"])
+	assert.JSONEq(t, `{"result":"ok"}`, mustJSON(t, statement["predicate"]))
+	assert.Equal(t, map[string]any{"gitCommit": "abc123"}, subjectDigest(t, statement))
+	_, hasSha256 := subjectDigest(t, statement)["sha256"]
+	assert.False(t, hasSha256)
+	require.Len(t, cmd.CollectedResponses(), 1)
+	assert.True(t, cmd.CollectedResponses()[0].Verified)
 }
 
-func TestWrapEnvelopeWithAttachmentRefs(t *testing.T) {
-	envelope := []byte(`{"payload":"abc","payloadType":"application/vnd.in-toto+json","signatures":[]}`)
-	wrapped, err := wrapEnvelopeWithAttachmentRefs(envelope, toAttachmentRefs([]client.PrepareEvidenceAttachment{{
-		Repository: "repo",
-		Path:       "path/file.txt",
-		SHA256:     "abc123",
-	}}))
+func TestCreateEvidenceEntity_Run_IncludesAttachmentInSignedStatement(t *testing.T) {
+	dir := t.TempDir()
+	predicatePath := filepath.Join(dir, "predicate.json")
+	require.NoError(t, os.WriteFile(predicatePath, []byte(`{"result":"ok"}`), 0o600))
+	keyContent, err := os.ReadFile(filepath.Join("../..", "tests/testdata/ecdsa_key.pem"))
 	require.NoError(t, err)
-	assert.JSONEq(t, `{
-		"payload":"abc",
-		"payloadType":"application/vnd.in-toto+json",
-		"signatures":[],
-		"attachments":[{"repository":"repo","path":"path/file.txt","sha256":"abc123"}]
-	}`, string(wrapped))
-}
 
-func TestUploadPreparedEvidence_CollectsResponse(t *testing.T) {
 	evidenceServiceClient := &captureEvidenceServiceClient{
-		uploadResp: []byte(`{"verified":false,"predicate_slug":"slug"}`),
+		uploadResp: []byte(`{"verified":true,"predicate_slug":"example"}`),
 	}
 	cmd := &createEvidenceEntity{
-		createEvidenceBase: createEvidenceBase{evidenceServiceClient: evidenceServiceClient},
+		createEvidenceBase: createEvidenceBase{
+			serverDetails:         &config.ServerDetails{Url: "https://example.jfrog.io/", User: "alice"},
+			predicateFilePath:     predicatePath,
+			predicateType:         "https://example.com/v1",
+			key:                   string(keyContent),
+			attachArtifactoryPath: "reports-local/reports/a.json",
+			artifactoryClient: &SimpleMockServicesManager{
+				FileInfoFunc: func(string) (*utils.FileInfo, error) {
+					return NewFileInfoBuilder().WithSha256("deadbeef").Build(), nil
+				},
+			},
+			evidenceServiceClient: evidenceServiceClient,
+		},
+		EntitySubject: model.EntitySubject{
+			EntityType: "gitCommit",
+			EntityID:   "abc123",
+		},
 	}
-	resp, err := cmd.uploadPreparedEvidence("/evidence/api/v1/entity/gitCommit/abc", []byte(`{"payload":"x"}`))
-	require.NoError(t, err)
-	require.NotNil(t, resp)
-	assert.False(t, resp.Verified)
-	assert.Equal(t, "slug", resp.PredicateSlug)
-	require.Len(t, cmd.CollectedResponses(), 1)
-	assert.Equal(t, &model.CreateResponse{Verified: false, PredicateSlug: "slug"}, cmd.CollectedResponses()[0])
-	assert.Equal(t, "/evidence/api/v1/entity/gitCommit/abc", evidenceServiceClient.uploadURL)
+
+	require.NoError(t, cmd.Run())
+	statement := signedStatementFromUpload(t, evidenceServiceClient.uploadBody)
+	assert.Equal(t, map[string]any{"gitCommit": "abc123"}, subjectDigest(t, statement))
+	attachments, ok := statement["attachments"].([]any)
+	require.True(t, ok)
+	require.Len(t, attachments, 1)
+	attachment, ok := attachments[0].(map[string]any)
+	require.True(t, ok)
+	assert.Equal(t, "a.json", attachment["name"])
+	assert.Equal(t, "deadbeef", attachment["sha256"])
+
+	var uploaded map[string]any
+	require.NoError(t, json.Unmarshal(evidenceServiceClient.uploadBody, &uploaded))
+	assert.JSONEq(t, `[{"repository":"reports-local","path":"reports/a.json","sha256":"deadbeef"}]`, mustJSON(t, uploaded["attachments"]))
 }
 
-func TestPrepareSignedStatement_ReadsMarkdown(t *testing.T) {
+func TestBuildEntityStatement_ReadsMarkdown(t *testing.T) {
 	dir := t.TempDir()
 	predicatePath := filepath.Join(dir, "predicate.json")
 	markdownPath := filepath.Join(dir, "notes.md")
 	require.NoError(t, os.WriteFile(predicatePath, []byte(`{}`), 0o600))
 	require.NoError(t, os.WriteFile(markdownPath, []byte("# hi"), 0o600))
 
-	evidenceServiceClient := &captureEvidenceServiceClient{
-		prepareResp: &client.PrepareEvidenceResponse{DSSEPayload: base64.StdEncoding.EncodeToString([]byte(`{}`))},
-	}
 	cmd := &createEvidenceEntity{
 		createEvidenceBase: createEvidenceBase{
-			predicateFilePath:     predicatePath,
-			predicateType:         "https://example.com/v1",
-			markdownFilePath:      markdownPath,
-			evidenceServiceClient: evidenceServiceClient,
+			serverDetails:     &config.ServerDetails{User: "alice"},
+			predicateFilePath: predicatePath,
+			predicateType:     "https://example.com/v1",
+			markdownFilePath:  markdownPath,
 		},
 		EntitySubject: model.EntitySubject{
 			EntityType: "languageModel",
@@ -205,16 +205,17 @@ func TestPrepareSignedStatement_ReadsMarkdown(t *testing.T) {
 			EntityRepo: "models-entity",
 		},
 	}
-	_, err := cmd.buildEvidenceStatement(nil)
+	statementBytes, err := cmd.buildEntityStatement(nil)
 	require.NoError(t, err)
-	assert.Equal(t, "# hi", evidenceServiceClient.prepareReq.Markdown)
-	assert.Equal(t, "models-entity", evidenceServiceClient.prepareReq.EntityRepo)
 
-	var decoded map[string]any
-	require.NoError(t, json.Unmarshal(evidenceServiceClient.prepareReq.Predicate, &decoded))
+	var statement map[string]any
+	require.NoError(t, json.Unmarshal(statementBytes, &statement))
+	assert.Equal(t, "# hi", statement["markdown"])
+	assert.Equal(t, map[string]any{"languageModel": "model-1"}, subjectDigest(t, statement))
+	assert.Equal(t, "alice", statement["createdBy"])
 }
 
-func TestPrepareSignedStatement_EmbedsMarkdownImages(t *testing.T) {
+func TestBuildEntityStatement_EmbedsMarkdownImages(t *testing.T) {
 	dir := t.TempDir()
 	predicatePath := filepath.Join(dir, "predicate.json")
 	markdownPath := filepath.Join(dir, "notes.md")
@@ -223,22 +224,54 @@ func TestPrepareSignedStatement_EmbedsMarkdownImages(t *testing.T) {
 	require.NoError(t, os.WriteFile(markdownPath, []byte("![image](./image.svg)"), 0o600))
 	require.NoError(t, os.WriteFile(imagePath, []byte(`<svg width="10" height="10" xmlns="http://www.w3.org/2000/svg"><rect width="10" height="10" fill="red"/></svg>`), 0o600))
 
-	evidenceServiceClient := &captureEvidenceServiceClient{
-		prepareResp: &client.PrepareEvidenceResponse{DSSEPayload: base64.StdEncoding.EncodeToString([]byte(`{}`))},
-	}
 	cmd := &createEvidenceEntity{
 		createEvidenceBase: createEvidenceBase{
-			predicateFilePath:     predicatePath,
-			predicateType:         "https://example.com/v1",
-			markdownFilePath:      markdownPath,
-			evidenceServiceClient: evidenceServiceClient,
+			serverDetails:     &config.ServerDetails{User: "alice"},
+			predicateFilePath: predicatePath,
+			predicateType:     "https://example.com/v1",
+			markdownFilePath:  markdownPath,
 		},
 		EntitySubject: model.EntitySubject{
 			EntityType: "languageModel",
 			EntityID:   "model-1",
 		},
 	}
-	_, err := cmd.buildEvidenceStatement(nil)
+	statementBytes, err := cmd.buildEntityStatement(nil)
 	require.NoError(t, err)
-	assert.Equal(t, "![image](data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTAiIGhlaWdodD0iMTAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PHJlY3Qgd2lkdGg9IjEwIiBoZWlnaHQ9IjEwIiBmaWxsPSJyZWQiLz48L3N2Zz4=)", evidenceServiceClient.prepareReq.Markdown)
+
+	var statement map[string]any
+	require.NoError(t, json.Unmarshal(statementBytes, &statement))
+	assert.Equal(t, "![image](data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTAiIGhlaWdodD0iMTAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PHJlY3Qgd2lkdGg9IjEwIiBoZWlnaHQ9IjEwIiBmaWxsPSJyZWQiLz48L3N2Zz4=)", statement["markdown"])
+}
+
+func signedStatementFromUpload(t *testing.T, body []byte) map[string]any {
+	t.Helper()
+	var envelope dsse.Envelope
+	require.NoError(t, json.Unmarshal(body, &envelope))
+	assert.Equal(t, "application/vnd.in-toto+json", envelope.PayloadType)
+	require.NotEmpty(t, envelope.Signatures)
+	payload, err := base64.StdEncoding.DecodeString(envelope.Payload)
+	require.NoError(t, err)
+	var statement map[string]any
+	require.NoError(t, json.Unmarshal(payload, &statement))
+	return statement
+}
+
+func subjectDigest(t *testing.T, statement map[string]any) map[string]any {
+	t.Helper()
+	subjects, ok := statement["subject"].([]any)
+	require.True(t, ok)
+	require.Len(t, subjects, 1)
+	subject, ok := subjects[0].(map[string]any)
+	require.True(t, ok)
+	digest, ok := subject["digest"].(map[string]any)
+	require.True(t, ok)
+	return digest
+}
+
+func mustJSON(t *testing.T, value any) string {
+	t.Helper()
+	raw, err := json.Marshal(value)
+	require.NoError(t, err)
+	return string(raw)
 }

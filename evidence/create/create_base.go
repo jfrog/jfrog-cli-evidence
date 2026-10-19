@@ -292,25 +292,6 @@ func (c *createEvidenceBase) uploadEvidence(evidencePayload []byte, repoPath str
 	return c.collectCreateResponse(body)
 }
 
-// uploadPreparedEvidence uploads a signed DSSE envelope to a prepare-flow post URL and records
-// the create response for --format output.
-func (c *createEvidenceBase) uploadPreparedEvidence(postURL string, envelopeBytes []byte) (*model.CreateResponse, error) {
-	if c.evidenceServiceClient == nil {
-		evidenceServiceClient, err := client.NewEvidenceClient(c.serverDetails)
-		if err != nil {
-			return nil, err
-		}
-		c.evidenceServiceClient = evidenceServiceClient
-	}
-
-	log.Debug("Uploading prepared evidence to:", postURL)
-	body, err := c.evidenceServiceClient.UploadPreparedSignedEvidence(postURL, envelopeBytes)
-	if err != nil {
-		return nil, err
-	}
-	return c.collectCreateResponse(body)
-}
-
 // collectCreateResponse unmarshals an Evidence create response and records it for --format output.
 func (c *createEvidenceBase) collectCreateResponse(body []byte) (*model.CreateResponse, error) {
 	createResponse := &model.CreateResponse{}
