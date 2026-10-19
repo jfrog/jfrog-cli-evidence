@@ -175,8 +175,10 @@ func TestCreateEvidenceEntity_Run_IncludesAttachmentInSignedStatement(t *testing
 	attachments, ok := statement["attachments"].([]any)
 	require.True(t, ok)
 	require.Len(t, attachments, 1)
-	assert.Equal(t, "a.json", attachments[0].(map[string]any)["name"])
-	assert.Equal(t, "deadbeef", attachments[0].(map[string]any)["sha256"])
+	attachment, ok := attachments[0].(map[string]any)
+	require.True(t, ok)
+	assert.Equal(t, "a.json", attachment["name"])
+	assert.Equal(t, "deadbeef", attachment["sha256"])
 
 	var uploaded map[string]any
 	require.NoError(t, json.Unmarshal(evidenceServiceClient.uploadBody, &uploaded))
@@ -260,7 +262,9 @@ func subjectDigest(t *testing.T, statement map[string]any) map[string]any {
 	subjects, ok := statement["subject"].([]any)
 	require.True(t, ok)
 	require.Len(t, subjects, 1)
-	digest, ok := subjects[0].(map[string]any)["digest"].(map[string]any)
+	subject, ok := subjects[0].(map[string]any)
+	require.True(t, ok)
+	digest, ok := subject["digest"].(map[string]any)
 	require.True(t, ok)
 	return digest
 }
