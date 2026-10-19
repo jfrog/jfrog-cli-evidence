@@ -60,19 +60,28 @@ func TestBuildInfoFileName(t *testing.T) {
 	assert.Equal(t, "4-rc-1700000000000.json", BuildInfoFileName("4-rc", "1700000000000"))
 }
 
-func TestQuoteAqlString(t *testing.T) {
+func TestFormatAqlQuery(t *testing.T) {
 	testCases := []struct {
 		value    string
 		expected string
 	}{
-		{value: "build-name", expected: `"build-name"`},
-		{value: `a"b`, expected: `"a\"b"`},
-		{value: `a\b`, expected: `"a\\b"`},
-		{value: "a&b<c>", expected: `"a&b<c>"`},
-		{value: "line\nbreak", expected: `"line\nbreak"`},
-		{value: "", expected: `""`},
+		{value: "build-name", expected: `{"name":"build-name"}`},
+		{value: `a"b`, expected: `{"name":"a\"b"}`},
+		{value: `a\b`, expected: `{"name":"a\\b"}`},
+		{value: "a&b<c>", expected: `{"name":"a&b<c>"}`},
+		{value: "line\nbreak", expected: `{"name":"line\nbreak"}`},
+		{value: "", expected: `{"name":""}`},
 	}
 	for _, tc := range testCases {
-		assert.Equal(t, tc.expected, QuoteAqlString(tc.value))
+		query, err := FormatAqlQuery(`{"name":%s}`, tc.value)
+		require.NoError(t, err)
+		assert.Equal(t, tc.expected, query)
 	}
+}
+
+func TestFormatAqlQuery_MultipleValues(t *testing.T) {
+	query, err := FormatAqlQuery(`items.find({"repo":%s,"path":%s})`, "repo", `pa"th`)
+
+	require.NoError(t, err)
+	assert.Equal(t, `items.find({"repo":"repo","path":"pa\"th"})`, query)
 }

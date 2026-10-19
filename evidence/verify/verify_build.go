@@ -73,7 +73,10 @@ func (v *verifyEvidenceBuild) findBuildInfoFile(client *artifactory.ArtifactoryS
 	}
 
 	fileName := utils.BuildInfoFileName(v.buildNumber, timestamp)
-	query := fmt.Sprintf(aqlBuildInfoFileQueryTemplate, utils.QuoteAqlString(repoKey), utils.QuoteAqlString(v.buildName), utils.QuoteAqlString(fileName))
+	query, err := utils.FormatAqlQuery(aqlBuildInfoFileQueryTemplate, repoKey, v.buildName, fileName)
+	if err != nil {
+		return "", "", err
+	}
 	result, err := utils.ExecuteAqlQuery(query, client)
 	if err != nil {
 		return "", "", fmt.Errorf("failed to execute AQL query: %w", err)

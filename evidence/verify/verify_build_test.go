@@ -51,9 +51,15 @@ func (m *MockArtifactoryServicesManagerBuild) Aql(query string) (io.ReadCloser, 
 	}
 	matches := []*servicesUtils.ResultItem{}
 	for _, file := range m.BuildInfoFiles {
-		if strings.Contains(query, `"repo":`+utils.QuoteAqlString(file.Repo)) &&
-			strings.Contains(query, `"path":`+utils.QuoteAqlString(file.Path)) &&
-			strings.Contains(query, `"name":`+utils.QuoteAqlString(file.Name)) {
+		matched := true
+		for _, field := range [][2]string{{"repo", file.Repo}, {"path", file.Path}, {"name", file.Name}} {
+			condition, err := utils.FormatAqlQuery(`"`+field[0]+`":%s`, field[1])
+			if err != nil {
+				return nil, err
+			}
+			matched = matched && strings.Contains(query, condition)
+		}
+		if matched {
 			matches = append(matches, file)
 		}
 	}

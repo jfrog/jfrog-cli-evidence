@@ -3,6 +3,7 @@ package utils
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	gofrogio "github.com/jfrog/gofrog/io"
 	"github.com/jfrog/jfrog-client-go/artifactory"
 	servicesUtils "github.com/jfrog/jfrog-client-go/artifactory/services/utils"
@@ -30,15 +31,28 @@ func ExecuteAqlQuery(query string, client *artifactory.ArtifactoryServicesManage
 	return parsedResult, nil
 }
 
-// QuoteAqlString returns value as a quoted, escaped AQL string literal, so it can be interpolated into an AQL query.
-func QuoteAqlString(value string) string {
+// FormatAqlQuery replaces each %s in template with the matching value, quoted and escaped as an AQL string literal.
+func FormatAqlQuery(template string, values ...string) (string, error) {
+	literals := make([]any, len(values))
+	for i, value := range values {
+		literal, err := quoteAqlString(value)
+		if err != nil {
+			return "", err
+		}
+		literals[i] = literal
+	}
+	return fmt.Sprintf(template, literals...), nil
+}
+
+func quoteAqlString(value string) (string, error) {
 	var buf bytes.Buffer
 	encoder := json.NewEncoder(&buf)
 	// AQL only needs JSON string escaping; keep '&', '<' and '>' as they are.
 	encoder.SetEscapeHTML(false)
-	// Encoding a string cannot fail.
-	_ = encoder.Encode(value)
-	return strings.TrimSuffix(buf.String(), "\n")
+	if err := encoder.Encode(value); err != nil {
+		return "", err
+	}
+	return strings.TrimSuffix(buf.String(), "\n"), nil
 }
 
 type AqlResult struct {
