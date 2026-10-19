@@ -3,6 +3,7 @@ package create
 import (
 	"encoding/base64"
 	"encoding/json"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
@@ -586,7 +587,7 @@ func TestCreateEvidenceCustom_RecordSummary(t *testing.T) {
 	evidence := NewCreateEvidenceCustom(
 		serverDetails,
 		"",
-		"custom-predicate-type",
+		"https://example.com/custom-predicate-type/v1",
 		"",
 		"test-key",
 		"test-key-id",
@@ -605,7 +606,7 @@ func TestCreateEvidenceCustom_RecordSummary(t *testing.T) {
 	expectedResponse := &model.CreateResponse{
 		PredicateSlug: "custom-slug",
 		Verified:      false,
-		PredicateType: "custom-predicate-type",
+		PredicateType: "https://example.com/custom-predicate-type/v1",
 	}
 
 	c.recordSummary(subjectRepoPath, expectedResponse)
@@ -625,7 +626,7 @@ func TestCreateEvidenceCustom_RecordSummary(t *testing.T) {
 
 			assert.Equal(t, subjectRepoPath, summaryData.Subject)
 			assert.Equal(t, subjectSha256, summaryData.SubjectSha256)
-			assert.Equal(t, "custom-predicate-type", summaryData.PredicateType)
+			assert.Equal(t, "https://example.com/custom-predicate-type/v1", summaryData.PredicateType)
 			assert.Equal(t, "custom-slug", summaryData.PredicateSlug)
 			assert.False(t, summaryData.Verified)
 			assert.Equal(t, subjectRepoPath, summaryData.DisplayName)
@@ -875,4 +876,50 @@ func TestCreateEvidenceCustom_HandleSubjectNotFound_ImprovedErrorContext(t *test
 	err = custom.handleSubjectNotFound(subjectPath, otherErr)
 	assert.Error(t, err)
 	assert.Equal(t, otherErr, err)
+}
+
+func TestCreateEvidenceCustom_RecordSummary_OmitsInvalidPredicateValues(t *testing.T) {
+	tempDir, err := fileutils.CreateTempDir()
+	assert.NoError(t, err)
+	defer func() {
+		assert.NoError(t, fileutils.RemoveTempDir(tempDir))
+	}()
+
+	assert.NoError(t, os.Setenv("GITHUB_ACTIONS", "true"))
+	assert.NoError(t, os.Setenv(coreutils.SummaryOutputDirPathEnv, tempDir))
+	defer func() {
+		assert.NoError(t, os.Unsetenv("GITHUB_ACTIONS"))
+		assert.NoError(t, os.Unsetenv(coreutils.SummaryOutputDirPathEnv))
+	}()
+
+	subjectRepoPath := "test-repo/path/to/artifact.jar"
+	c := &createEvidenceCustom{subjectSha256: "custom-sha256"}
+
+	c.recordSummary(subjectRepoPath, &model.CreateResponse{
+		PredicateSlug: `</td></tr><tr><td><a href="https://attacker.example">x</a>`,
+		PredicateType: "in-toto\n\n# heading",
+		Verified:      true,
+	})
+
+	var summaryFiles []string
+	assert.NoError(t, filepath.WalkDir(tempDir, func(path string, d fs.DirEntry, err error) error {
+		if err == nil && !d.IsDir() && strings.HasSuffix(path, "-data") {
+			summaryFiles = append(summaryFiles, path)
+		}
+		return err
+	}))
+	var found bool
+	for _, file := range summaryFiles {
+		content, err := os.ReadFile(file)
+		assert.NoError(t, err)
+
+		var summaryData commandsummary.EvidenceSummaryData
+		assert.NoError(t, json.Unmarshal(content, &summaryData))
+		assert.Empty(t, summaryData.PredicateSlug)
+		assert.Empty(t, summaryData.PredicateType)
+		assert.Equal(t, subjectRepoPath, summaryData.Subject)
+		assert.True(t, summaryData.Verified)
+		found = true
+	}
+	assert.True(t, found, "Summary data file should be created")
 }

@@ -139,7 +139,7 @@ func (c *createGitHubEvidence) Run() error {
 }
 
 func (c *createGitHubEvidence) buildBuildInfoSubjectPath(artifactoryClient artifactory.ArtifactoryServicesManager) (string, string, error) {
-	timestamp, err := getBuildLatestTimestamp(c.buildName, c.buildNumber, c.project, artifactoryClient)
+	timestamp, err := utils.GetBuildLatestTimestamp(c.buildName, c.buildNumber, c.project, artifactoryClient)
 	if err != nil {
 		return "", "", err
 	}

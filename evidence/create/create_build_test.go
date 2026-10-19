@@ -14,6 +14,7 @@ import (
 	"github.com/jfrog/jfrog-cli-core/v2/utils/config"
 	"github.com/jfrog/jfrog-cli-core/v2/utils/coreutils"
 	"github.com/jfrog/jfrog-cli-evidence/evidence/model"
+	"github.com/jfrog/jfrog-cli-evidence/evidence/utils"
 	"github.com/jfrog/jfrog-client-go/utils/io/fileutils"
 )
 
@@ -56,7 +57,7 @@ func TestBuildInfo(t *testing.T) {
 			c, ok := NewCreateEvidenceBuild(nil, "", "", "", "", "", tt.project, tt.buildName, tt.buildNumber, "", "", "", "", "").(*createEvidenceBuild)
 			assert.True(t, ok, "should create createEvidenceBuild instance")
 			aa := createMockArtifactoryManagerForBuildTests()
-			timestamp, err := getBuildLatestTimestamp(tt.buildName, tt.buildNumber, tt.project, aa)
+			timestamp, err := utils.GetBuildLatestTimestamp(tt.buildName, tt.buildNumber, tt.project, aa)
 			assert.NoError(t, err)
 			path, sha256, err := c.buildBuildInfoSubjectPath(aa, timestamp)
 			if tt.expectError {
@@ -232,7 +233,7 @@ func TestCreateEvidenceBuild_RecordSummary(t *testing.T) {
 	evidence := NewCreateEvidenceBuild(
 		serverDetails,
 		predicateFile,
-		"test-predicate-type",
+		"https://example.com/test-predicate-type/v1",
 		"",
 		"test-key",
 		"test-key-id",
@@ -273,7 +274,7 @@ func TestCreateEvidenceBuild_RecordSummary(t *testing.T) {
 
 			assert.Equal(t, expectedSubject, summaryData.Subject)
 			assert.Equal(t, expectedSha256, summaryData.SubjectSha256)
-			assert.Equal(t, "test-predicate-type", summaryData.PredicateType)
+			assert.Equal(t, "https://example.com/test-predicate-type/v1", summaryData.PredicateType)
 			assert.Equal(t, "test-slug", summaryData.PredicateSlug)
 			assert.True(t, summaryData.Verified)
 			assert.Equal(t, "testBuild 123", summaryData.DisplayName)
