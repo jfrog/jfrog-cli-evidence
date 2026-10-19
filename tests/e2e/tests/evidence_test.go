@@ -67,18 +67,18 @@ func TestEvidenceCLICommands(t *testing.T) {
 		e2e.AccessClient,
 		e2e.LifecycleClient)
 
-	// Setup: Prepare shared test data (key pair, etc.)
-	t.Log("=== Setting up shared E2E test data ===")
-	err := runner.PrepareTestsData()
-	if err != nil {
-		t.Errorf("Failed to prepare test data: %v", err)
-	}
-
-	// Register cleanup to run after all tests (even if tests fail)
+	// Register cleanup before setup, so a key uploaded by a setup that later fails is still deleted
 	t.Cleanup(func() {
 		t.Log("=== Running cleanup for shared E2E test data ===")
 		runner.CleanupTestsData()
 	})
+
+	// Setup: Prepare shared test data (key pair, etc.)
+	t.Log("=== Setting up shared E2E test data ===")
+	err := runner.PrepareTestsData()
+	if err != nil {
+		t.Fatalf("Failed to prepare test data: %v", err)
+	}
 
 	// Run all E2E tests
 	runner.RunEvidenceCliTests(t)
