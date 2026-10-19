@@ -6,6 +6,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
 )
 
 type MockSonarManager struct {
@@ -50,7 +51,10 @@ func TestNewSonarProviderWithCredentials_TrimsURL(t *testing.T) {
 	provider, err := NewSonarProviderWithCredentials("  https://sonar.example.com/  ", "test-token")
 
 	assert.NoError(t, err)
-	client := provider.(*Provider).client.(*httpClient)
+	sonarProvider, ok := provider.(*Provider)
+	require.True(t, ok)
+	client, ok := sonarProvider.client.(*httpClient)
+	require.True(t, ok)
 	assert.Equal(t, "https://sonar.example.com", client.baseURL)
 }
 
