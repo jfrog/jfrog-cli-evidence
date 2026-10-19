@@ -336,3 +336,15 @@ func TestGetEvidence_FallbackToLegacyQueryWhenAttachmentsUnsupported(t *testing.
 		assert.Equal(t, "user", entry.CreatedBy)
 	}
 }
+
+func TestCreateReleaseBundleGetEvidenceQuery_EscapesValues(t *testing.T) {
+	g := &getEvidenceReleaseBundle{project: `my"proj`}
+
+	query := g.buildGraphqlQuery(`rb\name`, `1.0"rc`, true)
+
+	var request struct {
+		Query string `json:"query"`
+	}
+	assert.NoError(t, json.Unmarshal(query, &request))
+	assert.Contains(t, request.Query, `getVersion(repositoryKey: "my\"proj-release-bundles-v2", name: "rb\\name", version: "1.0\"rc")`)
+}

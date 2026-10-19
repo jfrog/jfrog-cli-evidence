@@ -18,8 +18,14 @@ type AqlSubjectResolver struct {
 	client artifactory.ArtifactoryServicesManager
 }
 
-const aqlEmptyPathQueryTemplate = "items.find({\"repo\": \"%s\",\"sha256\": \"%s\"})"
-const aqlWithPathQueryTemplate = "items.find({\"repo\": \"%s\", \"path\": {\"$match\" : \"%s*\"},\"sha256\": \"%s\"})"
+const aqlEmptyPathQueryTemplate = "items.find({\"repo\": %s,\"sha256\": %s})"
+
+// aqlWithPathQueryTemplate matches the path as a prefix ("<path>*"), not exactly. The path is the image
+// path from a container reference, without its tag or digest. Artifactory stores the manifest in a tag or
+// digest folder below it (for example "<image>/<tag>/manifest.json"), and the same digest can be stored
+// under several tags, so the exact folder is not known here. The repository and sha256 are still matched
+// exactly, so only copies of the same manifest in the same repository are found.
+const aqlWithPathQueryTemplate = "items.find({\"repo\": %s, \"path\": {\"$match\" : %s},\"sha256\": %s})"
 const subjectRepoPath = "%s/%s/%s"
 
 func (r *AqlSubjectResolver) Resolve(repoName, path, checksum string) ([]string, error) {
@@ -27,10 +33,15 @@ func (r *AqlSubjectResolver) Resolve(repoName, path, checksum string) ([]string,
 		return nil, fmt.Errorf("repository name and checksum must be provided")
 	}
 	var aqlQuery string
+	var err error
 	if path == "" {
 		log.Info("Resolving subject by repository "+repoName+" and checksum", checksum)
-		aqlQuery = fmt.Sprintf(aqlEmptyPathQueryTemplate, repoName, checksum)
+		aqlQuery, err = utils.FormatAqlQuery(aqlEmptyPathQueryTemplate, repoName, checksum)
 	} else {
+		// "$match" treats '*' and '?' as wildcards, and AQL has no way to escape them.
+		if strings.ContainsAny(path, "*?") {
+			return nil, errors.New("path must not contain the wildcard characters '*' or '?'")
+		}
 		log.Info("Resolving subject by repository "+repoName+", path", path, "and checksum", checksum)
 		normalizedPath := strings.TrimPrefix(path, repoName+"/")
 		if len(normalizedPath) < len(path) {
@@ -40,10 +51,13 @@ func (r *AqlSubjectResolver) Resolve(repoName, path, checksum string) ([]string,
 			// so the full repoPath would be "myapp/myapp/some/path/file.txt", but the repoKey is hidden under the sub-domain: "myapp.docker.io/myapp/myimg:tag"
 			// In this case, we want to match "*some/path/file.txt"
 			log.Debug("AQL path contains repository name, adding wildcard to match any prefix:", pathWildcard)
-			aqlQuery = fmt.Sprintf(aqlWithPathQueryTemplate, repoName, pathWildcard, checksum)
+			aqlQuery, err = utils.FormatAqlQuery(aqlWithPathQueryTemplate, repoName, pathWildcard+"*", checksum)
 		} else {
-			aqlQuery = fmt.Sprintf(aqlWithPathQueryTemplate, repoName, normalizedPath, checksum)
+			aqlQuery, err = utils.FormatAqlQuery(aqlWithPathQueryTemplate, repoName, normalizedPath+"*", checksum)
 		}
+	}
+	if err != nil {
+		return nil, err
 	}
 	log.Debug("Executing aql query", aqlQuery)
 	results, err := utils.ExecuteAqlQuery(aqlQuery, &r.client)

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -123,8 +124,9 @@ func generateCommonPrivatePublicKey(r *EvidenceE2ETestsRunner) error {
 	SharedKeyDir = tempDir
 	fmt.Printf("✓ Created temp directory for keys: %s\n", SharedKeyDir)
 
-	// Generate unique key alias with timestamp to avoid conflicts
-	SharedKeyAlias = fmt.Sprintf("e2e-shared-key-%d", time.Now().Unix())
+	// Generate a unique key alias. The push and pull_request runs of a commit start at the same time
+	// against the same platform, so a timestamp in seconds can repeat across runs.
+	SharedKeyAlias = fmt.Sprintf("e2e-shared-key-%d", time.Now().UnixNano())
 	keyFileName := "e2e-shared-key"
 
 	fmt.Println("Generating shared key pair (with upload to Artifactory)...")
@@ -141,6 +143,10 @@ func generateCommonPrivatePublicKey(r *EvidenceE2ETestsRunner) error {
 	)
 
 	fmt.Printf("Key generation output: %s\n", output)
+	// generate-key-pair only warns when the upload fails, for example with 409 when the alias exists.
+	if strings.Contains(output, "Failed to upload public key") {
+		return fmt.Errorf("failed to upload the shared public key with alias %s", SharedKeyAlias)
+	}
 
 	// Set global paths
 	SharedPrivateKeyPath = filepath.Join(SharedKeyDir, keyFileName+".key")
@@ -152,6 +158,10 @@ func generateCommonPrivatePublicKey(r *EvidenceE2ETestsRunner) error {
 	}
 	if _, err := os.Stat(SharedPublicKeyPath); os.IsNotExist(err) {
 		return fmt.Errorf("public key not found at %s", SharedPublicKeyPath)
+	}
+
+	if err := r.waitForSharedKeyInEvidenceService(); err != nil {
+		return err
 	}
 
 	fmt.Printf("✓ Shared key pair generated:\n")

@@ -19,9 +19,7 @@ import (
 	"github.com/jfrog/jfrog-client-go/artifactory"
 	"github.com/jfrog/jfrog-client-go/artifactory/services/utils"
 	evdservices "github.com/jfrog/jfrog-client-go/evidence/services"
-	"github.com/jfrog/jfrog-client-go/utils/errorutils"
 	"github.com/jfrog/jfrog-client-go/utils/io/fileutils"
-	"github.com/jfrog/jfrog-client-go/utils/log"
 	"github.com/stretchr/testify/assert"
 
 	"crypto/ed25519"
@@ -80,71 +78,6 @@ func (m *MockEvidenceServiceManager) UploadEvidence(details evdservices.Evidence
 		return nil, m.UploadError
 	}
 	return m.UploadResponse, nil
-}
-
-func TestUploadEvidence_ErrorHandling(t *testing.T) {
-	originalLogLevel := log.GetLogger().GetLogLevel()
-	log.SetLogger(log.NewLogger(log.DEBUG, nil))
-	defer log.SetLogger(log.NewLogger(originalLogLevel, nil))
-
-	tests := []struct {
-		name          string
-		uploadError   error
-		repoPath      string
-		expectedError string
-		debugLogCheck bool
-	}{
-		{
-			name:          "404 Not Found Error",
-			uploadError:   errors.New("server response: 404 Not Found"),
-			repoPath:      "test-repo/path/file.txt",
-			expectedError: "Subject 'test-repo/path/file.txt' is invalid or not found. Please ensure the subject exists and follows the correct format: <repo>/<path>/<name> or <repo>/<name>",
-			debugLogCheck: true,
-		},
-		{
-			name:          "400 Bad Request Error",
-			uploadError:   errors.New("server response: 400 Bad Request"),
-			repoPath:      "invalid-subject",
-			expectedError: "Subject 'invalid-subject' is invalid or not found. Please ensure the subject exists and follows the correct format: <repo>/<path>/<name> or <repo>/<name>",
-			debugLogCheck: true,
-		},
-		{
-			name:          "404 Error with Repository not found message",
-			uploadError:   errors.New(`server response: 404 Not Found {"errors": [{"message": "Repository https: not found"}]}`),
-			repoPath:      "@ https://evidencetrial.jfrog.io/evidence/api/v1/subject/https:/evidencetrial.jfrog.io/artifactory/cli-sigstore-test/commons-1.0.0.txt",
-			expectedError: "Subject '@ https://evidencetrial.jfrog.io/evidence/api/v1/subject/https:/evidencetrial.jfrog.io/artifactory/cli-sigstore-test/commons-1.0.0.txt' is invalid or not found. Please ensure the subject exists and follows the correct format: <repo>/<path>/<name> or <repo>/<name>",
-			debugLogCheck: true,
-		},
-		{
-			name:          "Other Error - Not 400 or 404",
-			uploadError:   errors.New("server response: 500 Internal Server Error"),
-			repoPath:      "test-repo/path/file.txt",
-			expectedError: "server response: 500 Internal Server Error",
-			debugLogCheck: false,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			c := &createEvidenceBase{
-				serverDetails: &config.ServerDetails{},
-				providerId:    "test-integration",
-			}
-			err := c.handleUploadError(tt.uploadError, tt.repoPath)
-			assert.Error(t, err)
-			assert.Equal(t, tt.expectedError, err.Error())
-		})
-	}
-}
-
-// test helper
-func (c *createEvidenceBase) handleUploadError(err error, repoPath string) error {
-	errStr := err.Error()
-	if strings.Contains(errStr, "400") || strings.Contains(errStr, "404") {
-		log.Debug("Server response error:", err.Error())
-		return errorutils.CheckErrorf("Subject '%s' is invalid or not found. Please ensure the subject exists and follows the correct format: <repo>/<path>/<name> or <repo>/<name>", repoPath)
-	}
-	return err
 }
 
 func TestCreateAndSignEnvelope(t *testing.T) {
@@ -279,7 +212,7 @@ func TestCreateEnvelope_Intoto_AndUploadDetails(t *testing.T) {
 	var st intoto.Statement
 	assert.NoError(t, json.Unmarshal(decoded, &st))
 	assert.Equal(t, "test-type", st.PredicateType)
-	assert.Equal(t, "abc123", st.Subject[0].Digest.Sha256)
+	assert.Equal(t, "abc123", st.Subject[0].Digest["sha256"])
 	assert.Equal(t, "![image](data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTAiIGhlaWdodD0iMTAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PHJlY3Qgd2lkdGg9IjEwIiBoZWlnaHQ9IjEwIiBmaWxsPSJyZWQiLz48L3N2Zz4=)", st.Markdown)
 	assert.Equal(t, "alice", st.CreatedBy)
 
@@ -576,7 +509,7 @@ func TestBuildIntotoStatementJsonWithPredicateAndType(t *testing.T) {
 	var st intoto.Statement
 	assert.NoError(t, json.Unmarshal(out, &st))
 	assert.Equal(t, "ptype", st.PredicateType)
-	assert.Equal(t, "zzz", st.Subject[0].Digest.Sha256)
+	assert.Equal(t, "zzz", st.Subject[0].Digest["sha256"])
 }
 
 func TestBuildIntotoStatementJsonWithPredicateAndType_MarkdownError(t *testing.T) {
@@ -624,7 +557,7 @@ func TestCreateEnvelopeWithPredicateAndPredicateType_SetsFields(t *testing.T) {
 	var st intoto.Statement
 	assert.NoError(t, json.Unmarshal(decoded, &st))
 	assert.Equal(t, "my-type", st.PredicateType)
-	assert.Equal(t, "ssss", st.Subject[0].Digest.Sha256)
+	assert.Equal(t, "ssss", st.Subject[0].Digest["sha256"])
 }
 
 func TestAddSubjectAndStageToStatement_InvalidJSON(t *testing.T) {
@@ -718,4 +651,135 @@ func TestGetFileChecksum_Success(t *testing.T) {
 	sha, err := c.getFileChecksum("repo/p", art)
 	assert.NoError(t, err)
 	assert.Equal(t, "abc", sha)
+}
+
+func TestValidateSummaryData(t *testing.T) {
+	tests := []struct {
+		name          string
+		predicateSlug string
+		predicateType string
+		expectedSlug  string
+		expectedType  string
+	}{
+		{
+			name:          "Valid values",
+			predicateSlug: "slsa-provenance",
+			predicateType: "https://slsa.dev/provenance/v1",
+			expectedSlug:  "slsa-provenance",
+			expectedType:  "https://slsa.dev/provenance/v1",
+		},
+		{
+			name:          "Slug from a predicate type without path",
+			predicateSlug: "jfrog.com/evidence/v1",
+			predicateType: "urn:example:custom",
+			expectedSlug:  "jfrog.com/evidence/v1",
+			expectedType:  "urn:example:custom",
+		},
+		{
+			name:          "Empty values",
+			predicateSlug: "",
+			predicateType: "",
+			expectedSlug:  "",
+			expectedType:  "",
+		},
+		{
+			name:          "Slug with HTML",
+			predicateSlug: `</td></tr><tr><td><a href="https://attacker.example">x</a>`,
+			predicateType: "https://slsa.dev/provenance/v1",
+			expectedSlug:  "",
+			expectedType:  "https://slsa.dev/provenance/v1",
+		},
+		{
+			name:          "Slug with line breaks",
+			predicateSlug: "in-toto\n\n# heading",
+			predicateType: "https://in-toto.io/attestation/vulns",
+			expectedSlug:  "",
+			expectedType:  "https://in-toto.io/attestation/vulns",
+		},
+		{
+			name:          "Slug too long",
+			predicateSlug: strings.Repeat("a", 129),
+			predicateType: "https://in-toto.io/attestation/vulns",
+			expectedSlug:  "",
+			expectedType:  "https://in-toto.io/attestation/vulns",
+		},
+		{
+			name:          "Relative predicate type",
+			predicateSlug: "custom",
+			predicateType: "custom-predicate-type",
+			expectedSlug:  "custom",
+			expectedType:  "custom-predicate-type",
+		},
+		{
+			name:          "Slug with underscore",
+			predicateSlug: "example-code_review",
+			predicateType: "https://example.com/code_review/v1",
+			expectedSlug:  "example-code_review",
+			expectedType:  "https://example.com/code_review/v1",
+		},
+		{
+			name:          "Slug with plus",
+			predicateSlug: "example-my+type",
+			predicateType: "https://example.com/my+type/v1",
+			expectedSlug:  "example-my+type",
+			expectedType:  "https://example.com/my+type/v1",
+		},
+		{
+			name:          "URN slug and predicate type",
+			predicateSlug: "urn:example:custom",
+			predicateType: "urn:example:custom",
+			expectedSlug:  "urn:example:custom",
+			expectedType:  "urn:example:custom",
+		},
+		{
+			name:          "Slug with space",
+			predicateSlug: "my type",
+			predicateType: "https://example.com/my-type/v1",
+			expectedSlug:  "",
+			expectedType:  "https://example.com/my-type/v1",
+		},
+		{
+			name:          "Slug with non-ASCII letter",
+			predicateSlug: "example-tÿpe",
+			predicateType: "https://example.com/type/v1",
+			expectedSlug:  "",
+			expectedType:  "https://example.com/type/v1",
+		},
+		{
+			name:          "Predicate type with non-ASCII letter",
+			predicateSlug: "example-type",
+			predicateType: "https://example.com/tÿpe/v1",
+			expectedSlug:  "example-type",
+			expectedType:  "",
+		},
+		{
+			name:          "Predicate type with HTML",
+			predicateSlug: "custom",
+			predicateType: `https://example.com/v1"><img src=x>`,
+			expectedSlug:  "custom",
+			expectedType:  "",
+		},
+		{
+			name:          "Predicate type with whitespace",
+			predicateSlug: "custom",
+			predicateType: "https://example.com/v1\n\n# heading",
+			expectedSlug:  "custom",
+			expectedType:  "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := validateSummaryData(commandsummary.EvidenceSummaryData{
+				Subject:       "repo/path/file.txt",
+				PredicateSlug: tt.predicateSlug,
+				PredicateType: tt.predicateType,
+				Verified:      true,
+			})
+			assert.Equal(t, tt.expectedSlug, result.PredicateSlug)
+			assert.Equal(t, tt.expectedType, result.PredicateType)
+			assert.Equal(t, "repo/path/file.txt", result.Subject)
+			assert.True(t, result.Verified)
+		})
+	}
 }

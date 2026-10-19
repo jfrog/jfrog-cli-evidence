@@ -2,16 +2,24 @@ package verify
 
 import (
 	"bytes"
+	"encoding/json"
 	"errors"
 	"io"
+	"strings"
 	"testing"
+	"time"
 
+	buildinfo "github.com/jfrog/build-info-go/entities"
 	"github.com/jfrog/jfrog-cli-core/v2/utils/config"
 	"github.com/jfrog/jfrog-cli-core/v2/utils/coreutils"
 	"github.com/jfrog/jfrog-cli-evidence/evidence/model"
+	"github.com/jfrog/jfrog-cli-evidence/evidence/utils"
 	"github.com/jfrog/jfrog-client-go/artifactory"
+	"github.com/jfrog/jfrog-client-go/artifactory/services"
+	servicesUtils "github.com/jfrog/jfrog-client-go/artifactory/services/utils"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
 )
 
 // MockArtifactoryServicesManagerBuild embeds EmptyArtifactoryServicesManager and overrides methods for testing
@@ -21,13 +29,63 @@ type MockArtifactoryServicesManagerBuild struct {
 	AqlError            error
 	ReadRemoteFileData  []byte
 	ReadRemoteFileError error
+	// BuildRuns maps a build number to the start time, in Unix milliseconds, of its latest run.
+	// GetBuildInfo reports build numbers that are not in the map as not found.
+	BuildRuns         map[string]int64
+	GetBuildInfoError error
+	// BuildInfoFiles, when set, are the files in the build-info repository. Aql then returns the
+	// files whose repo, path and name all equal the values in the query, instead of AqlResponse.
+	BuildInfoFiles []*servicesUtils.ResultItem
+	// Recorded calls
+	AqlQueries        []string
+	BuildInfoRequests []services.BuildInfoParams
 }
 
-func (m *MockArtifactoryServicesManagerBuild) Aql(_ string) (io.ReadCloser, error) {
+func (m *MockArtifactoryServicesManagerBuild) Aql(query string) (io.ReadCloser, error) {
+	m.AqlQueries = append(m.AqlQueries, query)
 	if m.AqlError != nil {
 		return nil, m.AqlError
 	}
-	return io.NopCloser(bytes.NewBufferString(m.AqlResponse)), nil
+	if m.BuildInfoFiles == nil {
+		return io.NopCloser(bytes.NewBufferString(m.AqlResponse)), nil
+	}
+	matches := []*servicesUtils.ResultItem{}
+	for _, file := range m.BuildInfoFiles {
+		matched := true
+		for _, field := range [][2]string{{"repo", file.Repo}, {"path", file.Path}, {"name", file.Name}} {
+			condition, err := utils.FormatAqlQuery(`"`+field[0]+`":%s`, field[1])
+			if err != nil {
+				return nil, err
+			}
+			matched = matched && strings.Contains(query, condition)
+		}
+		if matched {
+			matches = append(matches, file)
+		}
+	}
+	response, err := json.Marshal(utils.AqlResult{Results: matches})
+	if err != nil {
+		return nil, err
+	}
+	return io.NopCloser(bytes.NewReader(response)), nil
+}
+
+func (m *MockArtifactoryServicesManagerBuild) GetBuildInfo(params services.BuildInfoParams) (*buildinfo.PublishedBuildInfo, bool, error) {
+	m.BuildInfoRequests = append(m.BuildInfoRequests, params)
+	if m.GetBuildInfoError != nil {
+		return nil, false, m.GetBuildInfoError
+	}
+	started, ok := m.BuildRuns[params.BuildNumber]
+	if !ok {
+		return nil, false, nil
+	}
+	return &buildinfo.PublishedBuildInfo{
+		BuildInfo: buildinfo.BuildInfo{
+			Name:    params.BuildName,
+			Number:  params.BuildNumber,
+			Started: time.UnixMilli(started).UTC().Format(utils.IsoDateTimeLayout),
+		},
+	}, true, nil
 }
 
 func (m *MockArtifactoryServicesManagerBuild) ReadRemoteFile(_ string) (io.ReadCloser, error) {
@@ -127,7 +185,8 @@ func TestVerifyEvidenceBuild_ServerDetails(t *testing.T) {
 func TestVerifyEvidenceBuild_Run_AqlError(t *testing.T) {
 	// Mock Artifactory client with error
 	mockClient := &MockArtifactoryServicesManagerBuild{
-		AqlError: errors.New("aql query failed"),
+		AqlError:  errors.New("aql query failed"),
+		BuildRuns: map[string]int64{"1": 1234567890},
 	}
 
 	// Create build verifier
@@ -150,13 +209,8 @@ func TestVerifyEvidenceBuild_Run_AqlError(t *testing.T) {
 }
 
 func TestVerifyEvidenceBuild_Run_NoBuildFound(t *testing.T) {
-	// Mock AQL response with no results
-	aqlResult := `{"results":[]}`
-
-	// Mock Artifactory client
-	mockClient := &MockArtifactoryServicesManagerBuild{
-		AqlResponse: aqlResult,
-	}
+	// Mock Artifactory client whose build-info API knows no builds
+	mockClient := &MockArtifactoryServicesManagerBuild{}
 
 	// Create build verifier
 	buildVerifier := &verifyEvidenceBuild{
@@ -175,6 +229,7 @@ func TestVerifyEvidenceBuild_Run_NoBuildFound(t *testing.T) {
 	err := buildVerifier.Run()
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "no build found")
+	assert.Empty(t, mockClient.AqlQueries, "no build-info file should be looked up for a build that does not exist")
 }
 
 func TestVerifyEvidenceBuild_Run_QueryEvidenceMetadataError(t *testing.T) {
@@ -184,6 +239,7 @@ func TestVerifyEvidenceBuild_Run_QueryEvidenceMetadataError(t *testing.T) {
 	// Mock Artifactory client
 	mockClient := &MockArtifactoryServicesManagerBuild{
 		AqlResponse: aqlResult,
+		BuildRuns:   map[string]int64{"1": 1234567890},
 	}
 
 	// Mock OneModel client with error
@@ -218,6 +274,7 @@ func TestVerifyEvidenceBuild_Run_VerifyEvidenceError(t *testing.T) {
 	// Mock Artifactory client
 	mockClient := &MockArtifactoryServicesManagerBuild{
 		AqlResponse: aqlResult,
+		BuildRuns:   map[string]int64{"1": 1234567890},
 	}
 
 	// Mock OneModel client for evidence metadata
@@ -286,6 +343,13 @@ func TestVerifyEvidenceBuild_ProjectBuildRepoKey(t *testing.T) {
 			buildNumber:     "1",
 			expectedRepoKey: "artifactory-build-info",
 		},
+		{
+			name:            "Custom project",
+			project:         "my-project",
+			buildName:       "test-build",
+			buildNumber:     "1",
+			expectedRepoKey: "my-project-build-info",
+		},
 	}
 
 	for _, tc := range testCases {
@@ -296,6 +360,7 @@ func TestVerifyEvidenceBuild_ProjectBuildRepoKey(t *testing.T) {
 			// Mock Artifactory client
 			mockClient := &MockArtifactoryServicesManagerBuild{
 				AqlResponse: aqlResult,
+				BuildRuns:   map[string]int64{tc.buildNumber: 1234567890},
 			}
 
 			// Create build verifier
@@ -316,6 +381,10 @@ func TestVerifyEvidenceBuild_ProjectBuildRepoKey(t *testing.T) {
 			err := buildVerifier.Run()
 			assert.Error(t, err)
 			assert.Contains(t, err.Error(), "no build found")
+			require.Len(t, mockClient.BuildInfoRequests, 1)
+			assert.Equal(t, tc.project, mockClient.BuildInfoRequests[0].ProjectKey)
+			require.Len(t, mockClient.AqlQueries, 1)
+			assert.Contains(t, mockClient.AqlQueries[0], `"repo":"`+tc.expectedRepoKey+`"`)
 		})
 	}
 }
@@ -327,6 +396,7 @@ func TestVerifyEvidenceBuild_Run_Success(t *testing.T) {
 	// Mock Artifactory client
 	mockClient := &MockArtifactoryServicesManagerBuild{
 		AqlResponse: aqlResult,
+		BuildRuns:   map[string]int64{"1": 1234567890},
 	}
 
 	// Mock OneModel client for evidence metadata
@@ -384,6 +454,7 @@ func TestVerifyEvidenceBuild_Run_VerificationFailed(t *testing.T) {
 	// Mock Artifactory client
 	mockClient := &MockArtifactoryServicesManagerBuild{
 		AqlResponse: aqlResult,
+		BuildRuns:   map[string]int64{"1": 1234567890},
 	}
 
 	// Mock OneModel client for evidence metadata
@@ -444,6 +515,7 @@ func TestVerifyEvidenceBuild_Run_VerificationError(t *testing.T) {
 	// Mock Artifactory client
 	mockClient := &MockArtifactoryServicesManagerBuild{
 		AqlResponse: aqlResult,
+		BuildRuns:   map[string]int64{"1": 1234567890},
 	}
 
 	// Mock OneModel client for evidence metadata
@@ -500,8 +572,8 @@ func (m *MockVerifierBuild) Verify(expectedSubject model.SubjectDigest, evidence
 
 func TestVerifyEvidenceBuild_Progress_Success(t *testing.T) {
 	// Mock data
-	aqlResult := `{"results":[{"sha256":"sha","name":"file"}]}`
-	mockClient := &MockArtifactoryServicesManagerBuild{AqlResponse: aqlResult}
+	aqlResult := `{"results":[{"sha256":"sha","name":"1-1234567890.json"}]}`
+	mockClient := &MockArtifactoryServicesManagerBuild{AqlResponse: aqlResult, BuildRuns: map[string]int64{"1": 1234567890}}
 	mockOneModel := &MockOneModelManagerBuild{GraphqlResponse: []byte(`{"data":{"evidence":{"searchEvidence":{"edges":[{"node":{"subject":{"sha256":"sha"},"downloadPath":"/evidence"}}]}}}}`)}
 	mockVerifier := &MockVerifierBuild{}
 	expected := &model.VerificationResponse{OverallVerificationStatus: model.Success, Subject: model.Subject{Path: "repo/build/file", Sha256: "sha"}}
@@ -527,4 +599,181 @@ func TestVerifyEvidenceBuild_Progress_Success(t *testing.T) {
 	assert.NoError(t, err)
 	assert.True(t, pm.quitCalled)
 	assert.True(t, len(pm.headlines) >= 1)
+}
+
+const (
+	testBuildInfoRepo = "artifactory-build-info"
+	testBuildName     = "test-build"
+)
+
+func buildInfoFile(name, sha256 string) *servicesUtils.ResultItem {
+	return &servicesUtils.ResultItem{Repo: testBuildInfoRepo, Path: testBuildName, Name: name, Sha256: sha256}
+}
+
+// newBuildVerifierForTest returns a verifier for testBuildName in the default project, backed by the given mocks.
+func newBuildVerifierForTest(client *MockArtifactoryServicesManagerBuild, verifier *MockVerifier, buildNumber string) *verifyEvidenceBuild {
+	var clientInterface artifactory.ArtifactoryServicesManager = client
+	return &verifyEvidenceBuild{
+		verifyEvidenceBase: verifyEvidenceBase{
+			serverDetails:     &config.ServerDetails{},
+			artifactoryClient: &clientInterface,
+			oneModelClient: &MockOneModelManagerBuild{
+				GraphqlResponse: []byte(`{"data":{"evidence":{"searchEvidence":{"edges":[{"node":{"downloadPath":"/evidence/path"}}]}}}}`),
+			},
+			format:   "json",
+			verifier: verifier,
+		},
+		buildName:   testBuildName,
+		buildNumber: buildNumber,
+	}
+}
+
+func TestVerifyEvidenceBuild_Run_SelectsExactBuildNumber(t *testing.T) {
+	testCases := []struct {
+		name               string
+		buildRuns          map[string]int64
+		buildInfoFiles     []*servicesUtils.ResultItem
+		buildNumber        string
+		expectedSubject    string
+		expectedSha256     string
+		expectedLookupName string
+	}{
+		{
+			name:      "Build 4 is not confused with build 45",
+			buildRuns: map[string]int64{"4": 1700000000000, "45": 1700000000045},
+			buildInfoFiles: []*servicesUtils.ResultItem{
+				buildInfoFile("4-1700000000000.json", "sha-4"),
+				buildInfoFile("45-1700000000045.json", "sha-45"),
+			},
+			buildNumber:     "4",
+			expectedSubject: "artifactory-build-info/test-build/4-1700000000000.json",
+			expectedSha256:  "sha-4",
+		},
+		{
+			name:      "Build 4 is not confused with build 4-rc",
+			buildRuns: map[string]int64{"4": 1700000000000, "4-rc": 1700000000099},
+			buildInfoFiles: []*servicesUtils.ResultItem{
+				buildInfoFile("4-1700000000000.json", "sha-4"),
+				buildInfoFile("4-rc-1700000000099.json", "sha-4-rc"),
+			},
+			buildNumber:     "4",
+			expectedSubject: "artifactory-build-info/test-build/4-1700000000000.json",
+			expectedSha256:  "sha-4",
+		},
+		{
+			name:      "Build 4-rc is not confused with build 4",
+			buildRuns: map[string]int64{"4": 1700000000000, "4-rc": 1700000000099},
+			buildInfoFiles: []*servicesUtils.ResultItem{
+				buildInfoFile("4-1700000000000.json", "sha-4"),
+				buildInfoFile("4-rc-1700000000099.json", "sha-4-rc"),
+			},
+			buildNumber:     "4-rc",
+			expectedSubject: "artifactory-build-info/test-build/4-rc-1700000000099.json",
+			expectedSha256:  "sha-4-rc",
+		},
+		{
+			name:      "Latest run of the build number is verified",
+			buildRuns: map[string]int64{"4": 1800000000000},
+			buildInfoFiles: []*servicesUtils.ResultItem{
+				buildInfoFile("4-1700000000000.json", "sha-4-old"),
+				buildInfoFile("4-1800000000000.json", "sha-4-latest"),
+			},
+			buildNumber:     "4",
+			expectedSubject: "artifactory-build-info/test-build/4-1800000000000.json",
+			expectedSha256:  "sha-4-latest",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			mockClient := &MockArtifactoryServicesManagerBuild{BuildRuns: tc.buildRuns, BuildInfoFiles: tc.buildInfoFiles}
+			expectedDigest := model.SubjectDigest{Type: model.Sha256DigestType, Value: tc.expectedSha256}
+			mockVerifier := new(MockVerifier)
+			mockVerifier.On("Verify", expectedDigest, mock.AnythingOfType("*[]model.SearchEvidenceEdge"), tc.expectedSubject).
+				Return(&model.VerificationResponse{OverallVerificationStatus: model.Success}, nil)
+
+			err := newBuildVerifierForTest(mockClient, mockVerifier, tc.buildNumber).Run()
+
+			assert.NoError(t, err)
+			mockVerifier.AssertExpectations(t)
+			require.Len(t, mockClient.BuildInfoRequests, 1)
+			assert.Equal(t, tc.buildNumber, mockClient.BuildInfoRequests[0].BuildNumber)
+			assert.Equal(t, testBuildName, mockClient.BuildInfoRequests[0].BuildName)
+		})
+	}
+}
+
+func TestVerifyEvidenceBuild_Run_OnlyLongerBuildNumberExists(t *testing.T) {
+	// Only build 45 exists; verifying build 4 must not fall back to it.
+	mockClient := &MockArtifactoryServicesManagerBuild{
+		BuildRuns:      map[string]int64{"45": 1700000000045},
+		BuildInfoFiles: []*servicesUtils.ResultItem{buildInfoFile("45-1700000000045.json", "sha-45")},
+	}
+	mockVerifier := new(MockVerifier)
+
+	err := newBuildVerifierForTest(mockClient, mockVerifier, "4").Run()
+
+	assert.EqualError(t, err, `no build found for build name "test-build" and build number "4"`)
+	mockVerifier.AssertNotCalled(t, "Verify", mock.Anything, mock.Anything, mock.Anything)
+}
+
+func TestVerifyEvidenceBuild_Run_BuildInfoFileMissing(t *testing.T) {
+	// The build-info API knows build 4, but its build-info file is not in the repository.
+	// Only build 45's file is, and it must not be used instead.
+	mockClient := &MockArtifactoryServicesManagerBuild{
+		BuildRuns:      map[string]int64{"4": 1700000000000},
+		BuildInfoFiles: []*servicesUtils.ResultItem{buildInfoFile("45-1700000000045.json", "sha-45")},
+	}
+	mockVerifier := new(MockVerifier)
+
+	err := newBuildVerifierForTest(mockClient, mockVerifier, "4").Run()
+
+	assert.EqualError(t, err, `no build found for build name "test-build" and build number "4": build-info file artifactory-build-info/test-build/4-1700000000000.json does not exist`)
+	mockVerifier.AssertNotCalled(t, "Verify", mock.Anything, mock.Anything, mock.Anything)
+}
+
+func TestVerifyEvidenceBuild_Run_IgnoresAqlResultWithOtherName(t *testing.T) {
+	// Even if Artifactory returned a file with another name, it must not be verified.
+	mockClient := &MockArtifactoryServicesManagerBuild{
+		BuildRuns:   map[string]int64{"4": 1700000000000},
+		AqlResponse: `{"results":[{"repo":"artifactory-build-info","path":"test-build","name":"45-1700000000045.json","sha256":"sha-45"}]}`,
+	}
+	mockVerifier := new(MockVerifier)
+
+	err := newBuildVerifierForTest(mockClient, mockVerifier, "4").Run()
+
+	assert.ErrorContains(t, err, "no build found")
+	mockVerifier.AssertNotCalled(t, "Verify", mock.Anything, mock.Anything, mock.Anything)
+}
+
+func TestVerifyEvidenceBuild_Run_GetBuildInfoError(t *testing.T) {
+	mockClient := &MockArtifactoryServicesManagerBuild{GetBuildInfoError: errors.New("connection refused")}
+	mockVerifier := new(MockVerifier)
+
+	err := newBuildVerifierForTest(mockClient, mockVerifier, "4").Run()
+
+	assert.ErrorContains(t, err, "connection refused")
+	assert.NotContains(t, err.Error(), "no build found")
+	assert.Empty(t, mockClient.AqlQueries)
+}
+
+func TestVerifyEvidenceBuild_Run_EscapesAqlValues(t *testing.T) {
+	buildName := `build"},"name":{"$match":"*`
+	buildNumber := `4"}).include("*`
+	mockClient := &MockArtifactoryServicesManagerBuild{
+		BuildRuns:   map[string]int64{buildNumber: 1700000000000},
+		AqlResponse: `{"results":[]}`,
+	}
+	verifier := newBuildVerifierForTest(mockClient, new(MockVerifier), buildNumber)
+	verifier.buildName = buildName
+
+	err := verifier.Run()
+
+	assert.ErrorContains(t, err, "no build found")
+	require.Len(t, mockClient.AqlQueries, 1)
+	expectedQuery := `items.find({"repo":"artifactory-build-info",` +
+		`"path":"build\"},\"name\":{\"$match\":\"*",` +
+		`"name":"4\"}).include(\"*-1700000000000.json"})` +
+		`.include("repo","path","name","sha256")`
+	assert.Equal(t, expectedQuery, mockClient.AqlQueries[0])
 }

@@ -3,6 +3,7 @@ package sonar
 import (
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"strings"
 	"testing"
 
@@ -23,6 +24,44 @@ func TestGetSonarIntotoStatement_LocalhostUsesServerFormat(t *testing.T) {
 	result, err := client.GetSonarIntotoStatement("task-123")
 	assert.NoError(t, err)
 	assert.Contains(t, string(result), "in-toto.io/Statement/v1")
+}
+
+func TestPrepareCloudFormatURL_PrefixesAPIHost(t *testing.T) {
+	tests := []struct {
+		name     string
+		baseURL  string
+		expected string
+	}{
+		{
+			name:     "EU region",
+			baseURL:  "https://sonarcloud.io",
+			expected: "https://api.sonarcloud.io/dop-translation/jfrog-evidence/task-123",
+		},
+		{
+			name:     "US region",
+			baseURL:  "https://sonarqube.us",
+			expected: "https://api.sonarqube.us/dop-translation/jfrog-evidence/task-123",
+		},
+		{
+			name:     "self-hosted",
+			baseURL:  "https://sonar.company.example",
+			expected: "https://api.sonar.company.example/dop-translation/jfrog-evidence/task-123",
+		},
+		{
+			name:     "already api host",
+			baseURL:  "https://api.sonarcloud.io",
+			expected: "https://api.sonarcloud.io/dop-translation/jfrog-evidence/task-123",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			client := &httpClient{baseURL: test.baseURL}
+			parsedURL, err := url.Parse(test.baseURL)
+			assert.NoError(t, err)
+			assert.Equal(t, test.expected, client.prepareCloudFormatUrl("task-123", parsedURL.Hostname()))
+		})
+	}
 }
 
 func TestGetSonarIntotoStatement_ServerFormat404(t *testing.T) {

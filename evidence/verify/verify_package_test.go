@@ -15,6 +15,7 @@ import (
 	"github.com/jfrog/jfrog-client-go/artifactory/services"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
 )
 
 // MockArtifactoryServicesManagerPackage embeds EmptyArtifactoryServicesManager and overrides methods for testing
@@ -26,9 +27,12 @@ type MockArtifactoryServicesManagerPackage struct {
 	GetRepositoryError    error
 	PackageLeadFileData   []byte
 	GetPackageLeadError   error
+	// Recorded calls
+	AqlQueries []string
 }
 
-func (m *MockArtifactoryServicesManagerPackage) Aql(_ string) (io.ReadCloser, error) {
+func (m *MockArtifactoryServicesManagerPackage) Aql(query string) (io.ReadCloser, error) {
+	m.AqlQueries = append(m.AqlQueries, query)
 	if m.AqlError != nil {
 		return nil, m.AqlError
 	}
@@ -527,4 +531,40 @@ func TestVerifyEvidencePackage_Progress_Success(t *testing.T) {
 	assert.NoError(t, err)
 	assert.True(t, pm.quitCalled)
 	assert.True(t, len(pm.headlines) >= 1)
+}
+
+func TestVerifyEvidencePackage_Run_EscapesQueryValues(t *testing.T) {
+	mockClient := &MockArtifactoryServicesManagerPackage{
+		AqlResponse:           `{"results":[{"sha256":"test-sha256"}]}`,
+		GetRepositoryResponse: services.RepositoryDetails{PackageType: "maven"},
+		PackageLeadFileData:   []byte(`my"repo/my\pkg/1.0/my"pkg.jar`),
+	}
+	mockOneModel := &MockOneModelManagerWithQueryCapture{
+		GraphqlResponse: []byte(`{"data":{"evidence":{"searchEvidence":{"edges":[{"node":{"subject":{"sha256":"test-sha256"},"downloadPath":"/evidence/path"}}]}}}}`),
+	}
+	mockVerifier := new(MockVerifierPackage)
+	mockVerifier.On("Verify", model.SubjectDigest{Type: model.Sha256DigestType, Value: "test-sha256"}, mock.AnythingOfType("*[]model.SearchEvidenceEdge"), `my"repo/my\pkg/1.0/my"pkg.jar`).
+		Return(&model.VerificationResponse{OverallVerificationStatus: model.Success}, nil)
+
+	packageVerifier := &verifyEvidencePackage{
+		verifyEvidenceBase: verifyEvidenceBase{
+			serverDetails: &config.ServerDetails{},
+			artifactoryClient: func() *artifactory.ArtifactoryServicesManager {
+				c := artifactory.ArtifactoryServicesManager(mockClient)
+				return &c
+			}(),
+			oneModelClient: mockOneModel,
+			format:         "json",
+			verifier:       mockVerifier,
+		},
+		packageService: evidence.NewPackageService(`my\pkg`, "1.0", `my"repo`),
+	}
+
+	require.NoError(t, packageVerifier.Run())
+
+	assert.Equal(t, []string{`items.find({"repo": "my\"repo","path": "my\\pkg/1.0","name": "my\"pkg.jar"}).include("repo","path","name","sha256")`}, mockClient.AqlQueries)
+	require.Len(t, mockOneModel.CapturedQueries, 1)
+	assert.Contains(t, graphqlQueryText(t, mockOneModel.CapturedQueries[0]),
+		`hasSubjectWith: { repositoryKey: "my\"repo", path: "my\\pkg/1.0", name: "my\"pkg.jar" }`)
+	mockVerifier.AssertExpectations(t)
 }

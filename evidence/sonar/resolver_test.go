@@ -60,6 +60,7 @@ func writeReportTask(t *testing.T, dir, serverURL, ceTaskID string) string {
 }
 
 func TestResolver_ResolveStatementWithConfig_Success(t *testing.T) {
+	SetSonarURLFlag("")
 	dir := t.TempDir()
 	serverURL := "https://sonar.local"
 	ceTaskID := "task-xyz"
@@ -70,6 +71,7 @@ func TestResolver_ResolveStatementWithConfig_Success(t *testing.T) {
 	res := &statementResolver{providerFactory: cf}
 
 	t.Setenv("SONAR_TOKEN", "token-123")
+	t.Setenv("SONAR_URL", serverURL)
 
 	cfg := &conf.EvidenceConfig{Sonar: &conf.SonarConfig{ReportTaskFile: reportPath}}
 	stmt, err := res.resolveStatementWithConfig(cfg)
@@ -80,12 +82,13 @@ func TestResolver_ResolveStatementWithConfig_Success(t *testing.T) {
 	assert.Equal(t, ceTaskID, fprov.lastCeTaskID)
 }
 
-func TestResolver_OverridesBaseURLFromConfig(t *testing.T) {
+func TestResolver_EnvironmentURLOverridesReportAndEvidenceConfig(t *testing.T) {
+	SetSonarURLFlag("")
 	dir := t.TempDir()
-	serverURL := "https://sonar.local"
-	overrideURL := "https://override.local"
+	reportURL := "https://attacker.example"
+	trustedURL := "https://sonar.local"
 	ceTaskID := "task-abc"
-	reportPath := writeReportTask(t, dir, serverURL, ceTaskID)
+	reportPath := writeReportTask(t, dir, reportURL, ceTaskID)
 
 	fprov := &fakeProvider{nextResult: []byte("ok2"), nextErr: nil}
 	cf := &capturingFactory{provider: fprov}
@@ -94,12 +97,111 @@ func TestResolver_OverridesBaseURLFromConfig(t *testing.T) {
 	t.Setenv("SONARQUBE_TOKEN", "fallback-token")
 	// Ensure SONAR_TOKEN is empty so fallback is used
 	t.Setenv("SONAR_TOKEN", "")
+	t.Setenv("SONAR_URL", trustedURL)
 
-	cfg := &conf.EvidenceConfig{Sonar: &conf.SonarConfig{ReportTaskFile: reportPath, URL: overrideURL}}
+	cfg := &conf.EvidenceConfig{Sonar: &conf.SonarConfig{
+		ReportTaskFile: reportPath,
+		URL:            "https://repository-controlled.example",
+	}}
 	stmt, err := res.resolveStatementWithConfig(cfg)
 	assert.NoError(t, err)
 	assert.Equal(t, []byte("ok2"), stmt)
-	assert.Equal(t, overrideURL, cf.lastURL)
+	assert.Equal(t, trustedURL, cf.lastURL)
 	assert.Equal(t, "fallback-token", cf.lastToken)
 	assert.Equal(t, ceTaskID, fprov.lastCeTaskID)
+}
+
+func TestResolver_UsesEvidenceConfigURLWhenEnvironmentIsUnset(t *testing.T) {
+	SetSonarURLFlag("")
+	dir := t.TempDir()
+	reportPath := writeReportTask(t, dir, "https://report.example", "task-abc")
+	fprov := &fakeProvider{nextResult: []byte("ok"), nextErr: nil}
+	cf := &capturingFactory{provider: fprov}
+	res := &statementResolver{providerFactory: cf}
+
+	t.Setenv("SONAR_TOKEN", "token-123")
+	t.Setenv("SONAR_URL", "")
+	t.Setenv("SONAR_HOST_URL", "")
+
+	cfg := &conf.EvidenceConfig{Sonar: &conf.SonarConfig{
+		ReportTaskFile: reportPath,
+		URL:            "https://evidence-config.example",
+	}}
+	stmt, err := res.resolveStatementWithConfig(cfg)
+
+	assert.NoError(t, err)
+	assert.Equal(t, []byte("ok"), stmt)
+	assert.Equal(t, "https://evidence-config.example", cf.lastURL)
+}
+
+func TestResolver_UsesReportURLWhenNoConfiguredURL(t *testing.T) {
+	SetSonarURLFlag("")
+	dir := t.TempDir()
+	reportPath := writeReportTask(t, dir, "https://report.example", "task-abc")
+	fprov := &fakeProvider{nextResult: []byte("ok"), nextErr: nil}
+	cf := &capturingFactory{provider: fprov}
+	res := &statementResolver{providerFactory: cf}
+
+	t.Setenv("SONAR_TOKEN", "token-123")
+	t.Setenv("SONAR_URL", "")
+	t.Setenv("SONAR_HOST_URL", "")
+
+	cfg := &conf.EvidenceConfig{Sonar: &conf.SonarConfig{ReportTaskFile: reportPath}}
+	stmt, err := res.resolveStatementWithConfig(cfg)
+
+	assert.NoError(t, err)
+	assert.Equal(t, []byte("ok"), stmt)
+	assert.Equal(t, "https://report.example", cf.lastURL)
+}
+
+func TestResolver_FlagOverridesEnvironmentAndReport(t *testing.T) {
+	dir := t.TempDir()
+	reportPath := writeReportTask(t, dir, "https://report.example", "task-abc")
+	fprov := &fakeProvider{nextResult: []byte("ok"), nextErr: nil}
+	cf := &capturingFactory{provider: fprov}
+	res := &statementResolver{providerFactory: cf}
+	t.Cleanup(func() { SetSonarURLFlag("") })
+
+	t.Setenv("SONAR_TOKEN", "token-123")
+	t.Setenv("SONAR_URL", "https://env.example")
+	SetSonarURLFlag("https://flag.example")
+
+	cfg := &conf.EvidenceConfig{Sonar: &conf.SonarConfig{ReportTaskFile: reportPath}}
+	_, err := res.resolveStatementWithConfig(cfg)
+
+	assert.NoError(t, err)
+	assert.Equal(t, "https://flag.example", cf.lastURL)
+}
+
+func TestResolver_RejectsHTTPFromReport(t *testing.T) {
+	SetSonarURLFlag("")
+	dir := t.TempDir()
+	reportPath := writeReportTask(t, dir, "http://sonar.local", "task-abc")
+	cf := &capturingFactory{provider: &fakeProvider{}}
+	res := &statementResolver{providerFactory: cf}
+
+	t.Setenv("SONAR_URL", "")
+	t.Setenv("SONAR_HOST_URL", "")
+
+	cfg := &conf.EvidenceConfig{Sonar: &conf.SonarConfig{ReportTaskFile: reportPath}}
+	_, err := res.resolveStatementWithConfig(cfg)
+
+	assert.ErrorContains(t, err, "must use HTTPS")
+	assert.Empty(t, cf.lastURL)
+}
+
+func TestResolver_RejectsInsecureExplicitURL(t *testing.T) {
+	SetSonarURLFlag("")
+	dir := t.TempDir()
+	reportPath := writeReportTask(t, dir, "http://sonar.local", "task-abc")
+	cf := &capturingFactory{provider: &fakeProvider{}}
+	res := &statementResolver{providerFactory: cf}
+
+	t.Setenv("SONAR_URL", "http://sonar.local")
+
+	cfg := &conf.EvidenceConfig{Sonar: &conf.SonarConfig{ReportTaskFile: reportPath}}
+	_, err := res.resolveStatementWithConfig(cfg)
+
+	assert.ErrorContains(t, err, "must use HTTPS")
+	assert.Empty(t, cf.lastURL)
 }

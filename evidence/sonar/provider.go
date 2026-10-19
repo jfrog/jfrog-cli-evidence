@@ -23,8 +23,12 @@ type StatementProvider interface {
 
 // NewSonarProviderWithCredentials creates a new StatementProvider with SonarQube credentials
 func NewSonarProviderWithCredentials(sonarURL, token string) (StatementProvider, error) {
+	sonarURL = strings.TrimSpace(sonarURL)
 	if sonarURL == "" {
 		return nil, errorutils.CheckErrorf("SonarQube URL is required")
+	}
+	if err := validateSonarURL(sonarURL); err != nil {
+		return nil, err
 	}
 	if token == "" {
 		return nil, errorutils.CheckErrorf("SonarQube token is required")

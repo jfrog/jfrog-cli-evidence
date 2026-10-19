@@ -117,7 +117,7 @@ func (g *getEvidenceReleaseBundle) buildGraphqlQuery(releaseBundle, releaseBundl
 	queryTemplate = strings.ReplaceAll(queryTemplate, artifactEvidenceConnectionArgsPlaceholder, g.evidenceConnectionArgs("first: 0"))
 	queryTemplate = g.applyRevokedArgs(queryTemplate)
 	numberOfArtifactsToShow := g.getArtifactLimit(g.artifactsLimit)
-	graphqlQuery := fmt.Sprintf(queryTemplate, g.getRepoKey(g.project), releaseBundle, releaseBundleVersion, numberOfArtifactsToShow)
+	graphqlQuery := fmt.Sprintf(queryTemplate, evidenceutils.EscapeGraphQLString(g.getRepoKey(g.project)), evidenceutils.EscapeGraphQLString(releaseBundle), evidenceutils.EscapeGraphQLString(releaseBundleVersion), numberOfArtifactsToShow)
 	log.Debug("GraphQL query: ", graphqlQuery)
 	return []byte(graphqlQuery)
 }

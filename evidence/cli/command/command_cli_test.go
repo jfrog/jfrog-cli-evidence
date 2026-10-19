@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"flag"
 	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/jfrog/jfrog-cli-core/v2/common/commands"
@@ -15,6 +16,8 @@ import (
 	"github.com/jfrog/jfrog-cli-evidence/evidence/cli/test"
 	evdConfig "github.com/jfrog/jfrog-cli-evidence/evidence/config"
 	"github.com/jfrog/jfrog-cli-evidence/evidence/model"
+	sonarhelper "github.com/jfrog/jfrog-cli-evidence/evidence/sonar"
+	"github.com/jfrog/jfrog-client-go/utils/log"
 	"github.com/stretchr/testify/assert"
 	"github.com/urfave/cli"
 	"go.uber.org/mock/gomock"
@@ -877,23 +880,98 @@ func TestResolveAndNormalizeKey_TrimsWhitespace(t *testing.T) {
 			ctx, err := components.ConvertContext(cliCtx, componentFlag...)
 			assert.NoError(t, err)
 
-			// Execute
 			err = resolveAndNormalizeKey(ctx, flags.Key)
 			assert.NoError(t, err)
+			assert.Equal(t, tt.expectedResult, ctx.GetStringFlagValue(flags.Key))
+		})
+	}
+}
 
-			// Verify
-			actualValue := ctx.GetStringFlagValue(flags.Key)
+func TestResolveAndNormalizeKey_DebugLogOmitsKeyMaterial(t *testing.T) {
+	const marker = "UNIQUE-KEY-MATERIAL-MARKER-5149596"
+	inlinePEM := "-----BEGIN PRIVATE KEY-----\n" + marker + "\n-----END PRIVATE KEY-----\n"
+	keyPath := "/tmp/" + marker + ".pem"
 
-			// Debug Output to help understand the difference in trimming behavior
-			if tt.setFlag {
-				t.Logf("Flag input: %q (len=%d)", tt.flagKeyValue, len(tt.flagKeyValue))
+	tests := []struct {
+		name         string
+		envKeyValue  string
+		flagKeyValue string
+		setFlag      bool
+		wantForm     string
+		wantTrimmed  bool
+	}{
+		{
+			name:         "Inline PEM from flag",
+			flagKeyValue: inlinePEM,
+			setFlag:      true,
+			wantForm:     "inline-pem",
+			wantTrimmed:  true,
+		},
+		{
+			name:        "Inline PEM from environment variable",
+			envKeyValue: inlinePEM,
+			setFlag:     false,
+			wantForm:    "inline-pem",
+			wantTrimmed: true,
+		},
+		{
+			name:         "Key path from flag",
+			flagKeyValue: "  " + keyPath + "  \n",
+			setFlag:      true,
+			wantForm:     "path",
+			wantTrimmed:  true,
+		},
+		{
+			name:         "Inline PEM without surrounding whitespace",
+			flagKeyValue: "-----BEGIN PRIVATE KEY-----\n" + marker + "\n-----END PRIVATE KEY-----",
+			setFlag:      true,
+			wantForm:     "inline-pem",
+			wantTrimmed:  false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var logs bytes.Buffer
+			originalLogger := log.GetLogger()
+			log.SetLogger(log.NewLogger(log.VERBOSE, &logs))
+			t.Cleanup(func() {
+				log.SetLogger(originalLogger)
+			})
+
+			if tt.envKeyValue != "" {
+				t.Setenv(coreUtils.SigningKey, tt.envKeyValue)
 			} else {
-				t.Logf("Env input: %q (len=%d)", tt.envKeyValue, len(tt.envKeyValue))
+				t.Setenv(coreUtils.SigningKey, "")
 			}
-			t.Logf("Expected: %q (len=%d)", tt.expectedResult, len(tt.expectedResult))
-			t.Logf("Actual:   %q (len=%d)", actualValue, len(actualValue))
 
-			assert.Equal(t, tt.expectedResult, actualValue)
+			app := cli.NewApp()
+			set := flag.NewFlagSet("test", 0)
+			cliCtx := cli.NewContext(app, set, nil)
+
+			var componentFlag []components.Flag
+			if tt.setFlag {
+				componentFlag = append(componentFlag, test.SetDefaultValue(flags.Key, tt.flagKeyValue))
+			}
+			componentFlag = append(componentFlag, test.SetDefaultValue(flags.Predicate, "test"))
+
+			ctx, err := components.ConvertContext(cliCtx, componentFlag...)
+			assert.NoError(t, err)
+
+			assert.NoError(t, resolveAndNormalizeKey(ctx, flags.Key))
+
+			output := logs.String()
+			assert.NotContains(t, output, marker)
+			assert.NotContains(t, output, "BEGIN PRIVATE KEY")
+			assert.NotContains(t, output, "END PRIVATE KEY")
+			assert.Contains(t, output, "form="+tt.wantForm)
+			assert.Contains(t, output, "originalLength=")
+			assert.Contains(t, output, "trimmedLength=")
+			if tt.wantTrimmed {
+				assert.Contains(t, output, "whitespaceTrimmed=true")
+			} else {
+				assert.Contains(t, output, "whitespaceTrimmed=false")
+			}
 		})
 	}
 }
@@ -902,6 +980,8 @@ func TestValidateSonarQubeRequirements(t *testing.T) {
 	// Save original environment variables
 	originalSonarToken := os.Getenv("SONAR_TOKEN")
 	originalSonarQubeToken := os.Getenv("SONARQUBE_TOKEN")
+	originalSonarURL := os.Getenv("SONAR_URL")
+	originalSonarHostURL := os.Getenv("SONAR_HOST_URL")
 	defer func() {
 		err := os.Setenv("SONAR_TOKEN", originalSonarToken)
 		if err != nil {
@@ -911,12 +991,21 @@ func TestValidateSonarQubeRequirements(t *testing.T) {
 		if err != nil {
 			assert.FailNow(t, err.Error())
 		}
+		err = os.Setenv("SONAR_URL", originalSonarURL)
+		if err != nil {
+			assert.FailNow(t, err.Error())
+		}
+		err = os.Setenv("SONAR_HOST_URL", originalSonarHostURL)
+		if err != nil {
+			assert.FailNow(t, err.Error())
+		}
 	}()
 
 	tests := []struct {
 		name           string
 		sonarToken     string
 		sonarQubeToken string
+		sonarURL       string
 		expectError    bool
 		errorContains  string
 	}{
@@ -924,18 +1013,21 @@ func TestValidateSonarQubeRequirements(t *testing.T) {
 			name:           "Valid_With_SONAR_TOKEN",
 			sonarToken:     "test-token",
 			sonarQubeToken: "",
+			sonarURL:       "https://sonar.example.com",
 			expectError:    false,
 		},
 		{
 			name:           "Valid_With_SONARQUBE_TOKEN",
 			sonarToken:     "",
 			sonarQubeToken: "test-token",
+			sonarURL:       "https://sonar.example.com",
 			expectError:    false,
 		},
 		{
 			name:           "Valid_With_Both_Tokens",
 			sonarToken:     "test-token-1",
 			sonarQubeToken: "test-token-2",
+			sonarURL:       "https://sonar.example.com",
 			expectError:    false,
 		},
 		{
@@ -944,6 +1036,13 @@ func TestValidateSonarQubeRequirements(t *testing.T) {
 			sonarQubeToken: "",
 			expectError:    true,
 			errorContains:  "SonarQube token is required",
+		},
+		{
+			name:          "Invalid_Insecure_URL",
+			sonarToken:    "test-token",
+			sonarURL:      "http://sonar.example.com",
+			expectError:   true,
+			errorContains: "must use HTTPS",
 		},
 	}
 
@@ -955,6 +1054,14 @@ func TestValidateSonarQubeRequirements(t *testing.T) {
 				assert.FailNow(t, err.Error())
 			}
 			err = os.Setenv("SONARQUBE_TOKEN", tt.sonarQubeToken)
+			if err != nil {
+				assert.FailNow(t, err.Error())
+			}
+			err = os.Setenv("SONAR_URL", tt.sonarURL)
+			if err != nil {
+				assert.FailNow(t, err.Error())
+			}
+			err = os.Setenv("SONAR_HOST_URL", "")
 			if err != nil {
 				assert.FailNow(t, err.Error())
 			}
@@ -977,10 +1084,73 @@ func TestValidateSonarQubeRequirements(t *testing.T) {
 	}
 }
 
+func TestValidateCreateEvidenceCommonContext_SonarURLSelectsIntegration(t *testing.T) {
+	app := cli.NewApp()
+	app.Commands = []cli.Command{{Name: "create"}}
+	ctx := cli.NewContext(app, &flag.FlagSet{}, nil)
+
+	withoutTokens := func(t *testing.T) {
+		t.Helper()
+		t.Cleanup(func() { sonarhelper.SetSonarURLFlag("") })
+		originalToken := os.Getenv("SONAR_TOKEN")
+		originalQubeToken := os.Getenv("SONARQUBE_TOKEN")
+		t.Cleanup(func() {
+			_ = os.Setenv("SONAR_TOKEN", originalToken)
+			_ = os.Setenv("SONARQUBE_TOKEN", originalQubeToken)
+		})
+		_ = os.Unsetenv("SONAR_TOKEN")
+		_ = os.Unsetenv("SONARQUBE_TOKEN")
+	}
+
+	t.Run("sonar url selects sonar integration", func(t *testing.T) {
+		withoutTokens(t)
+		c, err := components.ConvertContext(ctx,
+			test.SetDefaultValue(flags.SubjectRepoPath, "repo/path/file"),
+			test.SetDefaultValue(flags.Key, "k"),
+			test.SetDefaultValue(flags.SonarURL, "https://sonar.example.com"),
+		)
+		assert.NoError(t, err)
+		err = validateCreateEvidenceCommonContext(c)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "SonarQube token is required")
+		assert.Equal(t, "sonar", c.GetStringFlagValue(flags.Integration))
+	})
+
+	t.Run("sonar url with integration still enters sonar flow", func(t *testing.T) {
+		withoutTokens(t)
+		c, err := components.ConvertContext(ctx,
+			test.SetDefaultValue(flags.SubjectRepoPath, "repo/path/file"),
+			test.SetDefaultValue(flags.Key, "k"),
+			test.SetDefaultValue(flags.Integration, "sonar"),
+			test.SetDefaultValue(flags.SonarURL, "https://sonar.example.com"),
+		)
+		assert.NoError(t, err)
+		err = validateCreateEvidenceCommonContext(c)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "SonarQube token is required")
+	})
+
+	t.Run("sonar url rejects another integration", func(t *testing.T) {
+		c, err := components.ConvertContext(ctx,
+			test.SetDefaultValue(flags.SubjectRepoPath, "repo/path/file"),
+			test.SetDefaultValue(flags.Predicate, "/tmp/p.json"),
+			test.SetDefaultValue(flags.PredicateType, "ptype"),
+			test.SetDefaultValue(flags.Key, "k"),
+			test.SetDefaultValue(flags.Integration, "other"),
+			test.SetDefaultValue(flags.SonarURL, "https://sonar.example.com"),
+		)
+		assert.NoError(t, err)
+		err = validateCreateEvidenceCommonContext(c)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "--sonar-url can be used only with --integration sonar")
+	})
+}
+
 func TestValidateCreateEvidenceCommonContext_Attachments(t *testing.T) {
 	app := cli.NewApp()
 	app.Commands = []cli.Command{{Name: "create"}}
 	ctx := cli.NewContext(app, &flag.FlagSet{}, nil)
+	t.Setenv(coreUtils.HomeDir, t.TempDir())
 
 	t.Run("local and artifactory conflict", func(t *testing.T) {
 		c, err := components.ConvertContext(ctx,
@@ -996,8 +1166,7 @@ func TestValidateCreateEvidenceCommonContext_Attachments(t *testing.T) {
 	})
 
 	t.Run("temp target from env", func(t *testing.T) {
-		assert.NoError(t, os.Setenv(evdConfig.EnvAttachmentArtifactoryTempPath, "repo/tmp/"))
-		defer func() { _ = os.Unsetenv(evdConfig.EnvAttachmentArtifactoryTempPath) }()
+		t.Setenv(evdConfig.EnvAttachmentArtifactoryTempPath, "repo/tmp/")
 		c, err := components.ConvertContext(ctx,
 			test.SetDefaultValue(flags.SubjectRepoPath, "repo/path/file"),
 			test.SetDefaultValue(flags.Predicate, "/tmp/p.json"),
@@ -1020,6 +1189,28 @@ func TestValidateCreateEvidenceCommonContext_Attachments(t *testing.T) {
 		)
 		assert.NoError(t, err)
 		assert.Error(t, validateCreateEvidenceCommonContext(c))
+	})
+
+	t.Run("workspace evidence.yml is ignored", func(t *testing.T) {
+		dir := t.TempDir()
+		t.Setenv(coreUtils.HomeDir, t.TempDir())
+		t.Setenv(evdConfig.EnvAttachmentArtifactoryTempPath, "")
+		configDir := filepath.Join(dir, ".jfrog", "evidence")
+		assert.NoError(t, os.MkdirAll(configDir, 0755))
+		assert.NoError(t, os.WriteFile(filepath.Join(configDir, "evidence.yml"), []byte("attachment:\n  artifactoryTempPath: repo/prod/app.jar\n"), 0600))
+		t.Chdir(dir)
+		c, err := components.ConvertContext(ctx,
+			test.SetDefaultValue(flags.SubjectRepoPath, "repo/path/file"),
+			test.SetDefaultValue(flags.Predicate, "/tmp/p.json"),
+			test.SetDefaultValue(flags.PredicateType, "ptype"),
+			test.SetDefaultValue(flags.Key, "k"),
+			test.SetDefaultValue(flags.AttachLocal, "/tmp/a.txt"),
+		)
+		assert.NoError(t, err)
+		err = validateCreateEvidenceCommonContext(c)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "repository .jfrog/evidence/evidence.yml")
+		assert.Empty(t, c.GetStringFlagValue(flags.AttachArtifactoryTempPath))
 	})
 }
 

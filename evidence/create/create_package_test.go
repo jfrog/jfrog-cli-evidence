@@ -91,7 +91,7 @@ func TestCreateEvidencePackage_RecordSummary(t *testing.T) {
 	evidence := NewCreateEvidencePackage(
 		serverDetails,
 		"",
-		"test-predicate-type",
+		"https://example.com/test-predicate-type/v1",
 		"",
 		"test-key",
 		"test-key-id",
@@ -131,7 +131,7 @@ func TestCreateEvidencePackage_RecordSummary(t *testing.T) {
 
 			assert.Equal(t, expectedArtifactPath, summaryData.Subject)
 			assert.Equal(t, expectedSha256, summaryData.SubjectSha256)
-			assert.Equal(t, "test-predicate-type", summaryData.PredicateType)
+			assert.Equal(t, "https://example.com/test-predicate-type/v1", summaryData.PredicateType)
 			assert.Equal(t, "test-slug", summaryData.PredicateSlug)
 			assert.False(t, summaryData.Verified)
 			assert.Equal(t, "test-package 1.0.0", summaryData.DisplayName)

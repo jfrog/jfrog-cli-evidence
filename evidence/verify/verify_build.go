@@ -1,6 +1,7 @@
 package verify
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/jfrog/jfrog-cli-evidence/evidence"
@@ -8,9 +9,10 @@ import (
 	"github.com/jfrog/jfrog-cli-evidence/evidence/utils"
 
 	"github.com/jfrog/jfrog-cli-core/v2/utils/config"
+	"github.com/jfrog/jfrog-client-go/artifactory"
 )
 
-const aqlBuildQueryTemplate = "items.find({\"repo\":\"%s\",\"path\":\"%s\",\"name\":{\"$match\":\"%s*\"}}).include(\"repo\",\"path\",\"name\",\"sha256\").sort({\"$desc\":[\"name\"]}).limit(1)"
+const aqlBuildInfoFileQueryTemplate = `items.find({"repo":%s,"path":%s,"name":%s}).include("repo","path","name","sha256")`
 
 // verifyEvidenceBuild verifies evidence for a build.
 type verifyEvidenceBuild struct {
@@ -42,15 +44,10 @@ func (v *verifyEvidenceBuild) Run() error {
 	repoKey := utils.BuildBuildInfoRepoKey(v.project)
 
 	v.setHeadline("Searching build")
-	result, err := utils.ExecuteAqlQuery(fmt.Sprintf(aqlBuildQueryTemplate, repoKey, v.buildName, v.buildNumber), client)
+	subjectFileName, buildInfoSha256, err := v.findBuildInfoFile(client, repoKey)
 	if err != nil {
-		return fmt.Errorf("failed to execute AQL query: %w", err)
+		return err
 	}
-	if len(result.Results) == 0 {
-		return fmt.Errorf("no build found for the given build name and number")
-	}
-	buildInfoSha256 := result.Results[0].Sha256
-	subjectFileName := result.Results[0].Name
 
 	metadata, err := v.queryEvidenceMetadata(repoKey, v.buildName, subjectFileName)
 	if err != nil {
@@ -59,6 +56,37 @@ func (v *verifyEvidenceBuild) Run() error {
 
 	subjectPath := fmt.Sprintf("%s/%s/%s", repoKey, v.buildName, subjectFileName)
 	return v.verifyEvidence(client, metadata, model.SubjectDigest{Type: model.Sha256DigestType, Value: buildInfoSha256}, subjectPath)
+}
+
+// findBuildInfoFile returns the name and sha256 of the requested build's build-info file.
+// It resolves the file the same way evidence creation does: the build-info API returns the start time
+// of the latest run, which names the file "<number>-<timestamp>.json". The file is then looked up by
+// that exact name, so a build with a different number is never selected.
+func (v *verifyEvidenceBuild) findBuildInfoFile(client *artifactory.ArtifactoryServicesManager, repoKey string) (string, string, error) {
+	timestamp, err := utils.GetBuildLatestTimestamp(v.buildName, v.buildNumber, v.project, *client)
+	if err != nil {
+		var notFound *utils.BuildNotFoundError
+		if errors.As(err, &notFound) {
+			return "", "", fmt.Errorf("no build found for build name %q and build number %q", v.buildName, v.buildNumber)
+		}
+		return "", "", err
+	}
+
+	fileName := utils.BuildInfoFileName(v.buildNumber, timestamp)
+	query, err := utils.FormatAqlQuery(aqlBuildInfoFileQueryTemplate, repoKey, v.buildName, fileName)
+	if err != nil {
+		return "", "", err
+	}
+	result, err := utils.ExecuteAqlQuery(query, client)
+	if err != nil {
+		return "", "", fmt.Errorf("failed to execute AQL query: %w", err)
+	}
+	for _, item := range result.Results {
+		if item.Name == fileName {
+			return item.Name, item.Sha256, nil
+		}
+	}
+	return "", "", fmt.Errorf("no build found for build name %q and build number %q: build-info file %s/%s/%s does not exist", v.buildName, v.buildNumber, repoKey, v.buildName, fileName)
 }
 
 // ServerDetails returns the server details for the command.

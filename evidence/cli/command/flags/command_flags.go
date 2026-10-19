@@ -48,6 +48,7 @@ const (
 	PublicKeys                = "public-keys"
 	UseArtifactoryKeys        = "use-artifactory-keys"
 	Integration               = "integration"
+	SonarURL                  = "sonar-url"
 	SigstoreBundle            = "sigstore-bundle"
 	AttachLocal               = "attach-local"
 	AttachArtifactoryTempPath = "attach-artifactory-temp-path"
@@ -97,11 +98,12 @@ var flagsMap = map[string]components.Flag{
 	PublicKeys:                components.NewStringFlag(PublicKeys, "Array of paths to public keys for signatures verification with \";\" separator. Supported keys: 'ecdsa','rsa' and 'ed25519'.", func(f *components.StringFlag) { f.Mandatory = false }),
 	SigstoreBundle:            components.NewStringFlag(SigstoreBundle, "Path to a Sigstore bundle file with a pre-signed DSSE envelope. Works with artifact subjects and --entity-type/--entity-id. Incompatible with --"+Key+", --"+KeyAlias+", --"+Predicate+", --"+PredicateType+", --"+Markdown+", --"+SubjectSha256+" and all --attach-* flags.", func(f *components.StringFlag) { f.Mandatory = false }),
 	AttachLocal:               components.NewStringFlag(AttachLocal, "Path to a local file to attach to created evidence. Incompatible with --"+AttachArtifactoryPath+".", func(f *components.StringFlag) { f.Mandatory = false }),
-	AttachArtifactoryTempPath: components.NewStringFlag(AttachArtifactoryTempPath, "Temporary Artifactory upload path for --"+AttachLocal+" in format <repo/path[/name]>. Use trailing slash for directory targets. Can also be set via env var EVIDENCE_ATTACHMENT_ARTIFACTORY_TEMP_PATH or config key attachment.artifactoryTempPath. Once provided, the value is persisted for subsequent runs.", func(f *components.StringFlag) { f.Mandatory = false }),
+	AttachArtifactoryTempPath: components.NewStringFlag(AttachArtifactoryTempPath, "Temporary Artifactory upload path for --"+AttachLocal+" in format <repo/path[/name]>. Use a trailing slash for a directory target. Set it with this flag, EVIDENCE_ATTACHMENT_ARTIFACTORY_TEMP_PATH, or attachment.artifactoryTempPath in the user home evidence config (~/.jfrog/evidence/evidence.yml). A repository .jfrog/evidence/evidence.yml value is ignored. An explicit flag value is saved to the user home config.", func(f *components.StringFlag) { f.Mandatory = false }),
 	AttachArtifactoryPath:     components.NewStringFlag(AttachArtifactoryPath, "Existing Artifactory file path to attach in format <repo/path>.", func(f *components.StringFlag) { f.Mandatory = false }),
 	UseArtifactoryKeys:        components.NewBoolFlag(UseArtifactoryKeys, "Use Artifactory keys for verification. When enabled, the verify command retrieves keys from Artifactory.", components.WithBoolDefaultValueFalse()),
 	ArtifactsLimit:            components.NewStringFlag(ArtifactsLimit, "The number of artifacts in a release bundle to be included in the evidences file. The default value is 1000 artifacts", func(f *components.StringFlag) { f.Mandatory = false }),
-	Integration:               components.NewStringFlag(Integration, "Specify an integration to automatically generate the Predicate. Supported: 'sonar'. When using 'sonar', the 'SONAR_TOKEN' or 'SONARQUBE_TOKEN' environment variable must be set.", func(f *components.StringFlag) { f.Mandatory = false }),
+	Integration:               components.NewStringFlag(Integration, "Specify an integration to automatically generate the Predicate. Supported: 'sonar'. When using 'sonar', the 'SONAR_TOKEN' or 'SONARQUBE_TOKEN' environment variable must be set. The SonarQube URL must use HTTPS.", func(f *components.StringFlag) { f.Mandatory = false }),
+	SonarURL:                  components.NewStringFlag(SonarURL, "SonarQube server URL. Selects --"+Integration+" sonar when --"+Integration+" is omitted. Overrides SONAR_URL, SONAR_HOST_URL, evidence.yml, and report-task.txt. Must use HTTPS.", func(f *components.StringFlag) { f.Mandatory = false }),
 	UploadPublicKey:           components.NewBoolFlag(UploadPublicKey, "Upload the generated public key to JFrog platform trusted keys. Requires server connection.", components.WithBoolDefaultValueTrue()),
 	KeyFilePath:               components.NewStringFlag(KeyFilePath, "Directory path for key files. Creates the directory if it doesn't exist. Defaults to current directory.", func(f *components.StringFlag) { f.Mandatory = false }),
 	KeyFileName:               components.NewStringFlag(KeyFileName, "Base name for key files (without extension). Private key will be saved as <name>.key and public key as <name>.pub. Defaults to 'evidence'.", func(f *components.StringFlag) { f.Mandatory = false }),
@@ -136,6 +138,7 @@ var commandFlags = map[string][]string{
 		KeyAlias,
 		ProviderId,
 		Integration,
+		SonarURL,
 		SigstoreBundle,
 		AttachLocal,
 		AttachArtifactoryTempPath,

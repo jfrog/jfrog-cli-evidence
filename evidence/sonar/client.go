@@ -78,13 +78,11 @@ func (c *httpClient) GetSonarIntotoStatement(ceTaskID string) ([]byte, error) {
 	if ceTaskID == "" {
 		return nil, errorutils.CheckError(fmt.Errorf("missing ce task id for enterprise endpoint"))
 	}
-	u, _ := url.Parse(c.baseURL)
-	hostname := u.Hostname()
 
-	cloudUrl := c.prepareCloudFormatUrl(ceTaskID, hostname)
-	log.Debug(fmt.Sprintf("Getting intoto statement using cloud format sonar endpoint %s", cloudUrl))
-	body, statusCode, err := c.doGET(cloudUrl)
-
+	parsedURL, _ := url.Parse(c.baseURL)
+	cloudURL := c.prepareCloudFormatUrl(ceTaskID, parsedURL.Hostname())
+	log.Debug(fmt.Sprintf("Getting intoto statement using cloud format sonar endpoint %s", cloudURL))
+	body, statusCode, err := c.doGET(cloudURL)
 	if !utils.IsHttpStatusSuccessful(statusCode) {
 		serverURL := c.prepareServerFormatUrl(ceTaskID)
 		log.Debug(fmt.Sprintf("Getting intoto statement using server format sonar endpoint %s", serverURL))
@@ -119,13 +117,12 @@ func (c *httpClient) GetTaskDetails(ceTaskID string) (*TaskDetails, error) {
 	return &response, nil
 }
 
-func (c *httpClient) prepareCloudFormatUrl(ceTaskID string, hostname string) string {
+func (c *httpClient) prepareCloudFormatUrl(ceTaskID, hostname string) string {
 	cloudBaseURL := c.baseURL
 	if !strings.HasPrefix(hostname, "api.") {
 		cloudBaseURL = strings.Replace(c.baseURL, "://", "://api.", 1)
 	}
-	cloudURL := fmt.Sprintf("%s/dop-translation/jfrog-evidence/%s", cloudBaseURL, url.QueryEscape(ceTaskID))
-	return cloudURL
+	return fmt.Sprintf("%s/dop-translation/jfrog-evidence/%s", cloudBaseURL, url.QueryEscape(ceTaskID))
 }
 
 func (c *httpClient) prepareServerFormatUrl(ceTaskID string) string {

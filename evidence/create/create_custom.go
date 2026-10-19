@@ -119,7 +119,7 @@ func (c *createEvidenceCustom) Run() error {
 
 		response, err := c.uploadEvidence(evidencePayload, subjectRepoPath, attachment)
 		if err != nil {
-			handledErr := c.handleSubjectNotFound(subjectRepoPath, err)
+			handledErr := c.handleUploadError(subjectRepoPath, err)
 			log.Error("Evidence upload failed for", subjectRepoPath, ":", handledErr.Error())
 			errors = append(errors, fmt.Errorf("upload failed for subject '%s': %w", subjectRepoPath, handledErr))
 			failedSubjects = append(failedSubjects, subjectRepoPath)
@@ -209,28 +209,58 @@ func (c *createEvidenceCustom) validateSubject(subjectRepoPath string) error {
 	return nil
 }
 
-func (c *createEvidenceCustom) handleSubjectNotFound(subjectRepoPath string, err error) error {
+// missingSigningKeyPattern matches the Evidence service message for an unknown key alias, e.g.
+// "signing key with keyId 'my-alias' not found in Artifactory: not found".
+var missingSigningKeyPattern = regexp.MustCompile(`signing key with keyId '([^']*)' not found`)
+
+// subjectNotFoundPattern matches the Evidence service messages for a missing subject:
+// "subject not found", "File not found: <repo>/<path>" and "Repository <repo> not found".
+// It is anchored so that "attachment file not found: ..." is not mistaken for a missing subject.
+var subjectNotFoundPattern = regexp.MustCompile(`(?i)^(subject not found|file not found: |repository \S+ not found)`)
+
+// handleUploadError reports a 400/404 upload failure according to the message the Evidence service returned.
+// A missing signing key is a configuration problem, not a subject problem, so it does not use newSubjectError.
+// Unrecognised messages are returned as is, with the server's status and response body.
+func (c *createEvidenceCustom) handleUploadError(subjectRepoPath string, err error) error {
 	errStr := err.Error()
-	if strings.Contains(errStr, "404 Not Found") {
-		log.Debug("Server response error:", err.Error())
-		return c.newSubjectError("Subject '" + subjectRepoPath + "' is not found. Please ensure the subject exists.")
+	isNotFound := strings.Contains(errStr, "404 Not Found")
+	if !isNotFound && !strings.Contains(errStr, "400 Bad Request") {
+		return err
 	}
+	log.Debug("Server response error:", errStr)
 
-	// Handle 400 errors that might be key alias related
-	if strings.Contains(errStr, "400 Bad Request") && strings.Contains(errStr, "not found") {
-		log.Debug("Server response error:", err.Error())
-		// Check if this is likely a key alias issue by looking for key-related context
-		if c.keyId != "" {
-			// If we have a keyId and the error is generic "not found" without specific context,
-			// it's likely a key alias issue since subject errors usually have more context
-			if !strings.Contains(errStr, "subject") && !strings.Contains(errStr, "repository") && !strings.Contains(errStr, "artifact") && !strings.Contains(errStr, "file") {
-				return c.newSubjectError("Key alias '" + c.keyId + "' is not found in Artifactory trusted keys. Please ensure the alias exists or upload the public key first using 'generate-key-pair --upload-public-key'.")
-			}
+	for _, message := range serverErrorMessages(errStr) {
+		if match := missingSigningKeyPattern.FindStringSubmatch(message); match != nil {
+			return errorutils.CheckErrorf("Key alias '%s' is not found in Artifactory trusted keys. Please ensure the alias exists or upload the public key first using 'generate-key-pair --upload-public-key'. A newly uploaded key may take a few minutes to become available.", match[1])
 		}
-		return c.newSubjectError("Subject '" + subjectRepoPath + "' is invalid or not found. Please ensure the subject exists and follows the correct format: <repo>/<path>/<name> or <repo>/<name>")
+		if isNotFound && subjectNotFoundPattern.MatchString(message) {
+			return c.newSubjectError("Subject '" + subjectRepoPath + "' is not found. Please ensure the subject exists.")
+		}
 	}
-
 	return err
+}
+
+// serverErrorMessages returns the errors[].message values of the JSON body that
+// jfrog-client-go appends to "server response: <status>" errors.
+func serverErrorMessages(errStr string) []string {
+	bodyStart := strings.Index(errStr, "{")
+	if bodyStart == -1 {
+		return nil
+	}
+	var body struct {
+		Errors []struct {
+			Message string `json:"message"`
+		} `json:"errors"`
+	}
+	if err := json.NewDecoder(strings.NewReader(errStr[bodyStart:])).Decode(&body); err != nil {
+		log.Debug("Failed to parse the server error response:", err.Error())
+		return nil
+	}
+	messages := make([]string, 0, len(body.Errors))
+	for _, serverError := range body.Errors {
+		messages = append(messages, serverError.Message)
+	}
+	return messages
 }
 
 // newSubjectError creates an error with ExitCodeFailNoOp (2) for subject-related failures
