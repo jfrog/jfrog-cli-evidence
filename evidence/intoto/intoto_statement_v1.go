@@ -26,11 +26,7 @@ type Statement struct {
 }
 
 type ResourceDescriptor struct {
-	Digest Digest `json:"digest"`
-}
-
-type Digest struct {
-	Sha256 string `json:"sha256"`
+	Digest map[string]string `json:"digest"`
 }
 
 type Attachment struct {
@@ -50,8 +46,19 @@ func NewStatement(predicate []byte, predicateType, user string) *Statement {
 }
 
 func (s *Statement) SetSubject(subjectSha256 string) error {
-	s.Subject = make([]ResourceDescriptor, 1)
-	s.Subject[0].Digest.Sha256 = subjectSha256
+	s.Subject = []ResourceDescriptor{{
+		Digest: map[string]string{"sha256": subjectSha256},
+	}}
+	return nil
+}
+
+func (s *Statement) SetEntitySubject(entityType, entityID string) error {
+	if entityType == "" || entityID == "" {
+		return errorutils.CheckErrorf("entity type and entity id are required to build the subject digest")
+	}
+	s.Subject = []ResourceDescriptor{{
+		Digest: map[string]string{entityType: entityID},
+	}}
 	return nil
 }
 
