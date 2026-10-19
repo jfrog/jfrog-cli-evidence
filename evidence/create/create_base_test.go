@@ -719,3 +719,92 @@ func TestGetFileChecksum_Success(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, "abc", sha)
 }
+
+func TestValidateSummaryData(t *testing.T) {
+	tests := []struct {
+		name          string
+		predicateSlug string
+		predicateType string
+		expectedSlug  string
+		expectedType  string
+	}{
+		{
+			name:          "Valid values",
+			predicateSlug: "slsa-provenance",
+			predicateType: "https://slsa.dev/provenance/v1",
+			expectedSlug:  "slsa-provenance",
+			expectedType:  "https://slsa.dev/provenance/v1",
+		},
+		{
+			name:          "Slug from a predicate type without path",
+			predicateSlug: "jfrog.com/evidence/v1",
+			predicateType: "urn:example:custom",
+			expectedSlug:  "jfrog.com/evidence/v1",
+			expectedType:  "urn:example:custom",
+		},
+		{
+			name:          "Empty values",
+			predicateSlug: "",
+			predicateType: "",
+			expectedSlug:  "",
+			expectedType:  "",
+		},
+		{
+			name:          "Slug with HTML",
+			predicateSlug: `</td></tr><tr><td><a href="https://attacker.example">x</a>`,
+			predicateType: "https://slsa.dev/provenance/v1",
+			expectedSlug:  "",
+			expectedType:  "https://slsa.dev/provenance/v1",
+		},
+		{
+			name:          "Slug with line breaks",
+			predicateSlug: "in-toto\n\n# heading",
+			predicateType: "https://in-toto.io/attestation/vulns",
+			expectedSlug:  "",
+			expectedType:  "https://in-toto.io/attestation/vulns",
+		},
+		{
+			name:          "Slug too long",
+			predicateSlug: strings.Repeat("a", 129),
+			predicateType: "https://in-toto.io/attestation/vulns",
+			expectedSlug:  "",
+			expectedType:  "https://in-toto.io/attestation/vulns",
+		},
+		{
+			name:          "Relative predicate type",
+			predicateSlug: "custom",
+			predicateType: "custom-predicate-type",
+			expectedSlug:  "custom",
+			expectedType:  "",
+		},
+		{
+			name:          "Predicate type with HTML",
+			predicateSlug: "custom",
+			predicateType: `https://example.com/v1"><img src=x>`,
+			expectedSlug:  "custom",
+			expectedType:  "",
+		},
+		{
+			name:          "Predicate type with whitespace",
+			predicateSlug: "custom",
+			predicateType: "https://example.com/v1\n\n# heading",
+			expectedSlug:  "custom",
+			expectedType:  "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := validateSummaryData(commandsummary.EvidenceSummaryData{
+				Subject:       "repo/path/file.txt",
+				PredicateSlug: tt.predicateSlug,
+				PredicateType: tt.predicateType,
+				Verified:      true,
+			})
+			assert.Equal(t, tt.expectedSlug, result.PredicateSlug)
+			assert.Equal(t, tt.expectedType, result.PredicateType)
+			assert.Equal(t, "repo/path/file.txt", result.Subject)
+			assert.True(t, result.Verified)
+		})
+	}
+}

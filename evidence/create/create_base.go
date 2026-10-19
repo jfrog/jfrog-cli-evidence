@@ -4,9 +4,12 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/url"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
+	"unicode"
 
 	markdownUtils "github.com/jfrog/jfrog-cli-core/v2/utils/markdown"
 	"github.com/jfrog/jfrog-cli-evidence/evidence/cryptox"
@@ -336,7 +339,32 @@ func (c *createEvidenceBase) recordEvidenceSummary(summaryData commandsummary.Ev
 		return err
 	}
 
-	return evidenceSummary.Record(summaryData)
+	return evidenceSummary.Record(validateSummaryData(summaryData))
+}
+
+// The Evidence service derives the slug from the predicate type path, e.g. "slsa-provenance" or "in-toto-vulns".
+var predicateSlugPattern = regexp.MustCompile(`^[A-Za-z0-9._/-]{1,128}$`)
+
+// validateSummaryData drops predicate values that do not have the expected format,
+// since they are rendered in the GitHub job summary.
+func validateSummaryData(summaryData commandsummary.EvidenceSummaryData) commandsummary.EvidenceSummaryData {
+	if summaryData.PredicateSlug != "" && !predicateSlugPattern.MatchString(summaryData.PredicateSlug) {
+		log.Debug(fmt.Sprintf("Omitting invalid predicate slug from the evidence summary: %q", summaryData.PredicateSlug))
+		summaryData.PredicateSlug = ""
+	}
+	if summaryData.PredicateType != "" && !isValidPredicateType(summaryData.PredicateType) {
+		log.Debug(fmt.Sprintf("Omitting invalid predicate type from the evidence summary: %q", summaryData.PredicateType))
+		summaryData.PredicateType = ""
+	}
+	return summaryData
+}
+
+func isValidPredicateType(predicateType string) bool {
+	if strings.ContainsAny(predicateType, `<>"'`) || strings.IndexFunc(predicateType, unicode.IsSpace) != -1 {
+		return false
+	}
+	parsedUrl, err := url.Parse(predicateType)
+	return err == nil && parsedUrl.IsAbs()
 }
 
 func (c *createEvidenceBase) createArtifactoryClient() (artifactory.ArtifactoryServicesManager, error) {
