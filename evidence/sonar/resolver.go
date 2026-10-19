@@ -1,12 +1,28 @@
 package sonar
 
 import (
+	"net/url"
 	"os"
+	"strings"
 
 	conf "github.com/jfrog/jfrog-cli-evidence/evidence/config"
 	"github.com/jfrog/jfrog-client-go/utils/errorutils"
 	"github.com/jfrog/jfrog-client-go/utils/log"
 )
+
+const defaultSonarURL = "https://sonarcloud.io"
+
+type sonarURLSource int
+
+const (
+	sonarURLFromExplicit sonarURLSource = iota
+	sonarURLFromEvidenceConfig
+	sonarURLFromReportTask
+	sonarURLFromDefault
+)
+
+// sonarURLFlag is set from --sonar-url before evidence creation.
+var sonarURLFlag string
 
 // StatementResolver resolves a full in-toto statement.
 type StatementResolver interface {
@@ -21,6 +37,11 @@ func NewStatementResolver() StatementResolver {
 	return &statementResolver{
 		providerFactory: defaultProviderFactory{},
 	}
+}
+
+// SetSonarURLFlag records the --sonar-url value for the current command.
+func SetSonarURLFlag(value string) {
+	sonarURLFlag = strings.TrimSpace(value)
 }
 
 func (d *statementResolver) ResolveStatement() ([]byte, error) {
@@ -46,10 +67,11 @@ func (d *statementResolver) resolveStatementWithConfig(cfg *conf.EvidenceConfig)
 
 	log.Info("Parsed report-task file at", reportPath, "with ceTaskID:", rt.CeTaskID)
 
-	sonarBaseURL := resolveSonarBaseURL(rt.CeTaskURL, rt.ServerURL)
-	if cfg != nil && cfg.Sonar != nil && cfg.Sonar.URL != "" {
-		sonarBaseURL = cfg.Sonar.URL
+	sonarBaseURL, source, err := resolveSonarURL(cfg, rt)
+	if err != nil {
+		return nil, err
 	}
+	warnSonarURLSource(source)
 
 	token := os.Getenv("SONAR_TOKEN")
 	if token == "" {
@@ -68,6 +90,81 @@ func (d *statementResolver) resolveStatementWithConfig(cfg *conf.EvidenceConfig)
 	}
 
 	return provider.GetStatement(rt.CeTaskID, pollingMaxRetries, pollingRetryIntervalMs)
+}
+
+func ValidateExplicitSonarURL() error {
+	sonarURL, ok := explicitSonarURL()
+	if !ok {
+		return nil
+	}
+	return validateSonarURL(sonarURL)
+}
+
+func resolveSonarURL(cfg *conf.EvidenceConfig, rt ReportTask) (string, sonarURLSource, error) {
+	sonarURL, source := selectSonarURL(cfg, rt)
+	if err := validateSonarURL(sonarURL); err != nil {
+		return "", source, err
+	}
+	return sonarURL, source, nil
+}
+
+func selectSonarURL(cfg *conf.EvidenceConfig, rt ReportTask) (string, sonarURLSource) {
+	if sonarURL, ok := explicitSonarURL(); ok {
+		return sonarURL, sonarURLFromExplicit
+	}
+	if cfg != nil && cfg.Sonar != nil && strings.TrimSpace(cfg.Sonar.URL) != "" {
+		return strings.TrimSpace(cfg.Sonar.URL), sonarURLFromEvidenceConfig
+	}
+	if sonarURL, fromReport := reportSonarURL(rt.CeTaskURL, rt.ServerURL); fromReport {
+		return sonarURL, sonarURLFromReportTask
+	}
+	return defaultSonarURL, sonarURLFromDefault
+}
+
+func explicitSonarURL() (string, bool) {
+	if sonarURLFlag != "" {
+		return sonarURLFlag, true
+	}
+	if sonarURL := strings.TrimSpace(os.Getenv("SONAR_URL")); sonarURL != "" {
+		return sonarURL, true
+	}
+	if sonarURL := strings.TrimSpace(os.Getenv("SONAR_HOST_URL")); sonarURL != "" {
+		return sonarURL, true
+	}
+	return "", false
+}
+
+func reportSonarURL(ceTaskURL, serverURL string) (string, bool) {
+	if serverURL != "" {
+		return serverURL, true
+	}
+	if ceTaskURL != "" {
+		parsedURL, err := url.Parse(ceTaskURL)
+		if err == nil && parsedURL.Host != "" {
+			return parsedURL.Scheme + "://" + parsedURL.Host, true
+		}
+	}
+	return "", false
+}
+
+func warnSonarURLSource(source sonarURLSource) {
+	switch source {
+	case sonarURLFromEvidenceConfig:
+		log.Warn("SonarQube URL was read from evidence.yml. Provide it with --sonar-url or the SONAR_URL environment variable.")
+	case sonarURLFromReportTask:
+		log.Warn("SonarQube URL was read from report-task.txt. Provide it with --sonar-url or the SONAR_URL environment variable.")
+	}
+}
+
+func validateSonarURL(sonarURL string) error {
+	parsedURL, err := url.Parse(strings.TrimSpace(sonarURL))
+	if err != nil || parsedURL.Host == "" {
+		return errorutils.CheckErrorf("invalid SonarQube URL")
+	}
+	if !strings.EqualFold(parsedURL.Scheme, "https") {
+		return errorutils.CheckErrorf("SonarQube URL must use HTTPS")
+	}
+	return nil
 }
 
 type providerFactory interface {

@@ -21,7 +21,7 @@ Prerequisites:
 - Exactly one subject: --subject-repo-path, --build-name/--build-number (or JFROG_CLI_BUILD_NAME/_NUMBER), --package-name/--package-version/--package-repo-name, --release-bundle/--release-bundle-version, --application-key/--application-version, --entity-type/--entity-id, or bare --application-key (application entity).
 - For entity subjects, exactly one of --project, --application-key, or --entity-repo may be set to calculate the Artifactory repository name: --entity-repo uses that key as-is; --project → {project}-{entity-type}-entity; --application-key → {application-key}-{entity-type}-entity; omit all three to default to {entity-type}-entity.
 - For attachments: --attach-artifactory-temp-path (or EVIDENCE_ATTACHMENT_ARTIFACTORY_TEMP_PATH config) when using --attach-local.
-- For sonar integration: SONAR_TOKEN or SONARQUBE_TOKEN env var plus a report-task.txt from a completed scan.
+- For sonar integration: SONAR_TOKEN or SONARQUBE_TOKEN, an HTTPS SonarQube URL, and a report-task.txt from a completed scan. Set the URL with --sonar-url, SONAR_URL, or SONAR_HOST_URL.
 
 Common patterns:
   $ jf evd create --subject-repo-path generic-local/app.tgz --predicate ./provenance.json --predicate-type https://slsa.dev/provenance/v1 --key ./evidence.key --key-alias my-signer
@@ -40,7 +40,8 @@ Gotchas:
 - Bare --application-key (without --application-version) creates entity evidence for the application and auto-resolves its project.
 - --attach-local uploads the file to --attach-artifactory-temp-path first; once set, the temp path is persisted in the evidence config for subsequent runs.
 - Evidence services reject basic authentication; only access tokens work.
-- When --integration sonar is used, --predicate and --predicate-type must be omitted; the predicate is generated from the SonarQube report.
+- --integration sonar and --sonar-url both start the Sonar flow. --sonar-url selects --integration sonar when --integration is omitted, and it cannot be combined with another --integration value. --predicate and --predicate-type must be omitted; the predicate is generated from the SonarQube report.
+- SonarQube HTTP URLs are rejected. A URL read from report-task.txt or evidence.yml still works and prints a warning; prefer --sonar-url or SONAR_URL.
 - Output formatting (--format json|table) only renders after a successful create call.
 
 Related: jf evd verify, jf evd get, jf evd gen-keys`

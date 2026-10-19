@@ -6,6 +6,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
 )
 
 type MockSonarManager struct {
@@ -37,6 +38,24 @@ func TestNewSonarProviderWithManager(t *testing.T) {
 	assert.NotNil(t, provider)
 	assert.IsType(t, &Provider{}, provider)
 	assert.Equal(t, mockManager, provider.client)
+}
+
+func TestNewSonarProviderWithCredentials_RejectsInsecureURL(t *testing.T) {
+	provider, err := NewSonarProviderWithCredentials("http://sonar.example.com", "test-token")
+
+	assert.Nil(t, provider)
+	assert.ErrorContains(t, err, "must use HTTPS")
+}
+
+func TestNewSonarProviderWithCredentials_TrimsURL(t *testing.T) {
+	provider, err := NewSonarProviderWithCredentials("  https://sonar.example.com/  ", "test-token")
+
+	assert.NoError(t, err)
+	sonarProvider, ok := provider.(*Provider)
+	require.True(t, ok)
+	client, ok := sonarProvider.client.(*httpClient)
+	require.True(t, ok)
+	assert.Equal(t, "https://sonar.example.com", client.baseURL)
 }
 
 func TestBuildStatement_SuccessDirect(t *testing.T) {

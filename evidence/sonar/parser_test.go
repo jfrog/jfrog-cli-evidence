@@ -21,10 +21,3 @@ func TestParseReportTask_AllKeys(t *testing.T) {
 		t.Fatalf("unexpected parse: %+v", rt)
 	}
 }
-
-func TestResolveSonarBaseURL(t *testing.T) {
-	u := resolveSonarBaseURL("https://sonarcloud.io/api/ce/task?id=abc", "https://sonarcloud.io")
-	if u != "https://sonarcloud.io" {
-		t.Fatalf("unexpected base url: %s", u)
-	}
-}

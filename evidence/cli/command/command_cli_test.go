@@ -16,6 +16,7 @@ import (
 	"github.com/jfrog/jfrog-cli-evidence/evidence/cli/test"
 	evdConfig "github.com/jfrog/jfrog-cli-evidence/evidence/config"
 	"github.com/jfrog/jfrog-cli-evidence/evidence/model"
+	sonarhelper "github.com/jfrog/jfrog-cli-evidence/evidence/sonar"
 	"github.com/jfrog/jfrog-client-go/utils/log"
 	"github.com/stretchr/testify/assert"
 	"github.com/urfave/cli"
@@ -979,6 +980,8 @@ func TestValidateSonarQubeRequirements(t *testing.T) {
 	// Save original environment variables
 	originalSonarToken := os.Getenv("SONAR_TOKEN")
 	originalSonarQubeToken := os.Getenv("SONARQUBE_TOKEN")
+	originalSonarURL := os.Getenv("SONAR_URL")
+	originalSonarHostURL := os.Getenv("SONAR_HOST_URL")
 	defer func() {
 		err := os.Setenv("SONAR_TOKEN", originalSonarToken)
 		if err != nil {
@@ -988,12 +991,21 @@ func TestValidateSonarQubeRequirements(t *testing.T) {
 		if err != nil {
 			assert.FailNow(t, err.Error())
 		}
+		err = os.Setenv("SONAR_URL", originalSonarURL)
+		if err != nil {
+			assert.FailNow(t, err.Error())
+		}
+		err = os.Setenv("SONAR_HOST_URL", originalSonarHostURL)
+		if err != nil {
+			assert.FailNow(t, err.Error())
+		}
 	}()
 
 	tests := []struct {
 		name           string
 		sonarToken     string
 		sonarQubeToken string
+		sonarURL       string
 		expectError    bool
 		errorContains  string
 	}{
@@ -1001,18 +1013,21 @@ func TestValidateSonarQubeRequirements(t *testing.T) {
 			name:           "Valid_With_SONAR_TOKEN",
 			sonarToken:     "test-token",
 			sonarQubeToken: "",
+			sonarURL:       "https://sonar.example.com",
 			expectError:    false,
 		},
 		{
 			name:           "Valid_With_SONARQUBE_TOKEN",
 			sonarToken:     "",
 			sonarQubeToken: "test-token",
+			sonarURL:       "https://sonar.example.com",
 			expectError:    false,
 		},
 		{
 			name:           "Valid_With_Both_Tokens",
 			sonarToken:     "test-token-1",
 			sonarQubeToken: "test-token-2",
+			sonarURL:       "https://sonar.example.com",
 			expectError:    false,
 		},
 		{
@@ -1021,6 +1036,13 @@ func TestValidateSonarQubeRequirements(t *testing.T) {
 			sonarQubeToken: "",
 			expectError:    true,
 			errorContains:  "SonarQube token is required",
+		},
+		{
+			name:          "Invalid_Insecure_URL",
+			sonarToken:    "test-token",
+			sonarURL:      "http://sonar.example.com",
+			expectError:   true,
+			errorContains: "must use HTTPS",
 		},
 	}
 
@@ -1032,6 +1054,14 @@ func TestValidateSonarQubeRequirements(t *testing.T) {
 				assert.FailNow(t, err.Error())
 			}
 			err = os.Setenv("SONARQUBE_TOKEN", tt.sonarQubeToken)
+			if err != nil {
+				assert.FailNow(t, err.Error())
+			}
+			err = os.Setenv("SONAR_URL", tt.sonarURL)
+			if err != nil {
+				assert.FailNow(t, err.Error())
+			}
+			err = os.Setenv("SONAR_HOST_URL", "")
 			if err != nil {
 				assert.FailNow(t, err.Error())
 			}
@@ -1052,6 +1082,68 @@ func TestValidateSonarQubeRequirements(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestValidateCreateEvidenceCommonContext_SonarURLSelectsIntegration(t *testing.T) {
+	app := cli.NewApp()
+	app.Commands = []cli.Command{{Name: "create"}}
+	ctx := cli.NewContext(app, &flag.FlagSet{}, nil)
+
+	withoutTokens := func(t *testing.T) {
+		t.Helper()
+		t.Cleanup(func() { sonarhelper.SetSonarURLFlag("") })
+		originalToken := os.Getenv("SONAR_TOKEN")
+		originalQubeToken := os.Getenv("SONARQUBE_TOKEN")
+		t.Cleanup(func() {
+			_ = os.Setenv("SONAR_TOKEN", originalToken)
+			_ = os.Setenv("SONARQUBE_TOKEN", originalQubeToken)
+		})
+		_ = os.Unsetenv("SONAR_TOKEN")
+		_ = os.Unsetenv("SONARQUBE_TOKEN")
+	}
+
+	t.Run("sonar url selects sonar integration", func(t *testing.T) {
+		withoutTokens(t)
+		c, err := components.ConvertContext(ctx,
+			test.SetDefaultValue(flags.SubjectRepoPath, "repo/path/file"),
+			test.SetDefaultValue(flags.Key, "k"),
+			test.SetDefaultValue(flags.SonarURL, "https://sonar.example.com"),
+		)
+		assert.NoError(t, err)
+		err = validateCreateEvidenceCommonContext(c)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "SonarQube token is required")
+		assert.Equal(t, "sonar", c.GetStringFlagValue(flags.Integration))
+	})
+
+	t.Run("sonar url with integration still enters sonar flow", func(t *testing.T) {
+		withoutTokens(t)
+		c, err := components.ConvertContext(ctx,
+			test.SetDefaultValue(flags.SubjectRepoPath, "repo/path/file"),
+			test.SetDefaultValue(flags.Key, "k"),
+			test.SetDefaultValue(flags.Integration, "sonar"),
+			test.SetDefaultValue(flags.SonarURL, "https://sonar.example.com"),
+		)
+		assert.NoError(t, err)
+		err = validateCreateEvidenceCommonContext(c)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "SonarQube token is required")
+	})
+
+	t.Run("sonar url rejects another integration", func(t *testing.T) {
+		c, err := components.ConvertContext(ctx,
+			test.SetDefaultValue(flags.SubjectRepoPath, "repo/path/file"),
+			test.SetDefaultValue(flags.Predicate, "/tmp/p.json"),
+			test.SetDefaultValue(flags.PredicateType, "ptype"),
+			test.SetDefaultValue(flags.Key, "k"),
+			test.SetDefaultValue(flags.Integration, "other"),
+			test.SetDefaultValue(flags.SonarURL, "https://sonar.example.com"),
+		)
+		assert.NoError(t, err)
+		err = validateCreateEvidenceCommonContext(c)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "--sonar-url can be used only with --integration sonar")
+	})
 }
 
 func TestValidateCreateEvidenceCommonContext_Attachments(t *testing.T) {

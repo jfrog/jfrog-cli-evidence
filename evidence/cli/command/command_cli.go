@@ -255,6 +255,10 @@ func validateCreateEvidenceCommonContext(ctx *components.Context) error {
 		return nil
 	}
 
+	if err := implySonarIntegrationFromURL(ctx); err != nil {
+		return err
+	}
+
 	if commandUtils.AssertValueProvided(ctx, flags.Integration) == nil {
 		if err := evidenceUtils.ValidateIntegration(ctx.GetStringFlagValue(flags.Integration)); err != nil {
 			return err
@@ -275,6 +279,11 @@ func validateCreateEvidenceCommonContext(ctx *components.Context) error {
 
 	// Validate SonarQube requirements when sonar integration is set
 	if evidenceUtils.IsSonarIntegration(ctx.GetStringFlagValue(flags.Integration)) {
+		sonarURL := ""
+		if ctx.IsFlagSet(flags.SonarURL) {
+			sonarURL = ctx.GetStringFlagValue(flags.SonarURL)
+		}
+		sonarhelper.SetSonarURLFlag(sonarURL)
 		if err := validateSonarQubeRequirements(); err != nil {
 			return err
 		}
@@ -296,6 +305,21 @@ func validateCreateEvidenceCommonContext(ctx *components.Context) error {
 	}
 	if err := validateAttachmentFlags(ctx); err != nil {
 		return err
+	}
+	return nil
+}
+
+func implySonarIntegrationFromURL(ctx *components.Context) error {
+	if !ctx.IsFlagSet(flags.SonarURL) || strings.TrimSpace(ctx.GetStringFlagValue(flags.SonarURL)) == "" {
+		return nil
+	}
+	integration := strings.TrimSpace(ctx.GetStringFlagValue(flags.Integration))
+	if integration == "" {
+		ctx.AddStringFlag(flags.Integration, evidenceUtils.SonarIntegration)
+		return nil
+	}
+	if !evidenceUtils.IsSonarIntegration(integration) {
+		return errorutils.CheckErrorf("--%s can be used only with --%s %s", flags.SonarURL, flags.Integration, evidenceUtils.SonarIntegration)
 	}
 	return nil
 }
@@ -570,6 +594,10 @@ func validateSonarQubeRequirements() error {
 	// Check if SonarQube token is present
 	if os.Getenv("SONAR_TOKEN") == "" && os.Getenv("SONARQUBE_TOKEN") == "" {
 		return errorutils.CheckErrorf("SonarQube token is required when using --%s %s. Please set SONAR_TOKEN or SONARQUBE_TOKEN environment variable", flags.Integration, evidenceUtils.SonarIntegration)
+	}
+
+	if err := sonarhelper.ValidateExplicitSonarURL(); err != nil {
+		return err
 	}
 
 	// Check if report-task.txt exists using the detector or config
