@@ -26,30 +26,7 @@ func TestGetSonarIntotoStatement_LocalhostUsesServerFormat(t *testing.T) {
 	assert.Contains(t, string(result), "in-toto.io/Statement/v1")
 }
 
-func TestGetSonarIntotoStatement_SelfHostedUsesOnlyConfiguredHost(t *testing.T) {
-	var requestedHosts []string
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		requestedHosts = append(requestedHosts, r.Host)
-		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write([]byte(`{"_type":"https://in-toto.io/Statement/v1"}`))
-	}))
-	defer server.Close()
-
-	serverURL, err := url.Parse(server.URL)
-	assert.NoError(t, err)
-	configuredURL := "http://localhost:" + serverURL.Port()
-	configuredParsedURL, err := url.Parse(configuredURL)
-	assert.NoError(t, err)
-
-	client, err := NewClient(configuredURL, "test-token")
-	assert.NoError(t, err)
-
-	_, err = client.GetSonarIntotoStatement("task-123")
-	assert.NoError(t, err)
-	assert.Equal(t, []string{configuredParsedURL.Host}, requestedHosts)
-}
-
-func TestPrepareCloudFormatURL_UsesOnlyKnownSonarCloudHosts(t *testing.T) {
+func TestPrepareCloudFormatURL_PrefixesAPIHost(t *testing.T) {
 	tests := []struct {
 		name     string
 		baseURL  string
@@ -68,14 +45,21 @@ func TestPrepareCloudFormatURL_UsesOnlyKnownSonarCloudHosts(t *testing.T) {
 		{
 			name:     "self-hosted",
 			baseURL:  "https://sonar.company.example",
-			expected: "",
+			expected: "https://api.sonar.company.example/dop-translation/jfrog-evidence/task-123",
+		},
+		{
+			name:     "already api host",
+			baseURL:  "https://api.sonarcloud.io",
+			expected: "https://api.sonarcloud.io/dop-translation/jfrog-evidence/task-123",
 		},
 	}
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			client := &httpClient{baseURL: test.baseURL}
-			assert.Equal(t, test.expected, client.prepareCloudFormatUrl("task-123"))
+			parsedURL, err := url.Parse(test.baseURL)
+			assert.NoError(t, err)
+			assert.Equal(t, test.expected, client.prepareCloudFormatUrl("task-123", parsedURL.Hostname()))
 		})
 	}
 }

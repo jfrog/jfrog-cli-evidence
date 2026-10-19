@@ -27,7 +27,7 @@ func NewSonarProviderWithCredentials(sonarURL, token string) (StatementProvider,
 	if sonarURL == "" {
 		return nil, errorutils.CheckErrorf("SonarQube URL is required")
 	}
-	if err := validateTrustedSonarURL(sonarURL); err != nil {
+	if err := validateSonarURL(sonarURL); err != nil {
 		return nil, err
 	}
 	if token == "" {

@@ -275,6 +275,11 @@ func validateCreateEvidenceCommonContext(ctx *components.Context) error {
 
 	// Validate SonarQube requirements when sonar integration is set
 	if evidenceUtils.IsSonarIntegration(ctx.GetStringFlagValue(flags.Integration)) {
+		sonarURL := ""
+		if ctx.IsFlagSet(flags.SonarURL) {
+			sonarURL = ctx.GetStringFlagValue(flags.SonarURL)
+		}
+		sonarhelper.SetSonarURLFlag(sonarURL)
 		if err := validateSonarQubeRequirements(); err != nil {
 			return err
 		}
@@ -564,7 +569,7 @@ func validateSonarQubeRequirements() error {
 		return errorutils.CheckErrorf("SonarQube token is required when using --%s %s. Please set SONAR_TOKEN or SONARQUBE_TOKEN environment variable", flags.Integration, evidenceUtils.SonarIntegration)
 	}
 
-	if _, err := sonarhelper.GetTrustedSonarURL(); err != nil {
+	if err := sonarhelper.ValidateExplicitSonarURL(); err != nil {
 		return err
 	}
 

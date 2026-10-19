@@ -960,12 +960,6 @@ func TestValidateSonarQubeRequirements(t *testing.T) {
 			errorContains:  "SonarQube token is required",
 		},
 		{
-			name:          "Invalid_No_Trusted_URL",
-			sonarToken:    "test-token",
-			expectError:   true,
-			errorContains: "trusted SonarQube URL is required",
-		},
-		{
 			name:          "Invalid_Insecure_URL",
 			sonarToken:    "test-token",
 			sonarURL:      "http://sonar.example.com",
