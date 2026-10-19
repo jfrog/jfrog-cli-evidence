@@ -40,7 +40,7 @@ Gotchas:
 - Bare --application-key (without --application-version) creates entity evidence for the application and auto-resolves its project.
 - --attach-local uploads the file to --attach-artifactory-temp-path first; once set, the temp path is persisted in the evidence config for subsequent runs.
 - Evidence services reject basic authentication; only access tokens work.
-- When --integration sonar is used, --predicate and --predicate-type must be omitted; the predicate is generated from the SonarQube report.
+- --integration sonar and --sonar-url both start the Sonar flow. --sonar-url selects --integration sonar when --integration is omitted, and it cannot be combined with another --integration value. --predicate and --predicate-type must be omitted; the predicate is generated from the SonarQube report.
 - SonarQube HTTP URLs are rejected. A URL read from report-task.txt or evidence.yml still works and prints a warning; prefer --sonar-url or SONAR_URL.
 - Output formatting (--format json|table) only renders after a successful create call.
 

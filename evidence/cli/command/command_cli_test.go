@@ -15,6 +15,7 @@ import (
 	"github.com/jfrog/jfrog-cli-evidence/evidence/cli/test"
 	evdConfig "github.com/jfrog/jfrog-cli-evidence/evidence/config"
 	"github.com/jfrog/jfrog-cli-evidence/evidence/model"
+	sonarhelper "github.com/jfrog/jfrog-cli-evidence/evidence/sonar"
 	"github.com/stretchr/testify/assert"
 	"github.com/urfave/cli"
 	"go.uber.org/mock/gomock"
@@ -1004,6 +1005,68 @@ func TestValidateSonarQubeRequirements(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestValidateCreateEvidenceCommonContext_SonarURLSelectsIntegration(t *testing.T) {
+	app := cli.NewApp()
+	app.Commands = []cli.Command{{Name: "create"}}
+	ctx := cli.NewContext(app, &flag.FlagSet{}, nil)
+
+	withoutTokens := func(t *testing.T) {
+		t.Helper()
+		t.Cleanup(func() { sonarhelper.SetSonarURLFlag("") })
+		originalToken := os.Getenv("SONAR_TOKEN")
+		originalQubeToken := os.Getenv("SONARQUBE_TOKEN")
+		t.Cleanup(func() {
+			_ = os.Setenv("SONAR_TOKEN", originalToken)
+			_ = os.Setenv("SONARQUBE_TOKEN", originalQubeToken)
+		})
+		_ = os.Unsetenv("SONAR_TOKEN")
+		_ = os.Unsetenv("SONARQUBE_TOKEN")
+	}
+
+	t.Run("sonar url selects sonar integration", func(t *testing.T) {
+		withoutTokens(t)
+		c, err := components.ConvertContext(ctx,
+			test.SetDefaultValue(flags.SubjectRepoPath, "repo/path/file"),
+			test.SetDefaultValue(flags.Key, "k"),
+			test.SetDefaultValue(flags.SonarURL, "https://sonar.example.com"),
+		)
+		assert.NoError(t, err)
+		err = validateCreateEvidenceCommonContext(c)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "SonarQube token is required")
+		assert.Equal(t, "sonar", c.GetStringFlagValue(flags.Integration))
+	})
+
+	t.Run("sonar url with integration still enters sonar flow", func(t *testing.T) {
+		withoutTokens(t)
+		c, err := components.ConvertContext(ctx,
+			test.SetDefaultValue(flags.SubjectRepoPath, "repo/path/file"),
+			test.SetDefaultValue(flags.Key, "k"),
+			test.SetDefaultValue(flags.Integration, "sonar"),
+			test.SetDefaultValue(flags.SonarURL, "https://sonar.example.com"),
+		)
+		assert.NoError(t, err)
+		err = validateCreateEvidenceCommonContext(c)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "SonarQube token is required")
+	})
+
+	t.Run("sonar url rejects another integration", func(t *testing.T) {
+		c, err := components.ConvertContext(ctx,
+			test.SetDefaultValue(flags.SubjectRepoPath, "repo/path/file"),
+			test.SetDefaultValue(flags.Predicate, "/tmp/p.json"),
+			test.SetDefaultValue(flags.PredicateType, "ptype"),
+			test.SetDefaultValue(flags.Key, "k"),
+			test.SetDefaultValue(flags.Integration, "other"),
+			test.SetDefaultValue(flags.SonarURL, "https://sonar.example.com"),
+		)
+		assert.NoError(t, err)
+		err = validateCreateEvidenceCommonContext(c)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "--sonar-url can be used only with --integration sonar")
+	})
 }
 
 func TestValidateCreateEvidenceCommonContext_Attachments(t *testing.T) {

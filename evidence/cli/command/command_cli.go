@@ -255,6 +255,10 @@ func validateCreateEvidenceCommonContext(ctx *components.Context) error {
 		return nil
 	}
 
+	if err := implySonarIntegrationFromURL(ctx); err != nil {
+		return err
+	}
+
 	if commandUtils.AssertValueProvided(ctx, flags.Integration) == nil {
 		if err := evidenceUtils.ValidateIntegration(ctx.GetStringFlagValue(flags.Integration)); err != nil {
 			return err
@@ -301,6 +305,21 @@ func validateCreateEvidenceCommonContext(ctx *components.Context) error {
 	}
 	if err := validateAttachmentFlags(ctx); err != nil {
 		return err
+	}
+	return nil
+}
+
+func implySonarIntegrationFromURL(ctx *components.Context) error {
+	if !ctx.IsFlagSet(flags.SonarURL) || strings.TrimSpace(ctx.GetStringFlagValue(flags.SonarURL)) == "" {
+		return nil
+	}
+	integration := strings.TrimSpace(ctx.GetStringFlagValue(flags.Integration))
+	if integration == "" {
+		ctx.AddStringFlag(flags.Integration, evidenceUtils.SonarIntegration)
+		return nil
+	}
+	if !evidenceUtils.IsSonarIntegration(integration) {
+		return errorutils.CheckErrorf("--%s can be used only with --%s %s", flags.SonarURL, flags.Integration, evidenceUtils.SonarIntegration)
 	}
 	return nil
 }
