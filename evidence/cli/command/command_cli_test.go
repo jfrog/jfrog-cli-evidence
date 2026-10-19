@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"flag"
 	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/jfrog/jfrog-cli-core/v2/common/commands"
@@ -16,6 +17,7 @@ import (
 	evdConfig "github.com/jfrog/jfrog-cli-evidence/evidence/config"
 	"github.com/jfrog/jfrog-cli-evidence/evidence/model"
 	sonarhelper "github.com/jfrog/jfrog-cli-evidence/evidence/sonar"
+	"github.com/jfrog/jfrog-client-go/utils/log"
 	"github.com/stretchr/testify/assert"
 	"github.com/urfave/cli"
 	"go.uber.org/mock/gomock"
@@ -878,23 +880,98 @@ func TestResolveAndNormalizeKey_TrimsWhitespace(t *testing.T) {
 			ctx, err := components.ConvertContext(cliCtx, componentFlag...)
 			assert.NoError(t, err)
 
-			// Execute
 			err = resolveAndNormalizeKey(ctx, flags.Key)
 			assert.NoError(t, err)
+			assert.Equal(t, tt.expectedResult, ctx.GetStringFlagValue(flags.Key))
+		})
+	}
+}
 
-			// Verify
-			actualValue := ctx.GetStringFlagValue(flags.Key)
+func TestResolveAndNormalizeKey_DebugLogOmitsKeyMaterial(t *testing.T) {
+	const marker = "UNIQUE-KEY-MATERIAL-MARKER-5149596"
+	inlinePEM := "-----BEGIN PRIVATE KEY-----\n" + marker + "\n-----END PRIVATE KEY-----\n"
+	keyPath := "/tmp/" + marker + ".pem"
 
-			// Debug Output to help understand the difference in trimming behavior
-			if tt.setFlag {
-				t.Logf("Flag input: %q (len=%d)", tt.flagKeyValue, len(tt.flagKeyValue))
+	tests := []struct {
+		name         string
+		envKeyValue  string
+		flagKeyValue string
+		setFlag      bool
+		wantForm     string
+		wantTrimmed  bool
+	}{
+		{
+			name:         "Inline PEM from flag",
+			flagKeyValue: inlinePEM,
+			setFlag:      true,
+			wantForm:     "inline-pem",
+			wantTrimmed:  true,
+		},
+		{
+			name:        "Inline PEM from environment variable",
+			envKeyValue: inlinePEM,
+			setFlag:     false,
+			wantForm:    "inline-pem",
+			wantTrimmed: true,
+		},
+		{
+			name:         "Key path from flag",
+			flagKeyValue: "  " + keyPath + "  \n",
+			setFlag:      true,
+			wantForm:     "path",
+			wantTrimmed:  true,
+		},
+		{
+			name:         "Inline PEM without surrounding whitespace",
+			flagKeyValue: "-----BEGIN PRIVATE KEY-----\n" + marker + "\n-----END PRIVATE KEY-----",
+			setFlag:      true,
+			wantForm:     "inline-pem",
+			wantTrimmed:  false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var logs bytes.Buffer
+			originalLogger := log.GetLogger()
+			log.SetLogger(log.NewLogger(log.VERBOSE, &logs))
+			t.Cleanup(func() {
+				log.SetLogger(originalLogger)
+			})
+
+			if tt.envKeyValue != "" {
+				t.Setenv(coreUtils.SigningKey, tt.envKeyValue)
 			} else {
-				t.Logf("Env input: %q (len=%d)", tt.envKeyValue, len(tt.envKeyValue))
+				t.Setenv(coreUtils.SigningKey, "")
 			}
-			t.Logf("Expected: %q (len=%d)", tt.expectedResult, len(tt.expectedResult))
-			t.Logf("Actual:   %q (len=%d)", actualValue, len(actualValue))
 
-			assert.Equal(t, tt.expectedResult, actualValue)
+			app := cli.NewApp()
+			set := flag.NewFlagSet("test", 0)
+			cliCtx := cli.NewContext(app, set, nil)
+
+			var componentFlag []components.Flag
+			if tt.setFlag {
+				componentFlag = append(componentFlag, test.SetDefaultValue(flags.Key, tt.flagKeyValue))
+			}
+			componentFlag = append(componentFlag, test.SetDefaultValue(flags.Predicate, "test"))
+
+			ctx, err := components.ConvertContext(cliCtx, componentFlag...)
+			assert.NoError(t, err)
+
+			assert.NoError(t, resolveAndNormalizeKey(ctx, flags.Key))
+
+			output := logs.String()
+			assert.NotContains(t, output, marker)
+			assert.NotContains(t, output, "BEGIN PRIVATE KEY")
+			assert.NotContains(t, output, "END PRIVATE KEY")
+			assert.Contains(t, output, "form="+tt.wantForm)
+			assert.Contains(t, output, "originalLength=")
+			assert.Contains(t, output, "trimmedLength=")
+			if tt.wantTrimmed {
+				assert.Contains(t, output, "whitespaceTrimmed=true")
+			} else {
+				assert.Contains(t, output, "whitespaceTrimmed=false")
+			}
 		})
 	}
 }
@@ -1073,6 +1150,7 @@ func TestValidateCreateEvidenceCommonContext_Attachments(t *testing.T) {
 	app := cli.NewApp()
 	app.Commands = []cli.Command{{Name: "create"}}
 	ctx := cli.NewContext(app, &flag.FlagSet{}, nil)
+	t.Setenv(coreUtils.HomeDir, t.TempDir())
 
 	t.Run("local and artifactory conflict", func(t *testing.T) {
 		c, err := components.ConvertContext(ctx,
@@ -1088,8 +1166,7 @@ func TestValidateCreateEvidenceCommonContext_Attachments(t *testing.T) {
 	})
 
 	t.Run("temp target from env", func(t *testing.T) {
-		assert.NoError(t, os.Setenv(evdConfig.EnvAttachmentArtifactoryTempPath, "repo/tmp/"))
-		defer func() { _ = os.Unsetenv(evdConfig.EnvAttachmentArtifactoryTempPath) }()
+		t.Setenv(evdConfig.EnvAttachmentArtifactoryTempPath, "repo/tmp/")
 		c, err := components.ConvertContext(ctx,
 			test.SetDefaultValue(flags.SubjectRepoPath, "repo/path/file"),
 			test.SetDefaultValue(flags.Predicate, "/tmp/p.json"),
@@ -1112,6 +1189,28 @@ func TestValidateCreateEvidenceCommonContext_Attachments(t *testing.T) {
 		)
 		assert.NoError(t, err)
 		assert.Error(t, validateCreateEvidenceCommonContext(c))
+	})
+
+	t.Run("workspace evidence.yml is ignored", func(t *testing.T) {
+		dir := t.TempDir()
+		t.Setenv(coreUtils.HomeDir, t.TempDir())
+		t.Setenv(evdConfig.EnvAttachmentArtifactoryTempPath, "")
+		configDir := filepath.Join(dir, ".jfrog", "evidence")
+		assert.NoError(t, os.MkdirAll(configDir, 0755))
+		assert.NoError(t, os.WriteFile(filepath.Join(configDir, "evidence.yml"), []byte("attachment:\n  artifactoryTempPath: repo/prod/app.jar\n"), 0600))
+		t.Chdir(dir)
+		c, err := components.ConvertContext(ctx,
+			test.SetDefaultValue(flags.SubjectRepoPath, "repo/path/file"),
+			test.SetDefaultValue(flags.Predicate, "/tmp/p.json"),
+			test.SetDefaultValue(flags.PredicateType, "ptype"),
+			test.SetDefaultValue(flags.Key, "k"),
+			test.SetDefaultValue(flags.AttachLocal, "/tmp/a.txt"),
+		)
+		assert.NoError(t, err)
+		err = validateCreateEvidenceCommonContext(c)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "repository .jfrog/evidence/evidence.yml")
+		assert.Empty(t, c.GetStringFlagValue(flags.AttachArtifactoryTempPath))
 	})
 }
 

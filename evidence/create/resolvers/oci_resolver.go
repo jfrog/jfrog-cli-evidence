@@ -1,7 +1,9 @@
 package resolvers
 
 import (
+	"errors"
 	"fmt"
+	"html"
 	"net/url"
 	"strings"
 
@@ -21,8 +23,10 @@ type OciSubjectResolver struct {
 const registryHeader = "X-Artifactory-Docker-Registry"
 const shaPrefix = "sha256:"
 
-// Format: {protocol}://{registry}/v2/{path}/manifests/sha256:{checksum}
-const registryUrlMask = "%s://%s/v2/%s/manifests/" + shaPrefix + "%s"
+// errRegistryHostNotAllowed is returned when a container subject names a registry
+// that is not the configured platform host. The manifest request carries platform
+// credentials, and the subject can come from an untrusted sigstore bundle.
+var errRegistryHostNotAllowed = errors.New("registry host is not the configured Artifactory host or a subdomain of it")
 
 // NewOciSubjectResolver creates a new OciSubjectResolver instance
 func NewOciSubjectResolver(subject string, client artifactory.ArtifactoryServicesManager) *OciSubjectResolver {
@@ -75,16 +79,20 @@ func (d *OciSubjectResolver) Resolve(checksum string) ([]string, error) {
 	return d.aqlResolver.Resolve(repo, path, checksum)
 }
 
-// buildContainerUrl constructs a OCI registry v2 API URL for the given subject parts and checksum
+// buildContainerUrl constructs an OCI registry v2 manifest URL for the subject.
+// The registry host is taken from the subject only when it is the configured
+// platform host or a Docker subdomain of it. Otherwise the function fails
+// before any request is made, so platform credentials are not sent elsewhere.
 func buildContainerUrl(domain, path, checksum string, serviceDetails auth.ServiceDetails) (string, error) {
-	if path == "" {
-		return "", fmt.Errorf("path cannot be empty")
+	repositoryPath, err := validateRepositoryPath(path)
+	if err != nil {
+		return "", err
 	}
-	if checksum == "" {
-		return "", fmt.Errorf("checksum cannot be empty")
+	normalized, err := normalizeChecksum(checksum)
+	if err != nil {
+		return "", err
 	}
 
-	// Get the protocol and hostname from serviceDetails
 	artifactoryURL := serviceDetails.GetUrl()
 	if artifactoryURL == "" {
 		return "", fmt.Errorf("artifactory URL is not configured")
@@ -95,24 +103,117 @@ func buildContainerUrl(domain, path, checksum string, serviceDetails auth.Servic
 		return "", fmt.Errorf("failed to parse artifactory URL '%s': %w", artifactoryURL, err)
 	}
 
-	// Use the protocol from serviceDetails and the domain from the subject
 	protocol := parsedURL.Scheme
 	if protocol == "" {
-		protocol = "https" // Default to HTTPS if no protocol specified
+		protocol = "https"
+	}
+	if protocol != "https" && protocol != "http" {
+		return "", fmt.Errorf("artifactory URL scheme %q is not supported", protocol)
+	}
+
+	platformHost := canonicalHostname(parsedURL.Hostname())
+	if platformHost == "" {
+		return "", fmt.Errorf("cannot determine registry hostname from artifactory URL")
 	}
 
 	registry := domain
 	if registry == "" {
-		registry = parsedURL.Hostname()
-		if registry == "" {
-			return "", fmt.Errorf("cannot determine registry hostname from subject or artifactory URL")
-		}
+		// Keep the configured port. Hostname() alone would drop it and could
+		// send credentials to a different local listener.
+		registry = parsedURL.Host
 	}
 
-	normalized := strings.TrimPrefix(checksum, shaPrefix)
+	registryHost, err := parseRegistryHost(registry)
+	if err != nil {
+		return "", err
+	}
+	if !registryHostAllowed(registryHost.hostname, platformHost) {
+		return "", fmt.Errorf("%w: registry %q, platform %q", errRegistryHostNotAllowed, registryHost.hostname, platformHost)
+	}
 
-	manifestURL := fmt.Sprintf(registryUrlMask, protocol, registry, path, normalized)
-	return manifestURL, nil
+	manifestURL := &url.URL{
+		Scheme: protocol,
+		Host:   registryHost.host,
+		// EscapeString is a no-op for the allowlisted characters, and it keeps the
+		// subject path and digest from being treated as raw markup in the URL.
+		Path: html.EscapeString("/v2/" + repositoryPath + "/manifests/" + shaPrefix + normalized),
+	}
+	return manifestURL.String(), nil
+}
+
+type parsedRegistryHost struct {
+	host     string
+	hostname string
+}
+
+func parseRegistryHost(registry string) (parsedRegistryHost, error) {
+	if registry == "" || strings.Contains(registry, "@") || strings.Contains(registry, "\\") || strings.Contains(registry, "/") {
+		return parsedRegistryHost{}, fmt.Errorf("invalid registry host %q", registry)
+	}
+
+	parsed, err := url.Parse("https://" + registry)
+	if err != nil {
+		return parsedRegistryHost{}, fmt.Errorf("invalid registry host %q: %w", registry, err)
+	}
+	if parsed.User != nil || parsed.Hostname() == "" || (parsed.Path != "" && parsed.Path != "/") || parsed.RawQuery != "" || parsed.Fragment != "" {
+		return parsedRegistryHost{}, fmt.Errorf("invalid registry host %q", registry)
+	}
+
+	hostname := canonicalHostname(parsed.Hostname())
+	if hostname == "" || strings.Contains(hostname, "..") {
+		return parsedRegistryHost{}, fmt.Errorf("invalid registry host %q", registry)
+	}
+	return parsedRegistryHost{host: parsed.Host, hostname: hostname}, nil
+}
+
+func registryHostAllowed(registryHost, platformHost string) bool {
+	if registryHost == "" || platformHost == "" {
+		return false
+	}
+	if registryHost == platformHost {
+		return true
+	}
+	return strings.HasSuffix(registryHost, "."+platformHost)
+}
+
+func canonicalHostname(host string) string {
+	return strings.TrimSuffix(strings.ToLower(strings.TrimSpace(host)), ".")
+}
+
+func validateRepositoryPath(path string) (string, error) {
+	if path == "" || strings.HasPrefix(path, "/") || strings.HasSuffix(path, "/") ||
+		strings.Contains(path, "..") || strings.Contains(path, "//") {
+		return "", fmt.Errorf("invalid repository path")
+	}
+	var sanitized strings.Builder
+	sanitized.Grow(len(path))
+	for _, r := range path {
+		if !allowedRepositoryPathRune(r) {
+			return "", fmt.Errorf("invalid repository path")
+		}
+		sanitized.WriteRune(r)
+	}
+	return sanitized.String(), nil
+}
+
+func allowedRepositoryPathRune(r rune) bool {
+	return (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9') || r == '.' || r == '_' || r == '-' || r == '/'
+}
+
+func normalizeChecksum(checksum string) (string, error) {
+	raw := strings.TrimPrefix(strings.ToLower(strings.TrimSpace(checksum)), shaPrefix)
+	if raw == "" {
+		return "", fmt.Errorf("checksum cannot be empty")
+	}
+	var sanitized strings.Builder
+	sanitized.Grow(len(raw))
+	for _, r := range raw {
+		if (r < '0' || r > '9') && (r < 'a' || r > 'f') {
+			return "", fmt.Errorf("checksum must be a sha256 hex digest")
+		}
+		sanitized.WriteRune(r)
+	}
+	return sanitized.String(), nil
 }
 
 // parseOciSubject extracts registry domain and repository path from a OCI subject
