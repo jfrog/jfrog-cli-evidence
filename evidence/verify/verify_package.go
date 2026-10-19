@@ -13,7 +13,7 @@ import (
 	"github.com/jfrog/jfrog-cli-core/v2/utils/config"
 )
 
-const aqlPackageQueryTemplate = "items.find({\"repo\": \"%s\",\"path\": \"%s\",\"name\": \"%s\"}).include(\"repo\",\"path\",\"name\",\"sha256\")"
+const aqlPackageQueryTemplate = "items.find({\"repo\": %s,\"path\": %s,\"name\": %s}).include(\"repo\",\"path\",\"name\",\"sha256\")"
 
 // verifyEvidencePackage verifies evidence for a package.
 type verifyEvidencePackage struct {
@@ -69,7 +69,10 @@ func (c *verifyEvidencePackage) Run() error {
 	fileName := split[len(split)-1]
 
 	path := fmt.Sprintf("%s/%s", c.packageService.GetPackageName(), c.packageService.GetPackageVersion())
-	aqlQuery := fmt.Sprintf(aqlPackageQueryTemplate, c.packageService.GetPackageRepoName(), path, fileName)
+	aqlQuery, err := utils.FormatAqlQuery(aqlPackageQueryTemplate, c.packageService.GetPackageRepoName(), path, fileName)
+	if err != nil {
+		return err
+	}
 	result, err := utils.ExecuteAqlQuery(aqlQuery, artifactoryClient)
 	if err != nil {
 		return fmt.Errorf("failed to execute AQL query: %w", err)

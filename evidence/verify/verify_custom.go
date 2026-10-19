@@ -11,8 +11,8 @@ import (
 	"github.com/jfrog/jfrog-cli-core/v2/utils/config"
 )
 
-const aqlCustomQueryTemplate = "items.find({\"repo\": \"%s\",%s\"name\": \"%s\"}).include(\"repo\", \"path\", \"name\", \"sha256\")"
-const optionalPathTemplate = "\"path\": \"%s\","
+const aqlCustomQueryTemplate = "items.find({\"repo\": %s,\"name\": %s}).include(\"repo\", \"path\", \"name\", \"sha256\")"
+const aqlCustomWithPathQueryTemplate = "items.find({\"repo\": %s,\"path\": %s,\"name\": %s}).include(\"repo\", \"path\", \"name\", \"sha256\")"
 
 // verifyEvidenceCustom verifies evidence for a custom subject path.
 type verifyEvidenceCustom struct {
@@ -41,7 +41,10 @@ func (v *verifyEvidenceCustom) Run() error {
 		return fmt.Errorf("failed to create Artifactory client: %w", err)
 	}
 	v.setHeadline("Searching subject")
-	query := prepareAqlQuery(path, repo, name)
+	query, err := prepareAqlQuery(path, repo, name)
+	if err != nil {
+		return err
+	}
 	result, err := utils.ExecuteAqlQuery(query, client)
 	if err != nil {
 		return fmt.Errorf("failed to execute AQL query: %w", err)
@@ -78,10 +81,9 @@ func (v *verifyEvidenceCustom) CommandName() string {
 	return "verify-evidence-custom"
 }
 
-func prepareAqlQuery(path string, repo string, name string) string {
-	if path != "" {
-		path = fmt.Sprintf(optionalPathTemplate, path)
+func prepareAqlQuery(path string, repo string, name string) (string, error) {
+	if path == "" {
+		return utils.FormatAqlQuery(aqlCustomQueryTemplate, repo, name)
 	}
-	query := fmt.Sprintf(aqlCustomQueryTemplate, repo, path, name)
-	return query
+	return utils.FormatAqlQuery(aqlCustomWithPathQueryTemplate, repo, path, name)
 }

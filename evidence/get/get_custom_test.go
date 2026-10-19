@@ -405,3 +405,16 @@ func TestTransformGraphQLOutput_WithAttachments(t *testing.T) {
 		}
 	}
 }
+
+func TestBuildGraphqlQuery_EscapesSubjectValues(t *testing.T) {
+	g := &getEvidenceCustom{}
+
+	query, err := g.buildGraphqlQuery(`my"repo/a\b/file".json`, true)
+	assert.NoError(t, err)
+
+	var request struct {
+		Query string `json:"query"`
+	}
+	assert.NoError(t, json.Unmarshal(query, &request))
+	assert.Contains(t, request.Query, `hasSubjectWith: { repositoryKey: "my\"repo", path: "a\\b", name: "file\".json"}`)
+}

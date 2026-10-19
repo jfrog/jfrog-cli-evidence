@@ -11,6 +11,7 @@ import (
 	"github.com/jfrog/jfrog-client-go/artifactory"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
 )
 
 // MockArtifactoryServicesManagerCustom embeds EmptyArtifactoryServicesManager and overrides methods for testing
@@ -18,9 +19,12 @@ type MockArtifactoryServicesManagerCustom struct {
 	artifactory.EmptyArtifactoryServicesManager
 	AqlResponse string
 	AqlError    error
+	// Recorded calls
+	AqlQueries []string
 }
 
-func (m *MockArtifactoryServicesManagerCustom) Aql(_ string) (io.ReadCloser, error) {
+func (m *MockArtifactoryServicesManagerCustom) Aql(query string) (io.ReadCloser, error) {
+	m.AqlQueries = append(m.AqlQueries, query)
 	if m.AqlError != nil {
 		return nil, m.AqlError
 	}
@@ -373,4 +377,75 @@ func TestVerifyEvidenceCustom_Progress_Success(t *testing.T) {
 	assert.NoError(t, err)
 	assert.True(t, pm.quitCalled)
 	assert.True(t, len(pm.headlines) >= 1)
+}
+
+func TestPrepareAqlQuery(t *testing.T) {
+	testCases := []struct {
+		name     string
+		repo     string
+		path     string
+		fileName string
+		expected string
+	}{
+		{
+			name:     "plain values",
+			repo:     "test-repo",
+			path:     "path/to",
+			fileName: "subject.txt",
+			expected: `items.find({"repo": "test-repo","path": "path/to","name": "subject.txt"}).include("repo", "path", "name", "sha256")`,
+		},
+		{
+			name:     "no path",
+			repo:     `my"repo`,
+			fileName: `subject\.txt`,
+			expected: `items.find({"repo": "my\"repo","name": "subject\\.txt"}).include("repo", "path", "name", "sha256")`,
+		},
+		{
+			name:     "quote and backslash in every value",
+			repo:     `my"repo`,
+			path:     `a"b\c`,
+			fileName: `subject\.txt`,
+			expected: `items.find({"repo": "my\"repo","path": "a\"b\\c","name": "subject\\.txt"}).include("repo", "path", "name", "sha256")`,
+		},
+	}
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			query, err := prepareAqlQuery(tc.path, tc.repo, tc.fileName)
+			require.NoError(t, err)
+			assert.Equal(t, tc.expected, query)
+		})
+	}
+}
+
+func TestVerifyEvidenceCustom_Run_EscapesQueryValues(t *testing.T) {
+	mockClient := &MockArtifactoryServicesManagerCustom{
+		AqlResponse: `{"results":[{"sha256":"test-sha256"}]}`,
+	}
+	mockOneModel := &MockOneModelManagerWithQueryCapture{
+		GraphqlResponse: []byte(`{"data":{"evidence":{"searchEvidence":{"edges":[{"node":{"subject":{"sha256":"test-sha256"},"downloadPath":"/test/evidence.json"}}]}}}}`),
+	}
+	subjectRepoPath := `my"repo/a\b/subject".txt`
+	mockVerifier := &MockVerifierCustom{}
+	mockVerifier.On("Verify", model.SubjectDigest{Type: model.Sha256DigestType, Value: "test-sha256"}, mock.AnythingOfType("*[]model.SearchEvidenceEdge"), subjectRepoPath).
+		Return(&model.VerificationResponse{OverallVerificationStatus: model.Success}, nil)
+
+	customVerifier := &verifyEvidenceCustom{
+		verifyEvidenceBase: verifyEvidenceBase{
+			serverDetails:  &config.ServerDetails{},
+			format:         "json",
+			oneModelClient: mockOneModel,
+			verifier:       mockVerifier,
+		},
+		subjectRepoPath: subjectRepoPath,
+	}
+	var clientInterface artifactory.ArtifactoryServicesManager = mockClient
+	customVerifier.artifactoryClient = &clientInterface
+
+	require.NoError(t, customVerifier.Run())
+
+	assert.Equal(t, []string{`items.find({"repo": "my\"repo","path": "a\\b","name": "subject\".txt"}).include("repo", "path", "name", "sha256")`}, mockClient.AqlQueries)
+	require.Len(t, mockOneModel.CapturedQueries, 1)
+	assert.Contains(t, graphqlQueryText(t, mockOneModel.CapturedQueries[0]),
+		`hasSubjectWith: { repositoryKey: "my\"repo", path: "a\\b", name: "subject\".txt" }`)
+	mockVerifier.AssertExpectations(t)
 }
