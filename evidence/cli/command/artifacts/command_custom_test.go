@@ -7,7 +7,6 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
-	"strings"
 	"testing"
 
 	"github.com/jfrog/jfrog-cli-evidence/evidence/cli/command/flags"
@@ -92,7 +91,6 @@ func TestEvidenceCustomCommand_CreateEvidence_SigstoreBundle(t *testing.T) {
 }
 
 func TestEvidenceCustomCommand_GetEvidence_IncludeRevokedFlag(t *testing.T) {
-	const introspection = `{"data":{"__type":{"fields":[{"name":"verified"},{"name":"revoked"},{"name":"revocation"}]}}}`
 	const search = `{"data":{"evidence":{"searchEvidence":{"totalCount":1,"edges":[{"node":{"predicateSlug":"slug","downloadPath":"p","verified":true,"revoked":true,"revocation":{"revokedAt":"2026-10-15T10:00:00Z","revokedBy":"admin"},"createdBy":"ci","createdAt":"2026-10-01T00:00:00Z","subject":{"sha256":"abc"}}}]}}}}`
 
 	tests := []struct {
@@ -101,7 +99,7 @@ func TestEvidenceCustomCommand_GetEvidence_IncludeRevokedFlag(t *testing.T) {
 		expectedQueries int
 		expectRevoked   bool
 	}{
-		{name: "flag set", args: []string{"--" + flags.IncludeRevoked}, expectedQueries: 2, expectRevoked: true},
+		{name: "flag set", args: []string{"--" + flags.IncludeRevoked}, expectedQueries: 1, expectRevoked: true},
 		{name: "flag not set", args: nil, expectedQueries: 1, expectRevoked: false},
 	}
 	for _, tt := range tests {
@@ -113,10 +111,6 @@ func TestEvidenceCustomCommand_GetEvidence_IncludeRevokedFlag(t *testing.T) {
 				body, err := io.ReadAll(r.Body)
 				assert.NoError(t, err)
 				queries = append(queries, string(body))
-				if strings.Contains(string(body), "__type") {
-					_, _ = w.Write([]byte(introspection))
-					return
-				}
 				_, _ = w.Write([]byte(search))
 			}))
 			defer server.Close()
@@ -142,7 +136,7 @@ func TestEvidenceCustomCommand_GetEvidence_IncludeRevokedFlag(t *testing.T) {
 			output, err := os.ReadFile(outputFile)
 			require.NoError(t, err)
 			if tt.expectRevoked {
-				assert.Contains(t, queries[0], "__type")
+				assert.NotContains(t, searchQuery, "__type", "introspection is disabled in production")
 				assert.Contains(t, searchQuery, "includeRevoked: true")
 				assert.Contains(t, string(output), `"revokedBy": "admin"`)
 			} else {

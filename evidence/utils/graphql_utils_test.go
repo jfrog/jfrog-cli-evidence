@@ -7,68 +7,24 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-type mockIntrospectionManager struct {
-	response []byte
-	err      error
-	queries  []string
-}
-
-func (m *mockIntrospectionManager) GraphqlQuery(query []byte) ([]byte, error) {
-	m.queries = append(m.queries, string(query))
-	return m.response, m.err
-}
-
-func TestEnsureEvidenceRevocationSupported_FieldPresent(t *testing.T) {
-	manager := &mockIntrospectionManager{
-		response: []byte(`{"data":{"__type":{"fields":[{"name":"id"},{"name":"verified"},{"name":"revoked"},{"name":"revocation"}]}}}`),
+func TestIsRevocationNotSupported(t *testing.T) {
+	tests := []struct {
+		name string
+		err  error
+		want bool
+	}{
+		{name: "nil", err: nil, want: false},
+		{name: "unknown where input field", err: errors.New(`Field "includeRevoked" is not defined by type "EvidenceWhereInput".`), want: true},
+		{name: "unknown argument", err: errors.New(`Unknown argument "includeRevoked" on field "EvidenceQueries.getEvidence".`), want: true},
+		{name: "unknown evidenceConnection where", err: errors.New(`Unknown argument "where" on field "ReleaseBundleVersion.evidenceConnection".`), want: true},
+		{name: "unknown revoked field", err: errors.New(`Cannot query field "revoked" on type "Evidence".`), want: true},
+		{name: "unknown attachments field only", err: errors.New(`Cannot query field "attachments" on type "Evidence".`), want: false},
+		{name: "unknown where on another field", err: errors.New(`Unknown argument "where" on field "Query.other".`), want: false},
+		{name: "transport error", err: errors.New("HTTP 503: Service Unavailable"), want: false},
 	}
-
-	assert.NoError(t, EnsureEvidenceRevocationSupported(manager))
-	if assert.Len(t, manager.queries, 1) {
-		assert.Equal(t, `{"query":"{ __type(name: \"Evidence\") { fields { name } } }"}`, manager.queries[0])
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, IsRevocationNotSupported(tt.err))
+		})
 	}
-}
-
-func TestEnsureEvidenceRevocationSupported_FieldMissing(t *testing.T) {
-	manager := &mockIntrospectionManager{
-		response: []byte(`{"data":{"__type":{"fields":[{"name":"id"},{"name":"verified"},{"name":"revocation"}]}}}`),
-	}
-
-	err := EnsureEvidenceRevocationSupported(manager)
-	assert.ErrorIs(t, err, ErrEvidenceRevocationNotSupported)
-	assert.Contains(t, err.Error(), "--include-revoked requires an Evidence service version that supports revocation")
-}
-
-func TestEnsureEvidenceRevocationSupported_TypeMissing(t *testing.T) {
-	manager := &mockIntrospectionManager{response: []byte(`{"data":{"__type":null}}`)}
-
-	assert.ErrorIs(t, EnsureEvidenceRevocationSupported(manager), ErrEvidenceRevocationNotSupported)
-}
-
-func TestEnsureEvidenceRevocationSupported_GraphqlErrors(t *testing.T) {
-	manager := &mockIntrospectionManager{
-		response: []byte(`{"data":null,"errors":[{"message":"introspection is disabled"}]}`),
-	}
-
-	err := EnsureEvidenceRevocationSupported(manager)
-	assert.Error(t, err)
-	assert.NotErrorIs(t, err, ErrEvidenceRevocationNotSupported)
-	assert.Contains(t, err.Error(), "failed to detect Evidence revocation support: introspection is disabled")
-}
-
-func TestEnsureEvidenceRevocationSupported_TransportError(t *testing.T) {
-	manager := &mockIntrospectionManager{err: errors.New("HTTP 503: Service Unavailable")}
-
-	err := EnsureEvidenceRevocationSupported(manager)
-	assert.Error(t, err)
-	assert.NotErrorIs(t, err, ErrEvidenceRevocationNotSupported)
-	assert.Contains(t, err.Error(), "HTTP 503")
-}
-
-func TestEnsureEvidenceRevocationSupported_InvalidJson(t *testing.T) {
-	manager := &mockIntrospectionManager{response: []byte(`not json`)}
-
-	err := EnsureEvidenceRevocationSupported(manager)
-	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "failed to detect Evidence revocation support")
 }

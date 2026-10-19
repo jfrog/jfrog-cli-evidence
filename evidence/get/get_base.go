@@ -130,12 +130,12 @@ func graphqlQueryWithAttachmentsFallback(client onemodel.Manager, queryWithAttac
 }
 
 func (g *getEvidenceBase) queryEvidence(client onemodel.Manager, queryWithAttachments, queryWithoutAttachments []byte) ([]byte, error) {
-	if g.includeRevoked {
-		if err := evidenceutils.EnsureEvidenceRevocationSupported(client); err != nil {
-			return nil, err
-		}
+	response, err := graphqlQueryWithAttachmentsFallback(client, queryWithAttachments, queryWithoutAttachments)
+	if err != nil && g.includeRevoked && evidenceutils.IsRevocationNotSupported(err) {
+		log.Debug("GraphQL schema does not support evidence revocation:", err.Error())
+		return nil, evidenceutils.ErrEvidenceRevocationNotSupported
 	}
-	return graphqlQueryWithAttachmentsFallback(client, queryWithAttachments, queryWithoutAttachments)
+	return response, err
 }
 
 func (g *getEvidenceBase) searchEvidence(client onemodel.Manager, queries searchEvidenceQueries) ([]EvidenceEntry, error) {
@@ -157,7 +157,7 @@ func (g *getEvidenceBase) applyRevokedArgs(template string) string {
 
 func (g *getEvidenceBase) evidenceConnectionArgs(args ...string) string {
 	if g.includeRevoked {
-		args = append(args, evidenceutils.IncludeRevokedArgument)
+		args = append(args, evidenceutils.IncludeRevokedWhereArgument)
 	}
 	if len(args) == 0 {
 		return ""

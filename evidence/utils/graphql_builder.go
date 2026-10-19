@@ -25,8 +25,10 @@ const (
 	// Optional GraphQL fragments.
 	AttachmentsFragment = "attachments { name sha256 type downloadPath }"
 
-	// IncludeRevokedArgument opts a GraphQL evidence read in to revoked evidence.
+	// IncludeRevokedArgument opts a searchEvidence where input in to revoked evidence.
 	IncludeRevokedArgument = "includeRevoked: true"
+	// IncludeRevokedWhereArgument opts a release bundle evidenceConnection in to revoked evidence.
+	IncludeRevokedWhereArgument = "where: { " + IncludeRevokedArgument + " }"
 )
 
 // NodeFieldsBuilder composes GraphQL node field lists dynamically,

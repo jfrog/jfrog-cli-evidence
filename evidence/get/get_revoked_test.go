@@ -25,9 +25,6 @@ const (
 	legacyNodeFieldsWithAttachments = "predicateSlug predicateType downloadPath verified signingKey { alias } createdBy createdAt subject { sha256 } attachments { name sha256 type downloadPath }"
 	revokedNodeFields               = "revoked revocation { revokedAt revokedBy }"
 
-	introspectionWithRevoked    = `{"data":{"__type":{"fields":[{"name":"id"},{"name":"verified"},{"name":"revoked"},{"name":"revocation"}]}}}`
-	introspectionWithoutRevoked = `{"data":{"__type":{"fields":[{"name":"id"},{"name":"verified"}]}}}`
-
 	revokedSearchResponse = `{"data":{"evidence":{"searchEvidence":{"totalCount":2,"edges":[` +
 		`{"node":{"predicateSlug":"active-slug","downloadPath":"repo/.evidence/active.json","verified":true,"revoked":false,"revocation":null,"createdBy":"ci","createdAt":"2026-10-01T00:00:00Z","subject":{"sha256":"abc"}}},` +
 		`{"node":{"predicateSlug":"revoked-slug","downloadPath":"repo/.evidence/revoked.json","verified":true,"revoked":true,"revocation":{"revokedAt":"2026-10-15T10:00:00Z","revokedBy":"admin"},"createdBy":"ci","createdAt":"2026-10-02T00:00:00Z","subject":{"sha256":"abc"}}}` +
@@ -40,19 +37,37 @@ const (
 		`}}}}`
 )
 
+// mockOnemodelManagerRevocation answers like the One-Model router: queries that use a field or argument
+// the schema lacks fail validation with every error listed in the response body.
 type mockOnemodelManagerRevocation struct {
 	supportsRevocation bool
+	noAttachments      bool
+	err                error
 	searchResponse     string
 	queries            []string
 }
 
 func (m *mockOnemodelManagerRevocation) GraphqlQuery(query []byte) ([]byte, error) {
-	m.queries = append(m.queries, string(query))
-	if strings.Contains(string(query), "__type") {
-		if m.supportsRevocation {
-			return []byte(introspectionWithRevoked), nil
+	q := string(query)
+	m.queries = append(m.queries, q)
+	if m.err != nil {
+		return nil, m.err
+	}
+	var messages []string
+	if m.noAttachments && strings.Contains(q, "attachments {") {
+		messages = append(messages, `Cannot query field \"attachments\" on type \"Evidence\".`)
+	}
+	if !m.supportsRevocation && strings.Contains(q, "revoked") {
+		if strings.Contains(q, "releaseBundleVersion") {
+			messages = append(messages, `Unknown argument \"where\" on field \"ReleaseBundleVersion.evidenceConnection\".`)
+		} else {
+			messages = append(messages, `Field \"includeRevoked\" is not defined by type \"EvidenceWhereInput\".`)
 		}
-		return []byte(introspectionWithoutRevoked), nil
+		messages = append(messages, `Cannot query field \"revoked\" on type \"Evidence\".`)
+	}
+	if len(messages) > 0 {
+		return nil, fmt.Errorf("server response: 400 Bad Request\n{\"errors\":[{\"message\":\"%s\"}]}",
+			strings.Join(messages, `\"},{\"message\":\"`))
 	}
 	return []byte(m.searchResponse), nil
 }
@@ -122,8 +137,9 @@ func TestBuildQuery_WithIncludeRevoked_ReleaseBundle(t *testing.T) {
 
 	assert.True(t, json.Valid([]byte(query)), "query must stay valid JSON: %s", query)
 	assert.Equal(t, 3, strings.Count(query, evidenceutils.IncludeRevokedArgument))
-	assert.Equal(t, 2, strings.Count(query, "evidenceConnection(includeRevoked: true) { edges"))
-	assert.Equal(t, 1, strings.Count(query, "evidenceConnection(first: 0, includeRevoked: true) { totalCount"))
+	assert.Equal(t, 2, strings.Count(query, "evidenceConnection(where: { includeRevoked: true }) { edges"),
+		"includeRevoked is a field of the evidenceConnection where input, not an argument")
+	assert.Equal(t, 1, strings.Count(query, "evidenceConnection(first: 0, where: { includeRevoked: true }) { totalCount"))
 	assert.Equal(t, 3, strings.Count(query, revokedNodeFields))
 	assert.Contains(t, query, "where: { hasEvidence: true }")
 	assert.NotContains(t, query, "{{")
@@ -164,10 +180,42 @@ func TestGetEvidence_IncludeRevoked_UnsupportedServer(t *testing.T) {
 
 			assert.ErrorIs(t, err, evidenceutils.ErrEvidenceRevocationNotSupported)
 			assert.Contains(t, err.Error(), "--include-revoked requires an Evidence service version that supports revocation")
-			require.Len(t, manager.queries, 1, "no evidence query may be sent to a server without revocation support")
-			assert.Contains(t, manager.queries[0], "__type")
+			require.Len(t, manager.queries, 1)
+			assert.NotContains(t, manager.queries[0], "__type", "introspection is disabled in production")
+			assert.Contains(t, manager.queries[0], "includeRevoked")
 		})
 	}
+}
+
+func TestGetEvidence_IncludeRevoked_OldServerWithoutAttachments(t *testing.T) {
+	manager := &mockOnemodelManagerRevocation{noAttachments: true, searchResponse: revokedSearchResponse}
+
+	_, err := newCustomGetter(true).getEvidence(manager)
+
+	assert.ErrorIs(t, err, evidenceutils.ErrEvidenceRevocationNotSupported)
+	require.Len(t, manager.queries, 2, "the attachments fallback still runs before the revocation error is mapped")
+	assert.NotContains(t, manager.queries[1], "attachments {")
+}
+
+func TestGetEvidence_IncludeRevoked_ServerWithoutAttachmentsFallsBack(t *testing.T) {
+	manager := &mockOnemodelManagerRevocation{supportsRevocation: true, noAttachments: true, searchResponse: revokedSearchResponse}
+
+	result, err := newCustomGetter(true).getEvidence(manager)
+
+	require.NoError(t, err)
+	require.Len(t, manager.queries, 2)
+	assert.Contains(t, manager.queries[1], "includeRevoked: true")
+	assert.Contains(t, string(result), `"revokedBy": "admin"`)
+}
+
+func TestGetEvidence_IncludeRevoked_OtherErrorsAreNotMapped(t *testing.T) {
+	manager := &mockOnemodelManagerRevocation{err: fmt.Errorf("server response: 503 Service Unavailable")}
+
+	_, err := newCustomGetter(true).getEvidence(manager)
+
+	require.Error(t, err)
+	assert.NotErrorIs(t, err, evidenceutils.ErrEvidenceRevocationNotSupported)
+	assert.Contains(t, err.Error(), "503")
 }
 
 func TestGetCustomEvidence_IncludeRevoked_PrintsRevokedEntries(t *testing.T) {
@@ -176,9 +224,9 @@ func TestGetCustomEvidence_IncludeRevoked_PrintsRevokedEntries(t *testing.T) {
 	result, err := newCustomGetter(true).getEvidence(manager)
 	require.NoError(t, err)
 
-	require.Len(t, manager.queries, 2)
-	assert.Contains(t, manager.queries[0], "__type")
-	assert.Contains(t, manager.queries[1], "includeRevoked: true")
+	require.Len(t, manager.queries, 1)
+	assert.NotContains(t, manager.queries[0], "__type")
+	assert.Contains(t, manager.queries[0], "includeRevoked: true")
 
 	var output CustomEvidenceOutput
 	require.NoError(t, json.Unmarshal(result, &output))
@@ -218,8 +266,8 @@ func TestGetReleaseBundleEvidence_IncludeRevoked_PrintsRevokedEntries(t *testing
 
 	result, err := newReleaseBundleGetter(true).getEvidence(manager)
 	require.NoError(t, err)
-	require.Len(t, manager.queries, 2)
-	assert.Equal(t, 3, strings.Count(manager.queries[1], evidenceutils.IncludeRevokedArgument))
+	require.Len(t, manager.queries, 1)
+	assert.Equal(t, 3, strings.Count(manager.queries[0], evidenceutils.IncludeRevokedArgument))
 
 	var output ReleaseBundleOutput
 	require.NoError(t, json.Unmarshal(result, &output))
