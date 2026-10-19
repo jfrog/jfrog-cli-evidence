@@ -12,6 +12,7 @@ import (
 	"github.com/jfrog/jfrog-client-go/artifactory"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
 )
 
 // MockArtifactoryServicesManagerReleaseBundle embeds EmptyArtifactoryServicesManager and overrides methods for testing
@@ -19,9 +20,12 @@ type MockArtifactoryServicesManagerReleaseBundle struct {
 	artifactory.EmptyArtifactoryServicesManager
 	AqlResponse string
 	AqlError    error
+	// Recorded calls
+	AqlQueries []string
 }
 
-func (m *MockArtifactoryServicesManagerReleaseBundle) Aql(_ string) (io.ReadCloser, error) {
+func (m *MockArtifactoryServicesManagerReleaseBundle) Aql(query string) (io.ReadCloser, error) {
+	m.AqlQueries = append(m.AqlQueries, query)
 	if m.AqlError != nil {
 		return nil, m.AqlError
 	}
@@ -498,4 +502,40 @@ func TestVerifyEvidenceReleaseBundle_Progress_Success(t *testing.T) {
 	assert.NoError(t, err)
 	assert.True(t, pm.quitCalled)
 	assert.True(t, len(pm.headlines) >= 1)
+}
+
+func TestVerifyEvidenceReleaseBundle_Run_EscapesQueryValues(t *testing.T) {
+	mockClient := &MockArtifactoryServicesManagerReleaseBundle{
+		AqlResponse: `{"results":[{"sha256":"test-sha256","name":"release-bundle.json.evd"}]}`,
+	}
+	mockOneModel := &MockOneModelManagerWithQueryCapture{
+		GraphqlResponse: []byte(`{"data":{"evidence":{"searchEvidence":{"edges":[{"node":{"subject":{"sha256":"test-sha256"},"downloadPath":"/evidence/path"}}]}}}}`),
+	}
+	mockVerifier := new(MockVerifierReleaseBundle)
+	mockVerifier.On("Verify", model.SubjectDigest{Type: model.Sha256DigestType, Value: "test-sha256"}, mock.AnythingOfType("*[]model.SearchEvidenceEdge"), `my"proj-release-bundles-v2/rb\name/1.0"rc/release-bundle.json.evd`).
+		Return(&model.VerificationResponse{OverallVerificationStatus: model.Success}, nil)
+
+	releaseBundleVerifier := &verifyEvidenceReleaseBundle{
+		verifyEvidenceBase: verifyEvidenceBase{
+			serverDetails: &config.ServerDetails{},
+			artifactoryClient: func() *artifactory.ArtifactoryServicesManager {
+				c := artifactory.ArtifactoryServicesManager(mockClient)
+				return &c
+			}(),
+			oneModelClient: mockOneModel,
+			format:         "json",
+			verifier:       mockVerifier,
+		},
+		project:              `my"proj`,
+		releaseBundle:        `rb\name`,
+		releaseBundleVersion: `1.0"rc`,
+	}
+
+	require.NoError(t, releaseBundleVerifier.Run())
+
+	assert.Equal(t, []string{`items.find({"repo": "my\"proj-release-bundles-v2","path": "rb\\name/1.0\"rc","name": "release-bundle.json.evd"}).include("repo","path","name","sha256")`}, mockClient.AqlQueries)
+	require.Len(t, mockOneModel.CapturedQueries, 1)
+	assert.Contains(t, graphqlQueryText(t, mockOneModel.CapturedQueries[0]),
+		`hasSubjectWith: { repositoryKey: "my\"proj-release-bundles-v2", path: "rb\\name/1.0\"rc", name: "release-bundle.json.evd" }`)
+	mockVerifier.AssertExpectations(t)
 }

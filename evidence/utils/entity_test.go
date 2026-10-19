@@ -48,16 +48,21 @@ func TestBuildGraphQLEntityHasSubjectWith(t *testing.T) {
 			},
 			want: `entityType: \"gitCommit\", entityId: \"abc123\"`,
 		},
+		{
+			name: "quote and backslash are escaped for GraphQL and JSON",
+			subject: model.EntitySubject{
+				EntityType: "gitCommit",
+				EntityID:   `abc"123\`,
+				EntityRepo: `models"entity`,
+			},
+			want: `entityType: \"gitCommit\", entityId: \"abc\\\"123\\\\\", repositoryKey: \"models\\\"entity\"`,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			assert.Equal(t, tt.want, BuildGraphQLEntityHasSubjectWith(tt.subject))
 		})
 	}
-}
-
-func TestEscapeGraphQLString(t *testing.T) {
-	assert.Equal(t, `a\\\"b`, escapeGraphQLString(`a\"b`))
 }
 
 func TestResolveApplicationEntityProjectKey_SkipsWhenNotNeeded(t *testing.T) {

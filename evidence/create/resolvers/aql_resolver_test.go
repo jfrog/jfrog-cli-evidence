@@ -488,3 +488,59 @@ func TestAqlSubjectResolver_Resolve_PathNormalization(t *testing.T) {
 func TestAqlSubjectResolver_ImplementsInterface(t *testing.T) {
 	var _ AqlResolver = (*AqlSubjectResolver)(nil)
 }
+
+func TestAqlSubjectResolver_Resolve_EscapesQueryValues(t *testing.T) {
+	tests := []struct {
+		name          string
+		repoName      string
+		path          string
+		checksum      string
+		expectedQuery string
+	}{
+		{
+			name:          "empty path",
+			repoName:      `my"repo\`,
+			checksum:      `sha"256\`,
+			expectedQuery: `items.find({"repo": "my\"repo\\","sha256": "sha\"256\\"})`,
+		},
+		{
+			name:          "path without repository prefix",
+			repoName:      `my"repo`,
+			path:          `img"name\x`,
+			checksum:      "sha256:1234567890abcdef",
+			expectedQuery: `items.find({"repo": "my\"repo", "path": {"$match" : "img\"name\\x*"},"sha256": "sha256:1234567890abcdef"})`,
+		},
+		{
+			name:          "path with repository prefix",
+			repoName:      `my"repo`,
+			path:          `my"repo/img"name\x`,
+			checksum:      "sha256:1234567890abcdef",
+			expectedQuery: `items.find({"repo": "my\"repo", "path": {"$match" : "*img\"name\\x*"},"sha256": "sha256:1234567890abcdef"})`,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockClient := &MockArtifactoryServicesManager{}
+			resolver := NewAqlSubjectResolver(mockClient)
+			mockClient.On("Aql", tt.expectedQuery).Return(nil, errors.New("aql error"))
+
+			_, err := resolver.Resolve(tt.repoName, tt.path, tt.checksum)
+
+			assert.ErrorContains(t, err, "failed to resolve subject, aql error")
+			mockClient.AssertExpectations(t)
+		})
+	}
+}
+
+func TestAqlSubjectResolver_Resolve_RejectsWildcardsInPath(t *testing.T) {
+	for _, path := range []string{"some/*", "some/pat?"} {
+		mockClient := &MockArtifactoryServicesManager{}
+		resolver := NewAqlSubjectResolver(mockClient)
+
+		subjects, err := resolver.Resolve("test-repo", path, "sha256:1234567890abcdef")
+
+		assert.Nil(t, subjects)
+		assert.ErrorContains(t, err, "path must not contain the wildcard characters")
+		mockClient.AssertNotCalled(t, "Aql", mock.Anything)
+	}
+}
