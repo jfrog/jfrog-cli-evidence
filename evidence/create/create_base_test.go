@@ -19,9 +19,7 @@ import (
 	"github.com/jfrog/jfrog-client-go/artifactory"
 	"github.com/jfrog/jfrog-client-go/artifactory/services/utils"
 	evdservices "github.com/jfrog/jfrog-client-go/evidence/services"
-	"github.com/jfrog/jfrog-client-go/utils/errorutils"
 	"github.com/jfrog/jfrog-client-go/utils/io/fileutils"
-	"github.com/jfrog/jfrog-client-go/utils/log"
 	"github.com/stretchr/testify/assert"
 
 	"crypto/ed25519"
@@ -80,71 +78,6 @@ func (m *MockEvidenceServiceManager) UploadEvidence(details evdservices.Evidence
 		return nil, m.UploadError
 	}
 	return m.UploadResponse, nil
-}
-
-func TestUploadEvidence_ErrorHandling(t *testing.T) {
-	originalLogLevel := log.GetLogger().GetLogLevel()
-	log.SetLogger(log.NewLogger(log.DEBUG, nil))
-	defer log.SetLogger(log.NewLogger(originalLogLevel, nil))
-
-	tests := []struct {
-		name          string
-		uploadError   error
-		repoPath      string
-		expectedError string
-		debugLogCheck bool
-	}{
-		{
-			name:          "404 Not Found Error",
-			uploadError:   errors.New("server response: 404 Not Found"),
-			repoPath:      "test-repo/path/file.txt",
-			expectedError: "Subject 'test-repo/path/file.txt' is invalid or not found. Please ensure the subject exists and follows the correct format: <repo>/<path>/<name> or <repo>/<name>",
-			debugLogCheck: true,
-		},
-		{
-			name:          "400 Bad Request Error",
-			uploadError:   errors.New("server response: 400 Bad Request"),
-			repoPath:      "invalid-subject",
-			expectedError: "Subject 'invalid-subject' is invalid or not found. Please ensure the subject exists and follows the correct format: <repo>/<path>/<name> or <repo>/<name>",
-			debugLogCheck: true,
-		},
-		{
-			name:          "404 Error with Repository not found message",
-			uploadError:   errors.New(`server response: 404 Not Found {"errors": [{"message": "Repository https: not found"}]}`),
-			repoPath:      "@ https://evidencetrial.jfrog.io/evidence/api/v1/subject/https:/evidencetrial.jfrog.io/artifactory/cli-sigstore-test/commons-1.0.0.txt",
-			expectedError: "Subject '@ https://evidencetrial.jfrog.io/evidence/api/v1/subject/https:/evidencetrial.jfrog.io/artifactory/cli-sigstore-test/commons-1.0.0.txt' is invalid or not found. Please ensure the subject exists and follows the correct format: <repo>/<path>/<name> or <repo>/<name>",
-			debugLogCheck: true,
-		},
-		{
-			name:          "Other Error - Not 400 or 404",
-			uploadError:   errors.New("server response: 500 Internal Server Error"),
-			repoPath:      "test-repo/path/file.txt",
-			expectedError: "server response: 500 Internal Server Error",
-			debugLogCheck: false,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			c := &createEvidenceBase{
-				serverDetails: &config.ServerDetails{},
-				providerId:    "test-integration",
-			}
-			err := c.handleUploadError(tt.uploadError, tt.repoPath)
-			assert.Error(t, err)
-			assert.Equal(t, tt.expectedError, err.Error())
-		})
-	}
-}
-
-// test helper
-func (c *createEvidenceBase) handleUploadError(err error, repoPath string) error {
-	errStr := err.Error()
-	if strings.Contains(errStr, "400") || strings.Contains(errStr, "404") {
-		log.Debug("Server response error:", err.Error())
-		return errorutils.CheckErrorf("Subject '%s' is invalid or not found. Please ensure the subject exists and follows the correct format: <repo>/<path>/<name> or <repo>/<name>", repoPath)
-	}
-	return err
 }
 
 func TestCreateAndSignEnvelope(t *testing.T) {

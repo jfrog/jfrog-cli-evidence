@@ -128,22 +128,41 @@ func TestCreateEvidenceCustom_Run_DSSE_SigningError(t *testing.T) {
 	assert.Error(t, err)
 }
 
-type failingUploaderCustom404 struct{}
-
-func (f *failingUploaderCustom404) UploadEvidence(e evdservices.EvidenceDetails) ([]byte, error) {
-	return nil, errorutils.CheckErrorf("server response: 404 Not Found")
+// serverResponseError builds an upload error the way jfrog-client-go reports an unexpected Evidence service status.
+func serverResponseError(status, body string) error {
+	return errorutils.CheckError(errorutils.GenerateResponseError(status, errorutils.GenerateErrorString([]byte(body))))
 }
 
 func TestCreateEvidenceCustom_Run_Upload404Mapped_ManualMode(t *testing.T) {
-	dir := t.TempDir()
-	pred := filepath.Join(dir, "p.json")
-	assert.NoError(t, os.WriteFile(pred, []byte(`{"a":1}`), 0600))
-	key, _ := os.ReadFile(filepath.Join("../..", "tests/testdata/ecdsa_key.pem"))
-	art := &mockArtifactoryServicesManagerCustom{}
-	c := &createEvidenceCustom{createEvidenceBase: createEvidenceBase{serverDetails: &config.ServerDetails{}, predicateFilePath: pred, predicateType: "t", key: string(key), artifactoryClient: art, uploader: &failingUploaderCustom404{}}, subjectRepoPaths: []string{"repo/a"}}
-	err := c.Run()
-	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "is not found")
+	tests := []struct {
+		name          string
+		uploadErr     error
+		expectedError string
+	}{
+		{
+			name:          "Subject not found",
+			uploadErr:     serverResponseError("404 Not Found", `{"errors":[{"message":"File not found: repo/a"}]}`),
+			expectedError: "upload failed for subject 'repo/a': Subject 'repo/a' is not found",
+		},
+		{
+			name:          "Signing key not found",
+			uploadErr:     serverResponseError("404 Not Found", `{"errors":[{"message":"signing key with keyId 'my-alias' not found in Artifactory: not found"}]}`),
+			expectedError: "upload failed for subject 'repo/a': Key alias 'my-alias' is not found",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			dir := t.TempDir()
+			pred := filepath.Join(dir, "p.json")
+			assert.NoError(t, os.WriteFile(pred, []byte(`{"a":1}`), 0600))
+			key, _ := os.ReadFile(filepath.Join("../..", "tests/testdata/ecdsa_key.pem"))
+			art := &mockArtifactoryServicesManagerCustom{}
+			c := &createEvidenceCustom{createEvidenceBase: createEvidenceBase{serverDetails: &config.ServerDetails{}, predicateFilePath: pred, predicateType: "t", key: string(key), keyId: "my-alias", artifactoryClient: art, uploader: &failingUploaderCustom{err: tt.uploadErr}}, subjectRepoPaths: []string{"repo/a"}}
+			err := c.Run()
+			assert.Error(t, err)
+			assert.Contains(t, err.Error(), tt.expectedError)
+		})
+	}
 }
 
 func TestProcessSigstoreBundle_AutoResolutionAndSubjectsSet(t *testing.T) {
@@ -853,29 +872,72 @@ func TestCreateEvidenceCustom_ValidateSubject_ImprovedErrorContext(t *testing.T)
 	assert.Contains(t, err.Error(), "Subject '' is invalid")
 }
 
-func TestCreateEvidenceCustom_HandleSubjectNotFound_ImprovedErrorContext(t *testing.T) {
-	serverDetails := &config.ServerDetails{
-		Url:         "https://test.jfrog.io",
-		User:        "test-user",
-		AccessToken: "test-token",
+func TestCreateEvidenceCustom_HandleUploadError(t *testing.T) {
+	const subjectNotFound = "Subject 'repo/path/file.txt' is not found. Please ensure the subject exists."
+	const keyNotFound = "Key alias 'e2e-key-1760' is not found in Artifactory trusted keys. Please ensure the alias exists or upload the public key first using 'generate-key-pair --upload-public-key'. A newly uploaded key may take a few minutes to become available."
+
+	tests := []struct {
+		name      string
+		uploadErr error
+		// expectedError is empty when the upload error is expected to be returned as is.
+		expectedError string
+		// expectNoOp tells whether the error is a subject error, which exits with ExitCodeFailNoOp under auto subject resolution.
+		expectNoOp bool
+	}{
+		{
+			name:          "Subject 404 - file not found",
+			uploadErr:     serverResponseError("404 Not Found", `{"errors":[{"message":"File not found: repo/path/file.txt"}]}`),
+			expectedError: subjectNotFound,
+			expectNoOp:    true,
+		},
+		{
+			name:          "Subject 404 - repository not found",
+			uploadErr:     serverResponseError("404 Not Found", `{"errors":[{"message":"Repository repo not found"}]}`),
+			expectedError: subjectNotFound,
+			expectNoOp:    true,
+		},
+		{
+			name:          "Subject 404 - subject not found",
+			uploadErr:     serverResponseError("404 Not Found", `{"errors":[{"message":"subject not found"}]}`),
+			expectedError: subjectNotFound,
+			expectNoOp:    true,
+		},
+		{
+			name:          "Key 404 - signing key not found",
+			uploadErr:     serverResponseError("404 Not Found", `{"errors":[{"message":"signing key with keyId 'e2e-key-1760' not found in Artifactory: not found"}]}`),
+			expectedError: keyNotFound,
+		},
+		{
+			name:      "Key 400 - public key not trusted",
+			uploadErr: serverResponseError("400 Bad Request", `{"errors":[{"message":"public key not trusted: public key is not registered in Artifactory"}]}`),
+		},
+		{
+			name:      "Unknown 404 - attachment not found",
+			uploadErr: serverResponseError("404 Not Found", `{"errors":[{"message":"attachment file not found: repo/attachment.txt: File not found: repo/attachment.txt"}]}`),
+		},
+		{
+			name:      "404 without a response body",
+			uploadErr: serverResponseError("404 Not Found", ""),
+		},
+		{
+			name:      "500 is not mapped",
+			uploadErr: serverResponseError("500 Internal Server Error", `{"errors":[{"message":"internal server error"}]}`),
+		},
 	}
 
-	cmd := NewCreateEvidenceCustom(serverDetails, "", "", "", "", "", "", "", "", "", "", "", "", "")
-	custom, ok := cmd.(*createEvidenceCustom)
-	assert.True(t, ok)
-
-	// Test 404 error
-	originalErr := errorutils.CheckErrorf("404 Not Found")
-	subjectPath := "repo/missing-artifact"
-	err := custom.handleSubjectNotFound(subjectPath, originalErr)
-	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "Subject 'repo/missing-artifact' is not found")
-
-	// Test non-404 error (should pass through unchanged)
-	otherErr := errorutils.CheckErrorf("500 Internal Server Error")
-	err = custom.handleSubjectNotFound(subjectPath, otherErr)
-	assert.Error(t, err)
-	assert.Equal(t, otherErr, err)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			custom := &createEvidenceCustom{autoSubjectResolution: true}
+			err := custom.handleUploadError("repo/path/file.txt", tt.uploadErr)
+			if tt.expectedError == "" {
+				assert.Equal(t, tt.uploadErr, err)
+				return
+			}
+			assert.EqualError(t, err, tt.expectedError)
+			_, isNoOp := err.(coreutils.CliError)
+			assert.Equal(t, tt.expectNoOp, isNoOp)
+		})
+	}
 }
 
 func TestCreateEvidenceCustom_RecordSummary_OmitsInvalidPredicateValues(t *testing.T) {
