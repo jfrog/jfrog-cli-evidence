@@ -15,9 +15,6 @@ import (
 	"github.com/jfrog/jfrog-client-go/lifecycle"
 )
 
-// sharedKeyReadyTimeout bounds the wait for the shared public key to become available after upload.
-const sharedKeyReadyTimeout = time.Minute
-
 // Shared key pair for all E2E tests
 // Generated once in PrepareTestsData() and cleaned up after all tests
 var (
@@ -161,11 +158,6 @@ func generateCommonPrivatePublicKey(r *EvidenceE2ETestsRunner) error {
 	}
 	if _, err := os.Stat(SharedPublicKeyPath); os.IsNotExist(err) {
 		return fmt.Errorf("public key not found at %s", SharedPublicKeyPath)
-	}
-
-	fmt.Printf("Waiting for trusted key %s to become available...\n", SharedKeyAlias)
-	if err := utils.WaitForTrustedKey(r.ServicesManager, SharedKeyAlias, sharedKeyReadyTimeout); err != nil {
-		return err
 	}
 
 	fmt.Printf("✓ Shared key pair generated:\n")
