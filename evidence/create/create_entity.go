@@ -1,7 +1,6 @@
 package create
 
 import (
-	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -10,6 +9,7 @@ import (
 	"github.com/jfrog/jfrog-cli-core/v2/utils/config"
 	"github.com/jfrog/jfrog-cli-evidence/evidence"
 	"github.com/jfrog/jfrog-cli-evidence/evidence/client"
+	"github.com/jfrog/jfrog-cli-evidence/evidence/intoto"
 	"github.com/jfrog/jfrog-cli-evidence/evidence/model"
 	"github.com/jfrog/jfrog-cli-evidence/evidence/sigstore"
 	evidenceUtils "github.com/jfrog/jfrog-cli-evidence/evidence/utils"
@@ -65,7 +65,7 @@ func (c *createEvidenceEntity) Run() error {
 	if c.sigstoreBundlePath != "" {
 		return c.runWithSigstoreBundle()
 	}
-	return c.runWithPrepare()
+	return c.runWithClientSignedEnvelope()
 }
 
 func (c *createEvidenceEntity) runWithSigstoreBundle() error {
@@ -86,13 +86,8 @@ func (c *createEvidenceEntity) runWithSigstoreBundle() error {
 	return nil
 }
 
-func (c *createEvidenceEntity) runWithPrepare() error {
-	artifactoryClient, err := c.createArtifactoryClient()
-	if err != nil {
-		log.Error("failed to create Artifactory client", err)
-		return err
-	}
-	attachment, cleanup, err := c.resolveAttachment(artifactoryClient)
+func (c *createEvidenceEntity) runWithClientSignedEnvelope() error {
+	attachment, cleanup, err := c.resolveEntityAttachment()
 	if err != nil {
 		return err
 	}
@@ -100,31 +95,17 @@ func (c *createEvidenceEntity) runWithPrepare() error {
 		defer cleanup()
 	}
 
-	prepareResponse, err := c.buildEvidenceStatement(attachment)
+	log.Info("Creating DSSE envelope for entity:", c.EntityType, c.EntityID)
+	envelopeBytes, err := c.createEntityEnvelope(attachment)
+	if err != nil {
+		return err
+	}
+	envelopeBytes, err = c.wrapCreatePayloadWithAttachments(envelopeBytes, attachment)
 	if err != nil {
 		return err
 	}
 
-	payloadBytes, err := base64.StdEncoding.DecodeString(prepareResponse.DSSEPayload)
-	if err != nil {
-		return errorutils.CheckErrorf("failed to decode prepared DSSE payload: %v", err)
-	}
-
-	signedEnvelope, err := createAndSignEnvelope(payloadBytes, c.key, c.keyId)
-	if err != nil {
-		return err
-	}
-	envelopeBytes, err := json.Marshal(signedEnvelope)
-	if err != nil {
-		return err
-	}
-
-	envelopeBytes, err = wrapEnvelopeWithAttachmentRefs(envelopeBytes, toAttachmentRefs(prepareResponse.Attachments))
-	if err != nil {
-		return err
-	}
-
-	response, err := c.uploadPreparedEvidence(prepareResponse.PostURL, envelopeBytes)
+	response, err := c.createEntityEvidence(envelopeBytes)
 	if err != nil {
 		return err
 	}
@@ -132,8 +113,57 @@ func (c *createEvidenceEntity) runWithPrepare() error {
 	return nil
 }
 
-// createEntityEvidence POSTs a ready-made payload (for example a Sigstore bundle) to the
-// entity create API. It does not use the prepare flow.
+func (c *createEvidenceEntity) resolveEntityAttachment() (*statementAttachment, func(), error) {
+	if c.attachLocalPath == "" && c.attachArtifactoryPath == "" {
+		return nil, nil, nil
+	}
+	artifactoryClient, err := c.createArtifactoryClient()
+	if err != nil {
+		log.Error("failed to create Artifactory client", err)
+		return nil, nil, err
+	}
+	return c.resolveAttachment(artifactoryClient)
+}
+
+func (c *createEvidenceEntity) createEntityEnvelope(attachment *statementAttachment) ([]byte, error) {
+	statementJson, err := c.buildEntityStatement(attachment)
+	if err != nil {
+		return nil, err
+	}
+	signedEnvelope, err := createAndSignEnvelope(statementJson, c.key, c.keyId)
+	if err != nil {
+		return nil, err
+	}
+	return json.Marshal(signedEnvelope)
+}
+
+func (c *createEvidenceEntity) buildEntityStatement(attachment *statementAttachment) ([]byte, error) {
+	predicate, err := os.ReadFile(c.predicateFilePath)
+	if err != nil {
+		return nil, errorutils.CheckError(err)
+	}
+
+	user := EvdDefaultUser
+	if c.serverDetails != nil && c.serverDetails.User != "" {
+		user = c.serverDetails.User
+	}
+
+	statement := intoto.NewStatement(predicate, c.predicateType, user)
+	if err = c.setMarkdown(statement); err != nil {
+		return nil, err
+	}
+	if err = statement.SetEntitySubject(c.EntityType, c.EntityID); err != nil {
+		return nil, err
+	}
+	statement.SetAttachments(toStatementAttachmentMeta(attachment))
+	statementJson, err := statement.Marshal()
+	if err != nil {
+		log.Error("failed marshaling statement json file", err)
+		return nil, err
+	}
+	return statementJson, nil
+}
+
 func (c *createEvidenceEntity) createEntityEvidence(payload []byte) (*model.CreateResponse, error) {
 	if c.evidenceServiceClient == nil {
 		evidenceServiceClient, err := client.NewEvidenceClient(c.serverDetails)
@@ -155,64 +185,6 @@ func (c *createEvidenceEntity) createEntityEvidence(payload []byte) (*model.Crea
 		return nil, err
 	}
 	return c.collectCreateResponse(body)
-}
-
-func (c *createEvidenceEntity) buildEvidenceStatement(attachment *statementAttachment) (*client.PrepareEvidenceResponse, error) {
-	if c.evidenceServiceClient == nil {
-		evidenceServiceClient, err := client.NewEvidenceClient(c.serverDetails)
-		if err != nil {
-			return nil, err
-		}
-		c.evidenceServiceClient = evidenceServiceClient
-	}
-
-	predicate, err := os.ReadFile(c.predicateFilePath)
-	if err != nil {
-		return nil, errorutils.CheckError(err)
-	}
-
-	request := client.PrepareEvidenceRequest{
-		Predicate:     json.RawMessage(predicate),
-		PredicateType: c.predicateType,
-		ProviderID:    c.providerId,
-		Subject: client.PrepareEvidenceSubject{
-			SubjectType: client.SubjectTypeEntity,
-			EntityType:  c.EntityType,
-			EntityID:    c.EntityID,
-		},
-		EntityRepo:     c.EntityRepo,
-		ProjectKey:     c.ProjectKey,
-		ApplicationKey: c.ApplicationKey,
-	}
-
-	if attachment != nil {
-		request.Attachments = []client.PrepareEvidenceAttachment{{
-			Repository: attachment.Repository,
-			Path:       attachment.Path,
-			SHA256:     attachment.Sha256,
-		}}
-	}
-
-	markdown, err := c.readEmbeddedMarkdown()
-	if err != nil {
-		return nil, err
-	}
-	request.Markdown = markdown
-
-	log.Debug("Preparing entity evidence:", c.EntityType, c.EntityID)
-	return c.evidenceServiceClient.PrepareEvidence(request, false)
-}
-
-func toAttachmentRefs(attachments []client.PrepareEvidenceAttachment) []attachmentRef {
-	refs := make([]attachmentRef, 0, len(attachments))
-	for _, att := range attachments {
-		refs = append(refs, attachmentRef{
-			Repository: att.Repository,
-			Path:       att.Path,
-			Sha256:     att.SHA256,
-		})
-	}
-	return refs
 }
 
 func (c *createEvidenceEntity) recordSummary(response *model.CreateResponse) {
