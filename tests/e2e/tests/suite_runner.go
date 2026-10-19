@@ -160,6 +160,10 @@ func generateCommonPrivatePublicKey(r *EvidenceE2ETestsRunner) error {
 		return fmt.Errorf("public key not found at %s", SharedPublicKeyPath)
 	}
 
+	if err := r.waitForSharedKeyInEvidenceService(); err != nil {
+		return err
+	}
+
 	fmt.Printf("✓ Shared key pair generated:\n")
 	fmt.Printf("  - Alias: %s\n", SharedKeyAlias)
 	fmt.Printf("  - Public Key: %s\n", SharedPublicKeyPath)
