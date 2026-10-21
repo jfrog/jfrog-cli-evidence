@@ -75,6 +75,7 @@ func (eec *evidenceEntityCommand) GetEvidence(ctx *components.Context, serverDet
 		eec.ctx.GetStringFlagValue(flags.Format),
 		eec.ctx.GetStringFlagValue(flags.Output),
 		eec.ctx.GetBoolFlagValue(flags.IncludePredicate),
+		eec.ctx.GetBoolFlagValue(flags.IncludeRevoked),
 	)
 	return eec.execute(getCmd)
 }

@@ -2,12 +2,35 @@ package utils
 
 import (
 	"encoding/json"
+	"errors"
 	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+func TestIsRevocationNotSupported(t *testing.T) {
+	tests := []struct {
+		name string
+		err  error
+		want bool
+	}{
+		{name: "nil", err: nil, want: false},
+		{name: "unknown where input field", err: errors.New(`Field "includeRevoked" is not defined by type "EvidenceWhereInput".`), want: true},
+		{name: "unknown argument", err: errors.New(`Unknown argument "includeRevoked" on field "EvidenceQueries.getEvidence".`), want: true},
+		{name: "unknown evidenceConnection where", err: errors.New(`Unknown argument "where" on field "ReleaseBundleVersion.evidenceConnection".`), want: true},
+		{name: "unknown revoked field", err: errors.New(`Cannot query field "revoked" on type "Evidence".`), want: true},
+		{name: "unknown attachments field only", err: errors.New(`Cannot query field "attachments" on type "Evidence".`), want: false},
+		{name: "unknown where on another field", err: errors.New(`Unknown argument "where" on field "Query.other".`), want: false},
+		{name: "transport error", err: errors.New("HTTP 503: Service Unavailable"), want: false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, IsRevocationNotSupported(tt.err))
+		})
+	}
+}
 
 func TestEscapeGraphQLString(t *testing.T) {
 	testCases := []struct {
@@ -40,7 +63,7 @@ func TestEscapeGraphQLString_RoundTrip(t *testing.T) {
 		`x\", path: \"y`,
 		"line\nbreak\ttab\rreturn",
 		"control\x00\x01\b\f\x1f",
-		"unicode é 日本 \u2028",
+		"unicode é 日本  ",
 		"a&b<c>",
 		"",
 	}

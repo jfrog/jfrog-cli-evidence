@@ -13,7 +13,7 @@ import (
 	"github.com/jfrog/jfrog-client-go/onemodel"
 )
 
-const getEntityEvidenceQueryTemplate = `{"query":"{ evidence { searchEvidence( where: { hasSubjectWith: { %s }} ) { totalCount edges { node { ` + evidenceutils.NodeFieldsPlaceholder + ` } } } } }"}`
+const getEntityEvidenceQueryTemplate = `{"query":"{ evidence { searchEvidence( where: { hasSubjectWith: { %s }` + searchWhereArgsPlaceholder + `} ) { totalCount edges { node { ` + evidenceutils.NodeFieldsPlaceholder + ` } } } } }"}`
 
 type getEvidenceEntity struct {
 	getEvidenceBase
@@ -37,13 +37,14 @@ type EntityEvidenceResult struct {
 	Evidence       []EvidenceEntry `json:"evidence"`
 }
 
-func NewGetEvidenceEntity(serverDetails *config.ServerDetails, entityType, entityID, entityRepo, projectKey, applicationKey, format, outputFileName string, includePredicate bool) evidence.Command {
+func NewGetEvidenceEntity(serverDetails *config.ServerDetails, entityType, entityID, entityRepo, projectKey, applicationKey, format, outputFileName string, includePredicate, includeRevoked bool) evidence.Command {
 	return &getEvidenceEntity{
 		getEvidenceBase: getEvidenceBase{
 			serverDetails:    serverDetails,
 			format:           format,
 			outputFileName:   outputFileName,
 			includePredicate: includePredicate,
+			includeRevoked:   includeRevoked,
 		},
 		EntitySubject: model.EntitySubject{
 			EntityType:     entityType,
@@ -115,7 +116,7 @@ func (g *getEvidenceEntity) marshalEvidence(evidenceArray []EvidenceEntry) ([]by
 func (g *getEvidenceEntity) buildGraphqlQuery(includeAttachments bool) []byte {
 	nodeFields := g.buildSearchEvidenceNodeFields(evidenceutils.FieldSubjectWithPath, includeAttachments)
 	whereClause := evidenceutils.BuildGraphQLEntityHasSubjectWith(g.EntitySubject)
-	queryTemplate := evidenceutils.BuildQuery(getEntityEvidenceQueryTemplate, nodeFields)
+	queryTemplate := g.applyRevokedArgs(evidenceutils.BuildQuery(getEntityEvidenceQueryTemplate, nodeFields))
 	graphqlQuery := fmt.Sprintf(queryTemplate, whereClause)
 	log.Debug("GraphQL query: ", graphqlQuery)
 	return []byte(graphqlQuery)

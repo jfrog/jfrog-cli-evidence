@@ -37,6 +37,7 @@ Gotchas:
 - Failures from the verifier are wrapped as "evidence verification failed: ..."; check the wrapped cause for the specific signature, key or attachment mismatch.
 - --use-artifactory-keys still requires platform credentials with read access to the trusted-keys store.
 - Attachments referenced by evidence are also verified; mismatched or missing attachment files cause the whole verify to fail.
+- Revoked evidence is never verified: it is treated as not found. A subject whose only evidence is revoked fails with "no evidence found for the given subject"; use jf evd get --include-revoked to list it.
 
 Related: jf evd create, jf evd get, jf evd gen-keys`
 }
