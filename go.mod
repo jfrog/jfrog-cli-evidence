@@ -7,7 +7,7 @@ require (
 	github.com/gookit/color v1.6.3
 	github.com/jedib0t/go-pretty/v6 v6.8.3
 	github.com/jfrog/build-info-go v1.13.1-0.20260429070557-93b98034d295
-	github.com/jfrog/froggit-go v1.23.2
+	github.com/jfrog/froggit-go v1.24.0
 	github.com/jfrog/gofrog v1.7.7
 	github.com/jfrog/jfrog-cli-artifactory v0.8.0
 	github.com/jfrog/jfrog-cli-core/v2 v2.60.1-0.20260601130310-8d52a530da18
