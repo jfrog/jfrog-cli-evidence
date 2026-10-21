@@ -87,7 +87,7 @@ var flagsMap = map[string]components.Flag{
 	Predicate:        components.NewStringFlag(Predicate, "Path to the Predicate, arbitrary JSON. Mandatory unless --"+SigstoreBundle+" is used", func(f *components.StringFlag) { f.Mandatory = false }),
 	PredicateType:    components.NewStringFlag(PredicateType, "Type of the Predicate. Mandatory unless --"+SigstoreBundle+" is used", func(f *components.StringFlag) { f.Mandatory = false }),
 	IncludePredicate: components.NewBoolFlag(IncludePredicate, "Include the Predicate data in the get evidence Output.", components.WithBoolDefaultValueFalse()),
-	IncludeRevoked:   components.NewBoolFlag(IncludeRevoked, "Include revoked evidence in the get evidence Output. Each entry then shows 'revoked', and revoked entries show 'revokedAt' and 'revokedBy'. Requires an Evidence service version that supports revocation.", components.WithBoolDefaultValueFalse()),
+	IncludeRevoked:   components.NewBoolFlag(IncludeRevoked, "Include revoked evidence in the get evidence Output.", components.WithBoolDefaultValueFalse()),
 	Markdown:         components.NewStringFlag(Markdown, "Markdown of the Predicate. Not supported with --"+SigstoreBundle+".", func(f *components.StringFlag) { f.Mandatory = false }),
 	SubjectRepoPath:  components.NewStringFlag(SubjectRepoPath, "Full path to some subject location.", func(f *components.StringFlag) { f.Mandatory = false }),
 	SubjectSha256:    components.NewStringFlag(SubjectSha256, "Subject checksum sha256.", func(f *components.StringFlag) { f.Mandatory = false }),
