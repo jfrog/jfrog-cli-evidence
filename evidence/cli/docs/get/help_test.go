@@ -25,3 +25,9 @@ func TestGetUsageExamples(t *testing.T) {
 	assert.True(t, strings.HasPrefix(examples[0], "jf evd get"))
 	assert.Contains(t, strings.Join(examples, "\n"), "jf evd get --entity-type")
 }
+
+func TestGetHelp_DocumentsIncludeRevoked(t *testing.T) {
+	assert.Contains(t, GetDescription(), "--include-revoked")
+	assert.Contains(t, GetAIDescription(), "--include-revoked")
+	assert.Contains(t, strings.Join(GetUsageExamples(), "\n"), "--include-revoked")
+}

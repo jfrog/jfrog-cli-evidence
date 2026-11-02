@@ -57,6 +57,7 @@ func (ecc *evidenceCustomCommand) GetEvidence(_ *components.Context, serverDetai
 		ecc.ctx.GetStringFlagValue(flags.Format),
 		ecc.ctx.GetStringFlagValue(flags.Output),
 		ecc.ctx.GetBoolFlagValue(flags.IncludePredicate),
+		ecc.ctx.GetBoolFlagValue(flags.IncludeRevoked),
 	)
 
 	return ecc.execute(getCmd)

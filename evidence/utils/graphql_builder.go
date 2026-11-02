@@ -13,6 +13,8 @@ const (
 	FieldVerified      = "verified"
 	FieldCreatedBy     = "createdBy"
 	FieldCreatedAt     = "createdAt"
+	FieldRevoked       = "revoked"
+	FieldRevocation    = "revocation { revokedAt revokedBy }"
 	FieldSubjectSha256 = "subject { sha256 }"
 	// FieldSubjectWithPath includes Artifactory subject location fields used by entity cleanup
 	// and callers that need the stored subject path in addition to the checksum.
@@ -22,6 +24,11 @@ const (
 
 	// Optional GraphQL fragments.
 	AttachmentsFragment = "attachments { name sha256 type downloadPath }"
+
+	// IncludeRevokedArgument opts a searchEvidence where input in to revoked evidence.
+	IncludeRevokedArgument = "includeRevoked: true"
+	// IncludeRevokedWhereArgument opts a release bundle evidenceConnection in to revoked evidence.
+	IncludeRevokedWhereArgument = "where: { " + IncludeRevokedArgument + " }"
 )
 
 // NodeFieldsBuilder composes GraphQL node field lists dynamically,

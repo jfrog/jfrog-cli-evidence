@@ -6,6 +6,7 @@ func GetDescription() string {
 	return ` Fetch evidence based on a specified subject, which can be an artifact, release bundle, or entity.
                              When retrieving evidence from a release bundle, you will obtain information about the builds contained within it,
                              as well as the artifacts associated with those builds.
+                             Revoked evidence is hidden unless --include-revoked is set.
                              Supports JSON and JSONL formats.`
 }
 
@@ -26,6 +27,7 @@ Prerequisites:
 Common patterns:
   $ jf evd get --subject-repo-path generic-local/app.tgz
   $ jf evd get --subject-repo-path generic-local/app.tgz --include-predicate --format json
+  $ jf evd get --subject-repo-path generic-local/app.tgz --include-revoked --format jsonl
   $ jf evd get --release-bundle my-rb --release-bundle-version 1.0.0 --format jsonl --output ./rb-evidence.jsonl
   $ jf evd get --release-bundle my-rb --release-bundle-version 1.0.0 --artifacts-limit 5000
   $ jf evd get --entity-type gitCommit --entity-id 57bb812f3733b80e270272ba063274e52c34bd23 --project my-proj
@@ -33,6 +35,8 @@ Common patterns:
 
 Gotchas:
 - --include-predicate is off by default; without it the predicate body is omitted from results.
+- Revoked evidence is hidden by default. --include-revoked adds it; every entry then carries "revoked", and revoked entries carry "revokedAt" and "revokedBy". "verified" is the stored value and is not changed by revocation. The flag fails with a clear error on Evidence versions without revocation support.
+- For release bundles, artifacts are selected by active evidence, so an artifact whose only evidence is revoked is not listed even with --include-revoked.
 - --artifacts-limit defaults to 1000 for release bundles; larger bundles need an explicit higher value.
 - For entity subjects, exactly one of --project, --application-key, or --entity-repo may be set to calculate the Artifactory repository name (same rules as create).
 - --output writes to a file; without it results go to stdout.
@@ -51,6 +55,7 @@ func GetUsageExamples() []string {
 		"jf evd get --application-key my-app",
 		"jf evd get --release-bundle my-rb --release-bundle-version 1.0.0 --artifacts-limit 5000",
 		"jf evd get --subject-repo-path generic-local/app.tgz",
+		"jf evd get --subject-repo-path generic-local/app.tgz --include-revoked",
 		"jf evd get --entity-type gitCommit --entity-id 57bb812f3733b80e270272ba063274e52c34bd23 --project my-proj",
 		"jf evd get --entity-type gitCommit --entity-id 57bb812f3733b80e270272ba063274e52c34bd23 --project my-proj --include-predicate --format json",
 	}

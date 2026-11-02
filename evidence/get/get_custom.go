@@ -14,7 +14,7 @@ import (
 	"github.com/jfrog/jfrog-client-go/onemodel"
 )
 
-const getCustomEvidenceQueryTemplate = `{"query":"{ evidence { searchEvidence( where: { hasSubjectWith: { repositoryKey: \"%s\", path: \"%s\", name: \"%s\"}} ) { totalCount edges { node { ` + evidenceutils.NodeFieldsPlaceholder + ` } } } } }"}`
+const getCustomEvidenceQueryTemplate = `{"query":"{ evidence { searchEvidence( where: { hasSubjectWith: { repositoryKey: \"%s\", path: \"%s\", name: \"%s\"}` + searchWhereArgsPlaceholder + `} ) { totalCount edges { node { ` + evidenceutils.NodeFieldsPlaceholder + ` } } } } }"}`
 
 type getEvidenceCustom struct {
 	getEvidenceBase
@@ -28,13 +28,14 @@ type CustomEvidenceOutput struct {
 	Result        CustomEvidenceResult `json:"result"`
 }
 
-func NewGetEvidenceCustom(serverDetails *config.ServerDetails, subjectRepoPath, format, outputFileName string, includePredicate bool) evidence.Command {
+func NewGetEvidenceCustom(serverDetails *config.ServerDetails, subjectRepoPath, format, outputFileName string, includePredicate, includeRevoked bool) evidence.Command {
 	return &getEvidenceCustom{
 		getEvidenceBase: getEvidenceBase{
 			serverDetails:    serverDetails,
 			format:           format,
 			outputFileName:   outputFileName,
 			includePredicate: includePredicate,
+			includeRevoked:   includeRevoked,
 		},
 		subjectRepoPath: subjectRepoPath,
 	}
@@ -115,7 +116,7 @@ func (g *getEvidenceCustom) buildGraphqlQuery(subjectRepoPath string, includeAtt
 		return nil, err
 	}
 	nodeFields := g.buildSearchEvidenceNodeFields(evidenceutils.FieldSubjectSha256, includeAttachments)
-	queryTemplate := evidenceutils.BuildQuery(getCustomEvidenceQueryTemplate, nodeFields)
+	queryTemplate := g.applyRevokedArgs(evidenceutils.BuildQuery(getCustomEvidenceQueryTemplate, nodeFields))
 	graphqlQuery := fmt.Sprintf(queryTemplate, evidenceutils.EscapeGraphQLString(repoKey), evidenceutils.EscapeGraphQLString(pathVal), evidenceutils.EscapeGraphQLString(name))
 	log.Debug("GraphQL query: ", graphqlQuery)
 	return []byte(graphqlQuery), nil
