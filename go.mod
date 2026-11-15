@@ -1,6 +1,6 @@
 module github.com/jfrog/jfrog-cli-evidence
 
-go 1.26.9
+go 1.26.10
 
 require (
 	github.com/distribution/reference v0.6.0
@@ -32,7 +32,7 @@ require (
 	github.com/ProtonMail/go-crypto v1.4.1 // indirect
 	github.com/VividCortex/ewma v1.2.0 // indirect
 	github.com/acarl005/stripansi v0.0.0-20180116102854-5a71ef0e047d // indirect
-	github.com/andybalholm/brotli v1.2.1 // indirect
+	github.com/andybalholm/brotli v1.2.7 // indirect
 	github.com/asaskevich/govalidator v0.0.0-20230301143203-a9d515a09cc2 // indirect
 	github.com/blang/semver v3.5.1+incompatible // indirect
 	github.com/buger/jsonparser v1.2.0 // indirect
