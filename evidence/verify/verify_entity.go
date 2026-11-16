@@ -69,7 +69,7 @@ func (v *verifyEvidenceEntity) buildSearchEvidenceByEntityQuery(includeAttachmen
 		WithIf(v.useArtifactoryKeys, evidenceutils.FieldSigningKeyWithPublicKey).
 		Build()
 	whereClause := evidenceutils.BuildGraphQLEntityHasSubjectWith(v.EntitySubject)
-	return fmt.Sprintf(evidenceutils.BuildQuery(searchEvidenceByEntityQueryTemplate, nodeFields), whereClause)
+	return fmt.Sprintf(evidenceutils.BuildQuery(searchEvidenceByEntityQueryTemplate, nodeFields, nil), whereClause)
 }
 
 func (v *verifyEvidenceEntity) ServerDetails() (*config.ServerDetails, error) {

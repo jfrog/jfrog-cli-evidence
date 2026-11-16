@@ -58,20 +58,26 @@ func TestNodeFieldsBuilder_WithoutAttachmentsFragment(t *testing.T) {
 
 func TestBuildQuery_ReplacesPlaceholder(t *testing.T) {
 	template := `{"query":"{ node { ` + NodeFieldsPlaceholder + ` } }"}`
-	result := BuildQuery(template, "fieldA fieldB")
+	result := BuildQuery(template, "fieldA fieldB", nil)
 	assert.Equal(t, `{"query":"{ node { fieldA fieldB } }"}`, result)
 }
 
 func TestBuildQuery_ReplacesMultiplePlaceholders(t *testing.T) {
 	template := "first { " + NodeFieldsPlaceholder + " } second { " + NodeFieldsPlaceholder + " }"
-	result := BuildQuery(template, "a b")
+	result := BuildQuery(template, "a b", nil)
 	assert.Equal(t, "first { a b } second { a b }", result)
 }
 
 func TestBuildQuery_NoPlaceholder(t *testing.T) {
 	template := `{"query":"{ node { fixed } }"}`
-	result := BuildQuery(template, "ignored")
+	result := BuildQuery(template, "ignored", nil)
 	assert.Equal(t, template, result)
+}
+
+func TestBuildQuery_ReplacesFragmentsAfterNodeFields(t *testing.T) {
+	template := "search(where: {x: 1}{{WHERE}}) { node { " + NodeFieldsPlaceholder + " } } conn{{ARGS}} { edges }"
+	result := BuildQuery(template, "a b", map[string]string{"{{WHERE}}": ", y: 2", "{{ARGS}}": ""})
+	assert.Equal(t, "search(where: {x: 1}, y: 2) { node { a b } } conn { edges }", result)
 }
 
 func TestAttachmentsFragmentValue(t *testing.T) {

@@ -40,7 +40,7 @@ func TestEscapeGraphQLString_RoundTrip(t *testing.T) {
 		`x\", path: \"y`,
 		"line\nbreak\ttab\rreturn",
 		"control\x00\x01\b\f\x1f",
-		"unicode é 日本 \u2028",
+		"unicode é 日本  ",
 		"a&b<c>",
 		"",
 	}
