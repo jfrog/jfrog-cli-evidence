@@ -3,7 +3,6 @@ package get
 import (
 	"encoding/json"
 	"fmt"
-	"strings"
 
 	"github.com/jfrog/jfrog-cli-core/v2/artifactory/utils"
 	"github.com/jfrog/jfrog-cli-core/v2/utils/config"
@@ -17,8 +16,6 @@ import (
 // YXJ0aWZhY3Q6MA== is base64 for artifact:0 (pagination start cursor).
 // {{NODE_FIELDS}} is replaced at runtime by the NodeFieldsBuilder.
 const getReleaseBundleQueryTemplate = `{"query":"{ releaseBundleVersion { getVersion(repositoryKey: \"%s\", name: \"%s\", version: \"%s\") { evidenceConnection` + evidenceConnectionArgsPlaceholder + ` { edges { node { ` + evidenceutils.NodeFieldsPlaceholder + ` } } } artifactsConnection(first: %s, after: \"YXJ0aWZhY3Q6MA==\", where: { hasEvidence: true }) { totalCount edges { node { sourceRepositoryPath packageType evidenceConnection` + artifactEvidenceConnectionArgsPlaceholder + ` { totalCount edges { node { ` + evidenceutils.NodeFieldsPlaceholder + ` } } } } } } fromBuilds { name number startedAt evidenceConnection` + evidenceConnectionArgsPlaceholder + ` { edges { node { ` + evidenceutils.NodeFieldsPlaceholder + ` } } } } } } }"}`
-
-const artifactEvidenceConnectionArgsPlaceholder = "{{ARTIFACT_EVIDENCE_CONNECTION_ARGS}}"
 
 const defaultArtifactsLimit = "1000" // Default limit for the number of artifacts to show in the evidence response.
 type getEvidenceReleaseBundle struct {
@@ -81,7 +78,7 @@ func (g *getEvidenceReleaseBundle) Run() error {
 }
 
 func (g *getEvidenceReleaseBundle) getEvidence(onemodelClient onemodel.Manager) ([]byte, error) {
-	evidence, err := g.queryEvidence(
+	evidence, err := graphqlQueryWithAttachmentsFallback(
 		onemodelClient,
 		g.buildGraphqlQuery(g.releaseBundle, g.releaseBundleVersion, true),
 		g.buildGraphqlQuery(g.releaseBundle, g.releaseBundleVersion, false),
@@ -113,9 +110,7 @@ func (g *getEvidenceReleaseBundle) getRepoKey(project string) string {
 
 func (g *getEvidenceReleaseBundle) buildGraphqlQuery(releaseBundle, releaseBundleVersion string, includeAttachments bool) []byte {
 	nodeFields := g.buildSearchEvidenceNodeFields(evidenceutils.FieldSubjectSha256, includeAttachments)
-	queryTemplate := evidenceutils.BuildQuery(getReleaseBundleQueryTemplate, nodeFields)
-	queryTemplate = strings.ReplaceAll(queryTemplate, artifactEvidenceConnectionArgsPlaceholder, g.evidenceConnectionArgs("first: 0"))
-	queryTemplate = g.applyRevokedArgs(queryTemplate)
+	queryTemplate := evidenceutils.BuildQuery(getReleaseBundleQueryTemplate, nodeFields, g.revokedFragments())
 	numberOfArtifactsToShow := g.getArtifactLimit(g.artifactsLimit)
 	graphqlQuery := fmt.Sprintf(queryTemplate, evidenceutils.EscapeGraphQLString(g.getRepoKey(g.project)), evidenceutils.EscapeGraphQLString(releaseBundle), evidenceutils.EscapeGraphQLString(releaseBundleVersion), numberOfArtifactsToShow)
 	log.Debug("GraphQL query: ", graphqlQuery)

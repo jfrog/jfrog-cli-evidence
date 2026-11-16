@@ -6,6 +6,7 @@ import (
 	"github.com/jfrog/jfrog-cli-evidence/evidence/cli/command/flags"
 	"github.com/jfrog/jfrog-cli-evidence/evidence/cli/command/interface"
 	utils2 "github.com/jfrog/jfrog-cli-evidence/evidence/cli/command/utils"
+	"github.com/jfrog/jfrog-cli-evidence/evidence/client"
 	"github.com/jfrog/jfrog-cli-evidence/evidence/create"
 	"github.com/jfrog/jfrog-cli-evidence/evidence/get"
 	"github.com/jfrog/jfrog-cli-evidence/evidence/utils"
@@ -54,6 +55,11 @@ func (erc *evidenceReleaseBundleCommand) GetEvidence(ctx *components.Context, se
 	err := erc.validateEvidenceReleaseBundleContext(ctx)
 	if err != nil {
 		return err
+	}
+	if erc.ctx.GetBoolFlagValue(flags.IncludeRevoked) {
+		if err := client.EnsureFeatureSupported(serverDetails, utils.FeatureEvidenceRevocation); err != nil {
+			return err
+		}
 	}
 
 	getCmd := get.NewGetEvidenceReleaseBundle(

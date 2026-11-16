@@ -64,6 +64,11 @@ func (eec *evidenceEntityCommand) GetEvidence(ctx *components.Context, serverDet
 	if err := client.EnsureFeatureSupported(serverDetails, evidenceutils.FeatureEntityAPI); err != nil {
 		return err
 	}
+	if eec.ctx.GetBoolFlagValue(flags.IncludeRevoked) {
+		if err := client.EnsureFeatureSupported(serverDetails, evidenceutils.FeatureEvidenceRevocation); err != nil {
+			return err
+		}
+	}
 
 	getCmd := get.NewGetEvidenceEntity(
 		serverDetails,

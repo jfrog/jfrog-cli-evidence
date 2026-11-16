@@ -12,11 +12,14 @@ type EvidenceFeature string
 const (
 	// FeatureEntityAPI is the Evidence /entity create, get, and verify APIs.
 	FeatureEntityAPI EvidenceFeature = "entityAPI"
+	// FeatureEvidenceRevocation is the includeRevoked GraphQL opt-in and the revoked/revocation fields.
+	FeatureEvidenceRevocation EvidenceFeature = "evidenceRevocation"
 )
 
 // featureMinVersions maps each Evidence feature to the first release that supports it.
 var featureMinVersions = map[EvidenceFeature]string{
-	FeatureEntityAPI: "7.1269.0",
+	FeatureEntityAPI:          "7.1269.0",
+	FeatureEvidenceRevocation: "7.1695.0",
 }
 
 // MinVersionForFeature returns the minimum Evidence release that supports feature,

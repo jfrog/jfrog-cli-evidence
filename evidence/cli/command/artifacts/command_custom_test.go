@@ -96,17 +96,29 @@ func TestEvidenceCustomCommand_GetEvidence_IncludeRevokedFlag(t *testing.T) {
 	tests := []struct {
 		name            string
 		args            []string
+		serverVersion   string
 		expectedQueries int
+		expectVersion   bool
 		expectRevoked   bool
+		errorContains   string
 	}{
-		{name: "flag set", args: []string{"--" + flags.IncludeRevoked}, expectedQueries: 1, expectRevoked: true},
-		{name: "flag not set", args: nil, expectedQueries: 1, expectRevoked: false},
+		{name: "flag set", args: []string{"--" + flags.IncludeRevoked}, serverVersion: "7.1695.0",
+			expectedQueries: 1, expectVersion: true, expectRevoked: true},
+		{name: "flag set on old server", args: []string{"--" + flags.IncludeRevoked}, serverVersion: "7.1694.0",
+			expectVersion: true, errorContains: "requires version 7.1695.0 or higher"},
+		{name: "flag not set", args: nil, serverVersion: "7.1694.0", expectedQueries: 1},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Setenv("JFROG_CLI_HOME_DIR", t.TempDir())
 			var queries []string
+			versionChecked := false
 			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if r.URL.Path == "/evidence/api/v1/system/version" {
+					versionChecked = true
+					_, _ = w.Write([]byte(tt.serverVersion))
+					return
+				}
 				assert.Equal(t, "/onemodel/api/v1/graphql", r.URL.Path)
 				body, err := io.ReadAll(r.Body)
 				assert.NoError(t, err)
@@ -128,15 +140,22 @@ func TestEvidenceCustomCommand_GetEvidence_IncludeRevokedFlag(t *testing.T) {
 			require.NoError(t, err)
 
 			runCommand := func(cmd commands.Command) error { return cmd.Run() }
-			serverDetails := &config.ServerDetails{OnemodelUrl: server.URL + "/onemodel/", AccessToken: "token"}
-			require.NoError(t, NewEvidenceCustomCommand(ctx, runCommand).GetEvidence(ctx, serverDetails))
+			serverDetails := &config.ServerDetails{
+				OnemodelUrl: server.URL + "/onemodel/", EvidenceUrl: server.URL + "/evidence/", AccessToken: "token",
+			}
+			err = NewEvidenceCustomCommand(ctx, runCommand).GetEvidence(ctx, serverDetails)
 
+			assert.Equal(t, tt.expectVersion, versionChecked)
 			require.Len(t, queries, tt.expectedQueries)
+			if tt.errorContains != "" {
+				assert.ErrorContains(t, err, tt.errorContains)
+				return
+			}
+			require.NoError(t, err)
 			searchQuery := queries[len(queries)-1]
 			output, err := os.ReadFile(outputFile)
 			require.NoError(t, err)
 			if tt.expectRevoked {
-				assert.NotContains(t, searchQuery, "__type", "introspection is disabled in production")
 				assert.Contains(t, searchQuery, "includeRevoked: true")
 				assert.Contains(t, string(output), `"revokedBy": "admin"`)
 			} else {

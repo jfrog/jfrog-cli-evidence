@@ -37,37 +37,20 @@ const (
 		`}}}}`
 )
 
-// mockOnemodelManagerRevocation answers like the One-Model router: queries that use a field or argument
-// the schema lacks fail validation with every error listed in the response body.
+// mockOnemodelManagerRevocation answers like the One-Model router; with noAttachments set, queries that
+// select attachments fail schema validation.
 type mockOnemodelManagerRevocation struct {
-	supportsRevocation bool
-	noAttachments      bool
-	err                error
-	searchResponse     string
-	queries            []string
+	noAttachments  bool
+	searchResponse string
+	queries        []string
 }
 
 func (m *mockOnemodelManagerRevocation) GraphqlQuery(query []byte) ([]byte, error) {
 	q := string(query)
 	m.queries = append(m.queries, q)
-	if m.err != nil {
-		return nil, m.err
-	}
-	var messages []string
 	if m.noAttachments && strings.Contains(q, "attachments {") {
-		messages = append(messages, `Cannot query field \"attachments\" on type \"Evidence\".`)
-	}
-	if !m.supportsRevocation && strings.Contains(q, "revoked") {
-		if strings.Contains(q, "releaseBundleVersion") {
-			messages = append(messages, `Unknown argument \"where\" on field \"ReleaseBundleVersion.evidenceConnection\".`)
-		} else {
-			messages = append(messages, `Field \"includeRevoked\" is not defined by type \"EvidenceWhereInput\".`)
-		}
-		messages = append(messages, `Cannot query field \"revoked\" on type \"Evidence\".`)
-	}
-	if len(messages) > 0 {
-		return nil, fmt.Errorf("server response: 400 Bad Request\n{\"errors\":[{\"message\":\"%s\"}]}",
-			strings.Join(messages, `\"},{\"message\":\"`))
+		return nil, fmt.Errorf("server response: 400 Bad Request\n" +
+			`{"errors":[{"message":"Cannot query field \"attachments\" on type \"Evidence\"."}]}`)
 	}
 	return []byte(m.searchResponse), nil
 }
@@ -99,17 +82,17 @@ func newReleaseBundleGetter(includeRevoked bool) *getEvidenceReleaseBundle {
 func TestBuildQuery_WithoutIncludeRevoked_MatchesLegacyQuery(t *testing.T) {
 	custom, err := newCustomGetter(false).buildGraphqlQuery("generic-local/dir/app.tgz", true)
 	require.NoError(t, err)
-	expectedCustom := fmt.Sprintf(evidenceutils.BuildQuery(legacyCustomQueryTemplate, legacyNodeFieldsWithAttachments), "generic-local", "dir", "app.tgz")
+	expectedCustom := fmt.Sprintf(evidenceutils.BuildQuery(legacyCustomQueryTemplate, legacyNodeFieldsWithAttachments, nil), "generic-local", "dir", "app.tgz")
 	assert.Equal(t, expectedCustom, string(custom))
 
 	entity := newEntityGetter(false)
 	expectedEntity := fmt.Sprintf(evidenceutils.BuildQuery(legacyEntityQueryTemplate,
-		strings.Replace(legacyNodeFieldsWithAttachments, "subject { sha256 }", evidenceutils.FieldSubjectWithPath, 1)),
+		strings.Replace(legacyNodeFieldsWithAttachments, "subject { sha256 }", evidenceutils.FieldSubjectWithPath, 1), nil),
 		evidenceutils.BuildGraphQLEntityHasSubjectWith(entity.EntitySubject))
 	assert.Equal(t, expectedEntity, string(entity.buildGraphqlQuery(true)))
 
 	releaseBundle := newReleaseBundleGetter(false)
-	expectedReleaseBundle := fmt.Sprintf(evidenceutils.BuildQuery(legacyReleaseBundleQueryTemplate, legacyNodeFieldsWithAttachments),
+	expectedReleaseBundle := fmt.Sprintf(evidenceutils.BuildQuery(legacyReleaseBundleQueryTemplate, legacyNodeFieldsWithAttachments, nil),
 		"proj-release-bundles-v2", "my-rb", "1.0.0", "5")
 	assert.Equal(t, expectedReleaseBundle, string(releaseBundle.buildGraphqlQuery("my-rb", "1.0.0", true)))
 }
@@ -145,60 +128,19 @@ func TestBuildQuery_WithIncludeRevoked_ReleaseBundle(t *testing.T) {
 	assert.NotContains(t, query, "{{")
 }
 
-func TestGetEvidence_WithoutIncludeRevoked_SkipsFeatureDetection(t *testing.T) {
+func TestGetEvidence_WithoutIncludeRevoked_OmitsRevokedArgs(t *testing.T) {
 	manager := &mockOnemodelManagerRevocation{searchResponse: revokedSearchResponse}
 
 	_, err := newCustomGetter(false).getEvidence(manager)
 	require.NoError(t, err)
 
 	require.Len(t, manager.queries, 1)
-	assert.NotContains(t, manager.queries[0], "__type")
 	assert.NotContains(t, manager.queries[0], "includeRevoked")
 	assert.NotContains(t, manager.queries[0], "revoked")
 }
 
-func TestGetEvidence_IncludeRevoked_UnsupportedServer(t *testing.T) {
-	getters := map[string]func(*mockOnemodelManagerRevocation) error{
-		"custom": func(m *mockOnemodelManagerRevocation) error {
-			_, err := newCustomGetter(true).getEvidence(m)
-			return err
-		},
-		"entity": func(m *mockOnemodelManagerRevocation) error {
-			_, err := newEntityGetter(true).getEvidence(m)
-			return err
-		},
-		"release-bundle": func(m *mockOnemodelManagerRevocation) error {
-			_, err := newReleaseBundleGetter(true).getEvidence(m)
-			return err
-		},
-	}
-	for name, run := range getters {
-		t.Run(name, func(t *testing.T) {
-			manager := &mockOnemodelManagerRevocation{supportsRevocation: false, searchResponse: revokedSearchResponse}
-
-			err := run(manager)
-
-			assert.ErrorIs(t, err, evidenceutils.ErrEvidenceRevocationNotSupported)
-			assert.Contains(t, err.Error(), "--include-revoked requires an Evidence service version that supports revocation")
-			require.Len(t, manager.queries, 1)
-			assert.NotContains(t, manager.queries[0], "__type", "introspection is disabled in production")
-			assert.Contains(t, manager.queries[0], "includeRevoked")
-		})
-	}
-}
-
-func TestGetEvidence_IncludeRevoked_OldServerWithoutAttachments(t *testing.T) {
-	manager := &mockOnemodelManagerRevocation{noAttachments: true, searchResponse: revokedSearchResponse}
-
-	_, err := newCustomGetter(true).getEvidence(manager)
-
-	assert.ErrorIs(t, err, evidenceutils.ErrEvidenceRevocationNotSupported)
-	require.Len(t, manager.queries, 2, "the attachments fallback still runs before the revocation error is mapped")
-	assert.NotContains(t, manager.queries[1], "attachments {")
-}
-
 func TestGetEvidence_IncludeRevoked_ServerWithoutAttachmentsFallsBack(t *testing.T) {
-	manager := &mockOnemodelManagerRevocation{supportsRevocation: true, noAttachments: true, searchResponse: revokedSearchResponse}
+	manager := &mockOnemodelManagerRevocation{noAttachments: true, searchResponse: revokedSearchResponse}
 
 	result, err := newCustomGetter(true).getEvidence(manager)
 
@@ -208,24 +150,13 @@ func TestGetEvidence_IncludeRevoked_ServerWithoutAttachmentsFallsBack(t *testing
 	assert.Contains(t, string(result), `"revokedBy": "admin"`)
 }
 
-func TestGetEvidence_IncludeRevoked_OtherErrorsAreNotMapped(t *testing.T) {
-	manager := &mockOnemodelManagerRevocation{err: fmt.Errorf("server response: 503 Service Unavailable")}
-
-	_, err := newCustomGetter(true).getEvidence(manager)
-
-	require.Error(t, err)
-	assert.NotErrorIs(t, err, evidenceutils.ErrEvidenceRevocationNotSupported)
-	assert.Contains(t, err.Error(), "503")
-}
-
 func TestGetCustomEvidence_IncludeRevoked_PrintsRevokedEntries(t *testing.T) {
-	manager := &mockOnemodelManagerRevocation{supportsRevocation: true, searchResponse: revokedSearchResponse}
+	manager := &mockOnemodelManagerRevocation{searchResponse: revokedSearchResponse}
 
 	result, err := newCustomGetter(true).getEvidence(manager)
 	require.NoError(t, err)
 
 	require.Len(t, manager.queries, 1)
-	assert.NotContains(t, manager.queries[0], "__type")
 	assert.Contains(t, manager.queries[0], "includeRevoked: true")
 
 	var output CustomEvidenceOutput
@@ -249,7 +180,7 @@ func TestGetCustomEvidence_IncludeRevoked_PrintsRevokedEntries(t *testing.T) {
 }
 
 func TestGetEntityEvidence_IncludeRevoked_PrintsRevokedEntries(t *testing.T) {
-	manager := &mockOnemodelManagerRevocation{supportsRevocation: true, searchResponse: revokedSearchResponse}
+	manager := &mockOnemodelManagerRevocation{searchResponse: revokedSearchResponse}
 
 	result, err := newEntityGetter(true).getEvidence(manager)
 	require.NoError(t, err)
@@ -262,7 +193,7 @@ func TestGetEntityEvidence_IncludeRevoked_PrintsRevokedEntries(t *testing.T) {
 }
 
 func TestGetReleaseBundleEvidence_IncludeRevoked_PrintsRevokedEntries(t *testing.T) {
-	manager := &mockOnemodelManagerRevocation{supportsRevocation: true, searchResponse: revokedReleaseBundleResponse}
+	manager := &mockOnemodelManagerRevocation{searchResponse: revokedReleaseBundleResponse}
 
 	result, err := newReleaseBundleGetter(true).getEvidence(manager)
 	require.NoError(t, err)
@@ -309,9 +240,9 @@ func TestEvidenceEntry_NullRevocationFields(t *testing.T) {
 }
 
 func TestWriteEvidenceJsonl_IncludesRevokedFields(t *testing.T) {
-	customResult, err := newCustomGetter(true).getEvidence(&mockOnemodelManagerRevocation{supportsRevocation: true, searchResponse: revokedSearchResponse})
+	customResult, err := newCustomGetter(true).getEvidence(&mockOnemodelManagerRevocation{searchResponse: revokedSearchResponse})
 	require.NoError(t, err)
-	releaseBundleResult, err := newReleaseBundleGetter(true).getEvidence(&mockOnemodelManagerRevocation{supportsRevocation: true, searchResponse: revokedReleaseBundleResponse})
+	releaseBundleResult, err := newReleaseBundleGetter(true).getEvidence(&mockOnemodelManagerRevocation{searchResponse: revokedReleaseBundleResponse})
 	require.NoError(t, err)
 
 	tests := []struct {

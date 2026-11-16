@@ -6,8 +6,10 @@ import (
 	"github.com/jfrog/jfrog-cli-evidence/evidence/cli/command/flags"
 	"github.com/jfrog/jfrog-cli-evidence/evidence/cli/command/interface"
 	"github.com/jfrog/jfrog-cli-evidence/evidence/cli/command/utils"
+	"github.com/jfrog/jfrog-cli-evidence/evidence/client"
 	"github.com/jfrog/jfrog-cli-evidence/evidence/create"
 	"github.com/jfrog/jfrog-cli-evidence/evidence/get"
+	evidenceutils "github.com/jfrog/jfrog-cli-evidence/evidence/utils"
 	"github.com/jfrog/jfrog-cli-evidence/evidence/verify"
 	"github.com/jfrog/jfrog-client-go/utils/errorutils"
 )
@@ -51,6 +53,12 @@ func (ecc *evidenceCustomCommand) CreateEvidence(_ *components.Context, serverDe
 }
 
 func (ecc *evidenceCustomCommand) GetEvidence(_ *components.Context, serverDetails *config.ServerDetails) error {
+	if ecc.ctx.GetBoolFlagValue(flags.IncludeRevoked) {
+		if err := client.EnsureFeatureSupported(serverDetails, evidenceutils.FeatureEvidenceRevocation); err != nil {
+			return err
+		}
+	}
+
 	getCmd := get.NewGetEvidenceCustom(
 		serverDetails,
 		ecc.ctx.GetStringFlagValue(flags.SubjectRepoPath),

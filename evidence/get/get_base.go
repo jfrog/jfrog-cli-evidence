@@ -27,8 +27,9 @@ const (
 // Query template placeholders for the includeRevoked opt-in. They are replaced with an empty
 // string when --include-revoked is not set, so the query text stays as it was for older servers.
 const (
-	searchWhereArgsPlaceholder        = "{{SEARCH_WHERE_ARGS}}"
-	evidenceConnectionArgsPlaceholder = "{{EVIDENCE_CONNECTION_ARGS}}"
+	searchWhereArgsPlaceholder                = "{{SEARCH_WHERE_ARGS}}"
+	evidenceConnectionArgsPlaceholder         = "{{EVIDENCE_CONNECTION_ARGS}}"
+	artifactEvidenceConnectionArgsPlaceholder = "{{ARTIFACT_EVIDENCE_CONNECTION_ARGS}}"
 )
 
 type getEvidenceBase struct {
@@ -129,30 +130,25 @@ func graphqlQueryWithAttachmentsFallback(client onemodel.Manager, queryWithAttac
 	return client.GraphqlQuery(queryWithoutAttachments)
 }
 
-func (g *getEvidenceBase) queryEvidence(client onemodel.Manager, queryWithAttachments, queryWithoutAttachments []byte) ([]byte, error) {
-	response, err := graphqlQueryWithAttachmentsFallback(client, queryWithAttachments, queryWithoutAttachments)
-	if err != nil && g.includeRevoked && evidenceutils.IsRevocationNotSupported(err) {
-		log.Debug("GraphQL schema does not support evidence revocation:", err.Error())
-		return nil, evidenceutils.ErrEvidenceRevocationNotSupported
-	}
-	return response, err
-}
-
 func (g *getEvidenceBase) searchEvidence(client onemodel.Manager, queries searchEvidenceQueries) ([]EvidenceEntry, error) {
-	response, err := g.queryEvidence(client, queries.withAttachments, queries.withoutAttachments)
+	response, err := graphqlQueryWithAttachmentsFallback(client, queries.withAttachments, queries.withoutAttachments)
 	if err != nil {
 		return nil, err
 	}
 	return evidenceEntriesFromSearchResponse(response, g.includePredicate)
 }
 
-func (g *getEvidenceBase) applyRevokedArgs(template string) string {
+// revokedFragments fills the includeRevoked placeholders, with empty fragments when --include-revoked is off.
+func (g *getEvidenceBase) revokedFragments() map[string]string {
 	searchWhereArgs := ""
 	if g.includeRevoked {
 		searchWhereArgs = ", " + evidenceutils.IncludeRevokedArgument
 	}
-	template = strings.ReplaceAll(template, searchWhereArgsPlaceholder, searchWhereArgs)
-	return strings.ReplaceAll(template, evidenceConnectionArgsPlaceholder, g.evidenceConnectionArgs())
+	return map[string]string{
+		searchWhereArgsPlaceholder:                searchWhereArgs,
+		evidenceConnectionArgsPlaceholder:         g.evidenceConnectionArgs(),
+		artifactEvidenceConnectionArgsPlaceholder: g.evidenceConnectionArgs("first: 0"),
+	}
 }
 
 func (g *getEvidenceBase) evidenceConnectionArgs(args ...string) string {

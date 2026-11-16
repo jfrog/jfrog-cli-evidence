@@ -116,7 +116,7 @@ func (g *getEvidenceCustom) buildGraphqlQuery(subjectRepoPath string, includeAtt
 		return nil, err
 	}
 	nodeFields := g.buildSearchEvidenceNodeFields(evidenceutils.FieldSubjectSha256, includeAttachments)
-	queryTemplate := g.applyRevokedArgs(evidenceutils.BuildQuery(getCustomEvidenceQueryTemplate, nodeFields))
+	queryTemplate := evidenceutils.BuildQuery(getCustomEvidenceQueryTemplate, nodeFields, g.revokedFragments())
 	graphqlQuery := fmt.Sprintf(queryTemplate, evidenceutils.EscapeGraphQLString(repoKey), evidenceutils.EscapeGraphQLString(pathVal), evidenceutils.EscapeGraphQLString(name))
 	log.Debug("GraphQL query: ", graphqlQuery)
 	return []byte(graphqlQuery), nil

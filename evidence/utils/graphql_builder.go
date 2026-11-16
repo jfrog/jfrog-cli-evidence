@@ -56,8 +56,13 @@ func (b *NodeFieldsBuilder) Build() string {
 	return strings.Join(b.fields, " ")
 }
 
-// BuildQuery replaces every occurrence of NodeFieldsPlaceholder in template
-// with the provided nodeFields string.
-func BuildQuery(template, nodeFields string) string {
-	return strings.ReplaceAll(template, NodeFieldsPlaceholder, nodeFields)
+// BuildQuery replaces every occurrence of NodeFieldsPlaceholder in template with nodeFields,
+// then every occurrence of each fragments key with its value. Pass an empty value to drop an
+// optional fragment.
+func BuildQuery(template, nodeFields string, fragments map[string]string) string {
+	query := strings.ReplaceAll(template, NodeFieldsPlaceholder, nodeFields)
+	for placeholder, fragment := range fragments {
+		query = strings.ReplaceAll(query, placeholder, fragment)
+	}
+	return query
 }

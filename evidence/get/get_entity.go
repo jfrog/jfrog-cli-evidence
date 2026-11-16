@@ -116,7 +116,7 @@ func (g *getEvidenceEntity) marshalEvidence(evidenceArray []EvidenceEntry) ([]by
 func (g *getEvidenceEntity) buildGraphqlQuery(includeAttachments bool) []byte {
 	nodeFields := g.buildSearchEvidenceNodeFields(evidenceutils.FieldSubjectWithPath, includeAttachments)
 	whereClause := evidenceutils.BuildGraphQLEntityHasSubjectWith(g.EntitySubject)
-	queryTemplate := g.applyRevokedArgs(evidenceutils.BuildQuery(getEntityEvidenceQueryTemplate, nodeFields))
+	queryTemplate := evidenceutils.BuildQuery(getEntityEvidenceQueryTemplate, nodeFields, g.revokedFragments())
 	graphqlQuery := fmt.Sprintf(queryTemplate, whereClause)
 	log.Debug("GraphQL query: ", graphqlQuery)
 	return []byte(graphqlQuery)

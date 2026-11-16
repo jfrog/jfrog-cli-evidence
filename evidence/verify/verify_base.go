@@ -194,5 +194,5 @@ func (v *verifyEvidenceBase) buildSearchEvidenceQuery(includeAttachments bool) s
 		WithIf(includeAttachments, evidenceutils.AttachmentsFragment).
 		WithIf(v.useArtifactoryKeys, evidenceutils.FieldSigningKeyWithPublicKey).
 		Build()
-	return evidenceutils.BuildQuery(searchEvidenceQueryTemplate, nodeFields)
+	return evidenceutils.BuildQuery(searchEvidenceQueryTemplate, nodeFields, nil)
 }
