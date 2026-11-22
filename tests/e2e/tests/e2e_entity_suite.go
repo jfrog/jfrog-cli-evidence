@@ -85,10 +85,10 @@ func ensureProjectGitCommitEntityRepo(t *testing.T, r *EvidenceE2ETestsRunner) {
 	utils.EnsureEntityRepository(t, r.ServicesManager, utils.ProjectEntityRepoKey(e2e.ProjectKey, entityTypeGitCommit), e2e.ProjectKey)
 }
 
-func ensureProjectApplicationEntityRepo(t *testing.T, r *EvidenceE2ETestsRunner) {
+func ensureApplicationEntityRepo(t *testing.T, r *EvidenceE2ETestsRunner, applicationKey string) {
 	t.Helper()
 	require.NotEmpty(t, e2e.ProjectKey, "Project key must be available from bootstrap")
-	utils.EnsureEntityRepository(t, r.ServicesManager, utils.ProjectEntityRepoKey(e2e.ProjectKey, entityTypeApplication), e2e.ProjectKey)
+	utils.EnsureEntityRepository(t, r.ServicesManager, utils.ApplicationEntityRepoKey(applicationKey, entityTypeApplication), e2e.ProjectKey)
 }
 
 // registerEntityEvidenceCleanup deletes the entity subjects discovered from get output.
@@ -211,21 +211,26 @@ func (r *EvidenceE2ETestsRunner) RunCreateEvidenceForEntityWithProject(t *testin
 }
 
 // RunCreateEvidenceForApplicationEntity exercises the bare --application-key shorthand
-// (entity-type=application, AppTrust-resolved project scope) for create, get, and verify.
+// (entity-type=application, repository {application-key}-application-entity) for create, get, and verify.
 func (r *EvidenceE2ETestsRunner) RunCreateEvidenceForApplicationEntity(t *testing.T) {
 	t.Log("=== Create Evidence - Application Entity (--application-key shorthand) ===")
 	requireSharedKeys(t)
 
-	ensureProjectApplicationEntityRepo(t, r)
 	tempDir := t.TempDir()
 	var getOutput string
 
 	t.Log("Step 1: Creating AppTrust application...")
 	applicationKey, applicationName := utils.CreateTestApplication(t, r.ServicesManager, e2e.ProjectKey)
-	// Cleanups run in reverse order of registration, so the evidence is removed before the
-	// application that owns it.
 	t.Cleanup(func() {
 		utils.CleanupTestApplication(t, r.ServicesManager, applicationKey, e2e.ProjectKey)
+	})
+	ensureApplicationEntityRepo(t, r, applicationKey)
+	repoKey := utils.ApplicationEntityRepoKey(applicationKey, entityTypeApplication)
+	t.Cleanup(func() {
+		t.Logf("Cleaning up repository: %s", repoKey)
+		if err := r.ServicesManager.DeleteRepository(repoKey); err != nil {
+			t.Logf("Warning: Failed to delete repository %s: %v", repoKey, err)
+		}
 	})
 	registerEntityEvidenceCleanup(t, r, &getOutput)
 	t.Logf("✓ Application created: %s (%s)", applicationKey, applicationName)
@@ -262,6 +267,8 @@ func (r *EvidenceE2ETestsRunner) RunCreateEvidenceForApplicationEntity(t *testin
 	t.Logf("Get evidence output: %s", getOutput)
 	require.Contains(t, getOutput, entityTypeApplication, "Output should include application entity type")
 	require.Contains(t, getOutput, applicationKey, "Output should include application key as entity id")
+	require.Contains(t, getOutput, utils.ApplicationEntityRepoKey(applicationKey, entityTypeApplication),
+		"Evidence should be stored in the application-key repository")
 	t.Log("✅ Evidence retrieved with application-key shorthand")
 
 	t.Log("Step 5: Verifying evidence with bare --application-key...")

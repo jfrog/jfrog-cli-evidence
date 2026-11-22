@@ -64,22 +64,3 @@ func TestBuildGraphQLEntityHasSubjectWith(t *testing.T) {
 		})
 	}
 }
-
-func TestResolveApplicationEntityProjectKey_SkipsWhenNotNeeded(t *testing.T) {
-	subject := &model.EntitySubject{
-		EntityType: "gitCommit",
-		EntityID:   "abc123",
-	}
-	assert.NoError(t, ResolveApplicationEntityProjectKey(nil, subject))
-	assert.Empty(t, subject.ProjectKey)
-
-	subject = &model.EntitySubject{
-		EntityType: "application",
-		EntityID:   "my-app",
-		ProjectKey: "already-set",
-	}
-	assert.NoError(t, ResolveApplicationEntityProjectKey(nil, subject))
-	assert.Equal(t, "already-set", subject.ProjectKey)
-
-	assert.NoError(t, ResolveApplicationEntityProjectKey(nil, nil))
-}

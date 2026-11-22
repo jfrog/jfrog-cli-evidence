@@ -19,7 +19,7 @@ Prerequisites:
 - A configured JFrog Platform server (jf c add or jf login). Basic auth is rejected; use --access-token or a configured server-id.
 - A private signing key supplied via --key (path or PEM body) or the JFROG_CLI_SIGNING_KEY env variable. Supported: ecdsa, rsa, ed25519.
 - Exactly one subject: --subject-repo-path, --build-name/--build-number (or JFROG_CLI_BUILD_NAME/_NUMBER), --package-name/--package-version/--package-repo-name, --release-bundle/--release-bundle-version, --application-key/--application-version, --entity-type/--entity-id, or bare --application-key (application entity).
-- For entity subjects, exactly one of --project, --application-key, or --entity-repo may be set to calculate the Artifactory repository name: --entity-repo uses that key as-is; --project → {project}-{entity-type}-entity; --application-key → {application-key}-{entity-type}-entity; omit all three to default to {entity-type}-entity.
+- For entity subjects, exactly one of --project, --application-key, or --entity-repo may be set to calculate the Artifactory repository name: --entity-repo uses that key as-is; --project → {project}-{entity-type}-entity; --application-key → {application-key}-{entity-type}-entity; omit all three to default to {entity-type}-entity. --entity-type application with --entity-id and no scope flags uses the entity id as the application key, so the repository is {entity-id}-application-entity.
 - For attachments: --attach-artifactory-temp-path (or EVIDENCE_ATTACHMENT_ARTIFACTORY_TEMP_PATH config) when using --attach-local.
 - For sonar integration: SONAR_TOKEN or SONARQUBE_TOKEN, an HTTPS SonarQube URL, and a report-task.txt from a completed scan. Set the URL with --sonar-url, SONAR_URL, or SONAR_HOST_URL.
 
@@ -37,7 +37,7 @@ Common patterns:
 Gotchas:
 - --sigstore-bundle is mutually exclusive with --key, --key-alias, --predicate, --predicate-type, --subject-sha256 and all --attach-* flags (values are extracted from the bundle). With --entity-type/--entity-id the bundle is uploaded to the entity endpoint; the statement subject digest must use the entity type key (for example gitCommit), not sha256.
 - Specifying multiple subjects in one invocation is an error, except the documented --type + --build-name (gh-committer) combination.
-- Bare --application-key (without --application-version) creates entity evidence for the application and auto-resolves its project.
+- Bare --application-key (without --application-version) creates entity evidence for the application in {application-key}-application-entity. --project or --entity-repo replaces that repository scope; the application key stays the entity id.
 - --attach-local uploads the file to --attach-artifactory-temp-path first; once set, the temp path is persisted in the evidence config for subsequent runs.
 - Evidence services reject basic authentication; only access tokens work.
 - --integration sonar and --sonar-url both start the Sonar flow. --sonar-url selects --integration sonar when --integration is omitted, and it cannot be combined with another --integration value. --predicate and --predicate-type must be omitted; the predicate is generated from the SonarQube report.

@@ -64,10 +64,6 @@ func (g *getEvidenceEntity) ServerDetails() (*config.ServerDetails, error) {
 }
 
 func (g *getEvidenceEntity) Run() error {
-	if err := evidenceutils.ResolveApplicationEntityProjectKey(g.serverDetails, &g.EntitySubject); err != nil {
-		return err
-	}
-
 	onemodelClient, err := utils.CreateOnemodelServiceManager(g.serverDetails, false)
 	if err != nil {
 		log.Error("failed to create onemodel client", err)

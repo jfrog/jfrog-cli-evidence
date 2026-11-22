@@ -33,10 +33,6 @@ func NewVerifyEvidenceEntity(serverDetails *config.ServerDetails, entityType, en
 func (v *verifyEvidenceEntity) Run() error {
 	defer v.quitProgress()
 
-	if err := evidenceutils.ResolveApplicationEntityProjectKey(v.serverDetails, &v.EntitySubject); err != nil {
-		return err
-	}
-
 	client, err := v.createArtifactoryClient()
 	if err != nil {
 		return fmt.Errorf("failed to create Artifactory client: %w", err)
