@@ -122,8 +122,8 @@ func (c *createEvidenceBuild) recordSummary(subject string, sha256 string, respo
 }
 
 func buildBuildInfoPath(repoKey string, name string, number string, timestamp string) string {
-	jsonFile := utils.BuildInfoFileName(number, timestamp)
-	return fmt.Sprintf("%s/%s/%s", repoKey, name, jsonFile)
+	jsonFile := utils.BuildInfoFileName(utils.EncodeForBuildInfoRepository(number), timestamp)
+	return fmt.Sprintf("%s/%s/%s", repoKey, utils.EncodeForBuildInfoRepository(name), jsonFile)
 }
 
 func getBuildInfoPathChecksum(buildInfoPath string, artifactoryClient artifactory.ArtifactoryServicesManager) (string, error) {

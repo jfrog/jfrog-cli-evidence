@@ -24,6 +24,9 @@ func (r *EvidenceE2ETestsRunner) RunCreateEvidenceSuite(t *testing.T) {
 	t.Run("ForBuild", func(t *testing.T) {
 		r.RunCreateEvidenceForBuild(t)
 	})
+	t.Run("ForBuildNameWithSlash", func(t *testing.T) {
+		r.RunCreateEvidenceForBuildNameWithSlash(t)
+	})
 	t.Run("ForBuildWithProject", func(t *testing.T) {
 		r.RunCreateEvidenceForBuildWithProject(t)
 	})
@@ -185,6 +188,69 @@ func (r *EvidenceE2ETestsRunner) RunCreateEvidenceForBuild(t *testing.T) {
 	t.Log("✅ Evidence verified successfully!")
 
 	t.Log("=== ✅ Create Evidence for Build Test Completed Successfully! ===")
+}
+
+func (r *EvidenceE2ETestsRunner) RunCreateEvidenceForBuildNameWithSlash(t *testing.T) {
+	t.Log("=== Create Evidence - Build Name With Slash Test ===")
+
+	if SharedPrivateKeyPath == "" || SharedPublicKeyPath == "" {
+		t.Errorf("Shared key pair not initialized. Ensure PrepareTestsData() was called.")
+	}
+	t.Logf("Using shared key pair: %s (alias: %s)", SharedPrivateKeyPath, SharedKeyAlias)
+
+	tempDir := t.TempDir()
+
+	t.Log("Step 1: Creating build info whose name contains a slash...")
+	buildName := fmt.Sprintf("e2e-%d/module", time.Now().UnixNano())
+	buildNumber := utils.CreateTestBuildInfoWithName(t, r.ServicesManager, "", buildName)
+	t.Logf("✓ Build info created: %s/%s", buildName, buildNumber)
+
+	t.Log("Step 2: Creating predicate...")
+	predicate := map[string]interface{}{
+		"buildType":   "build-slash-test",
+		"timestamp":   time.Now().Unix(),
+		"environment": "e2e-test",
+		"buildName":   buildName,
+		"buildNumber": buildNumber,
+	}
+	predicateBytes, err := json.MarshalIndent(predicate, "", "  ")
+	require.NoError(t, err)
+	predicatePath := filepath.Join(tempDir, "predicate.json")
+	err = os.WriteFile(predicatePath, predicateBytes, 0644)
+	require.NoError(t, err)
+	t.Log("✓ Predicate created")
+
+	t.Log("Step 3: Creating evidence for build...")
+	createOutput := RunCliCmdWithStdOutputAndErrOutput(t, r.EvidenceUserCLI,
+		"create",
+		"--predicate", predicatePath,
+		"--predicate-type", "https://slsa.dev/provenance/v1",
+		"--build-name", buildName,
+		"--build-number", buildNumber,
+		"--key", SharedPrivateKeyPath,
+		"--key-alias", SharedKeyAlias,
+	)
+	t.Logf("Evidence creation output: %s", createOutput)
+	require.NotContains(t, createOutput, "does not exist", "Build info storage path should resolve when the build name contains a slash")
+	require.NotContains(t, createOutput, "Unable to find item", "Build info JSON should be found at the encoded storage path")
+	require.NotContains(t, createOutput, "Error", "Evidence creation should not error")
+	require.NotContains(t, createOutput, "Failed", "Evidence creation should not fail")
+	require.Contains(t, createOutput, "Evidence successfully created", "Evidence should be created for the slash build name")
+	t.Log("✓ Evidence created successfully")
+
+	t.Log("Step 4: Verifying evidence using admin token")
+	verifyOutput := RunCliCmdWithStdOutputAndErrOutput(t, r.EvidenceAdminCLI,
+		"verify",
+		"--build-name", buildName,
+		"--build-number", buildNumber,
+		"--public-keys", SharedPublicKeyPath,
+	)
+	t.Logf("Verification output: %s", verifyOutput)
+	require.NotContains(t, verifyOutput, "no build found", "Verify should resolve a build name that contains a slash")
+	require.Contains(t, verifyOutput, buildName, "Evidence should be verified")
+	t.Log("✅ Evidence verified successfully!")
+
+	t.Log("=== ✅ Create Evidence for Build Name With Slash Test Completed Successfully! ===")
 }
 
 // RunCreateEvidenceForReleaseBundle tests creating evidence for a release bundle

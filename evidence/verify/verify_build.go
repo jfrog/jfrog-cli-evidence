@@ -42,6 +42,7 @@ func (v *verifyEvidenceBuild) Run() error {
 	}
 
 	repoKey := utils.BuildBuildInfoRepoKey(v.project)
+	buildPath := utils.EncodeForBuildInfoRepository(v.buildName)
 
 	v.setHeadline("Searching build")
 	subjectFileName, buildInfoSha256, err := v.findBuildInfoFile(client, repoKey)
@@ -49,12 +50,12 @@ func (v *verifyEvidenceBuild) Run() error {
 		return err
 	}
 
-	metadata, err := v.queryEvidenceMetadata(repoKey, v.buildName, subjectFileName)
+	metadata, err := v.queryEvidenceMetadata(repoKey, buildPath, subjectFileName)
 	if err != nil {
 		return err
 	}
 
-	subjectPath := fmt.Sprintf("%s/%s/%s", repoKey, v.buildName, subjectFileName)
+	subjectPath := fmt.Sprintf("%s/%s/%s", repoKey, buildPath, subjectFileName)
 	return v.verifyEvidence(client, metadata, model.SubjectDigest{Type: model.Sha256DigestType, Value: buildInfoSha256}, subjectPath)
 }
 
@@ -72,8 +73,8 @@ func (v *verifyEvidenceBuild) findBuildInfoFile(client *artifactory.ArtifactoryS
 		return "", "", err
 	}
 
-	fileName := utils.BuildInfoFileName(v.buildNumber, timestamp)
-	query, err := utils.FormatAqlQuery(aqlBuildInfoFileQueryTemplate, repoKey, v.buildName, fileName)
+	fileName := utils.BuildInfoFileName(utils.EncodeForBuildInfoRepository(v.buildNumber), timestamp)
+	query, err := utils.FormatAqlQuery(aqlBuildInfoFileQueryTemplate, repoKey, utils.EncodeForBuildInfoRepository(v.buildName), fileName)
 	if err != nil {
 		return "", "", err
 	}

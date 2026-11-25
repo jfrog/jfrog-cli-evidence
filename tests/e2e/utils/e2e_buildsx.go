@@ -12,27 +12,36 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// CreateTestBuildInfo creates a test build info in Artifactory with artifacts and publishes it
-// Returns build name and build number
+// CreateTestBuildInfo creates a test build info in Artifactory with artifacts and publishes it.
+// Returns build name and build number.
 func CreateTestBuildInfo(t *testing.T, servicesManager artifactory.ArtifactoryServicesManager, project string) (string, string) {
 	t.Helper()
 
 	buildName := fmt.Sprintf("test-build-%d", time.Now().UnixNano())
-	buildNumber := fmt.Sprintf("%d", time.Now().Unix())
+	buildNumber := createTestBuildInfo(t, servicesManager, project, buildName, false)
+	return buildName, buildNumber
+}
 
+// CreateTestBuildInfoWithName publishes a build with the given name and returns its build number.
+// Unlike CreateTestBuildInfo, a failed publish fails the test.
+func CreateTestBuildInfoWithName(t *testing.T, servicesManager artifactory.ArtifactoryServicesManager, project, buildName string) string {
+	t.Helper()
+	return createTestBuildInfo(t, servicesManager, project, buildName, true)
+}
+
+func createTestBuildInfo(t *testing.T, servicesManager artifactory.ArtifactoryServicesManager, project, buildName string, requirePublish bool) string {
+	t.Helper()
+
+	buildNumber := fmt.Sprintf("%d", time.Now().UnixNano())
 	t.Logf("Creating test build info: %s/%s", buildName, buildNumber)
 
-	// Create a repository for build artifacts
 	repoName := CreateTestRepositoryWithProject(t, servicesManager, "generic", project)
 
-	// Upload artifacts to the repository using JFrog CLI with build info association
-	// This ensures proper build-artifact linkage required for release bundles
 	artifactContent := fmt.Sprintf("Build artifact for %s/%s - timestamp: %d", buildName, buildNumber, time.Now().Unix())
 	artifactPath := CreateTestArtifact(t, artifactContent)
 	artifactFileName := filepath.Base(artifactPath)
 	repoPath := fmt.Sprintf("%s/%s", repoName, artifactFileName)
 
-	// Use jfrog CLI to upload with build info
 	uploadArgs := []string{
 		"rt", "upload",
 		artifactPath,
@@ -51,21 +60,23 @@ func CreateTestBuildInfo(t *testing.T, servicesManager artifactory.ArtifactorySe
 
 	t.Logf("✓ Build artifacts uploaded for build: %s/%s", buildName, buildNumber)
 
-	// Publish build info using JFrog CLI rt build-publish command
-	// This is necessary because the evidence CLI create command expects build info to exist
-	publishBuildInfo(t, buildName, buildNumber, project)
+	err = publishBuildInfo(t, buildName, buildNumber, project)
+	if requirePublish {
+		require.NoError(t, err)
+	} else if err != nil {
+		t.Logf("Warning: Failed to publish build info using JFrog CLI: %v", err)
+		t.Logf("Build info may still be accessible through build properties")
+	}
 
-	// Register cleanup to delete build info after test
 	t.Cleanup(func() {
 		t.Log("Cleaning up build info...")
 		DeleteTestBuildInfo(t, buildName)
 	})
 
-	return buildName, buildNumber
+	return buildNumber
 }
 
-// publishBuildInfo publishes build info using JFrog CLI rt build-publish command
-func publishBuildInfo(t *testing.T, buildName, buildNumber, project string) {
+func publishBuildInfo(t *testing.T, buildName, buildNumber, project string) error {
 	t.Helper()
 
 	args := []string{
@@ -78,21 +89,16 @@ func publishBuildInfo(t *testing.T, buildName, buildNumber, project string) {
 		args = append(args, "--project", project)
 	}
 
-	// Run jfrog CLI command
 	cmd := exec.Command("jfrog", args...)
-	// Use the same server ID that was configured during bootstrap
 	cmd.Env = os.Environ()
 
 	output, err := cmd.CombinedOutput()
 	if err != nil {
-		// If jfrog CLI is not available or command fails, log warning but don't fail
-		// The build info might still work if artifacts were uploaded with build properties
-		t.Logf("Warning: Failed to publish build info using JFrog CLI: %v, output: %s", err, string(output))
-		t.Logf("Build info may still be accessible through build properties")
-		return
+		return fmt.Errorf("publish build info %s/%s: %w, output: %s", buildName, buildNumber, err, string(output))
 	}
 
 	t.Logf("✓ Build info published: %s/%s", buildName, buildNumber)
+	return nil
 }
 
 // DeleteTestBuildInfo deletes a test build info from Artifactory
