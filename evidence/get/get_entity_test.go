@@ -70,9 +70,11 @@ func TestGetEvidenceEntity_QueryError(t *testing.T) {
 }
 
 func TestNewGetEvidenceEntity(t *testing.T) {
-	cmd := NewGetEvidenceEntity(&config.ServerDetails{Url: "https://example.jfrog.io/"}, "gitCommit", "abc", "", "proj", "", "json", "", false)
+	cmd := NewGetEvidenceEntity(&config.ServerDetails{Url: "https://example.jfrog.io/"}, "gitCommit", "abc", "", "proj", "", "json", "", false, true)
 	entityCmd, ok := cmd.(*getEvidenceEntity)
 	require.True(t, ok)
+	assert.False(t, entityCmd.includePredicate)
+	assert.True(t, entityCmd.includeRevoked)
 	assert.Equal(t, "get-entity-evidence", entityCmd.CommandName())
 	assert.Equal(t, "gitCommit", entityCmd.EntityType)
 	assert.Equal(t, "abc", entityCmd.EntityID)

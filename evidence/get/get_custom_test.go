@@ -70,7 +70,7 @@ func validateEmptyEvidence(t *testing.T, result []byte) {
 // TestNewGetEvidenceCustom
 func TestNewGetEvidenceCustom(t *testing.T) {
 	serverDetails := &config.ServerDetails{}
-	cmd := NewGetEvidenceCustom(serverDetails, "repo/path", "json", "output.json", true)
+	cmd := NewGetEvidenceCustom(serverDetails, "repo/path", "json", "output.json", true, true)
 
 	// Verify it's of the expected type
 	evidenceCustom, ok := cmd.(*getEvidenceCustom)
@@ -81,6 +81,7 @@ func TestNewGetEvidenceCustom(t *testing.T) {
 	assert.Equal(t, "json", evidenceCustom.format)
 	assert.Equal(t, "output.json", evidenceCustom.outputFileName)
 	assert.True(t, evidenceCustom.includePredicate)
+	assert.True(t, evidenceCustom.includeRevoked)
 }
 
 // Test getEvidence method
