@@ -468,23 +468,34 @@ func getAndValidateSubject(ctx *components.Context) ([]string, error) {
 	return foundSubjects, nil
 }
 
-// applyApplicationEntityShorthand maps bare --application-key (without --application-version)
-// to entity evidence on subject_type=application.
+// applyApplicationEntityShorthand maps an application entity onto --entity-type=application.
+// The application key is the repository scope ({application-key}-application-entity) unless
+// --project or --entity-repo is set, in which case that explicit scope is kept and the key
+// is used only as the entity id.
 //
-// When --entity-type is set to a non-application type, --application-key is left alone so it can
-// be used as entity scope. When the command is treated as the application-entity shorthand,
-// --entity-type must be empty or "application", and --entity-id must be empty or equal to the
-// application key.
+// When --entity-type is a non-application type, --application-key is left as that entity's scope.
+// A bare --application-key requires --entity-type to be empty or "application", and --entity-id
+// to be empty or equal to the application key.
 func applyApplicationEntityShorthand(ctx *components.Context) error {
-	applicationKey := ctx.GetStringFlagValue(flags.ApplicationKey)
-	applicationVersion := ctx.GetStringFlagValue(flags.ApplicationVersion)
-	if applicationKey == "" || applicationVersion != "" {
+	if ctx.GetStringFlagValue(flags.ApplicationVersion) != "" {
 		return nil
 	}
 
+	applicationKey := ctx.GetStringFlagValue(flags.ApplicationKey)
 	entityType := ctx.GetStringFlagValue(flags.EntityType)
+	if applicationKey == "" {
+		if entityType != "application" || ctx.GetStringFlagValue(flags.Project) != "" || ctx.GetStringFlagValue(flags.EntityRepo) != "" {
+			return nil
+		}
+		entityID := ctx.GetStringFlagValue(flags.EntityId)
+		if entityID == "" {
+			return nil
+		}
+		ctx.AddStringFlag(flags.ApplicationKey, entityID)
+		return nil
+	}
+
 	if entityType != "" && entityType != "application" {
-		// --application-key is being used as scope for a non-application entity.
 		return nil
 	}
 
@@ -502,7 +513,9 @@ func applyApplicationEntityShorthand(ctx *components.Context) error {
 
 	ctx.AddStringFlag(flags.EntityType, "application")
 	ctx.AddStringFlag(flags.EntityId, applicationKey)
-	ctx.SetStringFlagValue(flags.ApplicationKey, "")
+	if ctx.GetStringFlagValue(flags.Project) != "" || ctx.GetStringFlagValue(flags.EntityRepo) != "" {
+		ctx.SetStringFlagValue(flags.ApplicationKey, "")
+	}
 	return nil
 }
 

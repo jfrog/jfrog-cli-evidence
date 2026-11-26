@@ -58,10 +58,6 @@ func (c *createEvidenceEntity) ServerDetails() (*config.ServerDetails, error) {
 }
 
 func (c *createEvidenceEntity) Run() error {
-	if err := evidenceUtils.ResolveApplicationEntityProjectKey(c.serverDetails, &c.EntitySubject); err != nil {
-		return err
-	}
-
 	if c.sigstoreBundlePath != "" {
 		return c.runWithSigstoreBundle()
 	}

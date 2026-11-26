@@ -26,6 +26,12 @@ func ProjectEntityRepoKey(projectKey, entityType string) string {
 	return projectKey + "-" + entityType + "-entity"
 }
 
+// ApplicationEntityRepoKey returns the application-scope entity repository key:
+// {applicationKey}-{entityType}-entity.
+func ApplicationEntityRepoKey(applicationKey, entityType string) string {
+	return applicationKey + "-" + entityType + "-entity"
+}
+
 // EnsureEntityRepository creates a generic local repository for entity evidence if it does
 // not already exist. Fixed-name entity repos are left in place across runs; they are not
 // cleaned up.

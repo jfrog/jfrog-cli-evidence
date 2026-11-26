@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/jfrog/jfrog-cli-core/v2/utils/config"
 	evidenceutils "github.com/jfrog/jfrog-cli-evidence/evidence/utils"
@@ -23,11 +24,20 @@ const (
 	EntityType        SubjectType = "entity"
 )
 
+// Query template placeholders for the includeRevoked opt-in. They are replaced with an empty
+// string when --include-revoked is not set, so the query text stays as it was for older servers.
+const (
+	searchWhereArgsPlaceholder                = "{{SEARCH_WHERE_ARGS}}"
+	evidenceConnectionArgsPlaceholder         = "{{EVIDENCE_CONNECTION_ARGS}}"
+	artifactEvidenceConnectionArgsPlaceholder = "{{ARTIFACT_EVIDENCE_CONNECTION_ARGS}}"
+)
+
 type getEvidenceBase struct {
 	serverDetails    *config.ServerDetails
 	outputFileName   string
 	format           string
 	includePredicate bool
+	includeRevoked   bool
 }
 
 type searchEvidenceQueries struct {
@@ -46,6 +56,9 @@ type EvidenceEntry struct {
 	PredicateType string               `json:"predicateType,omitempty"`
 	DownloadPath  string               `json:"downloadPath"`
 	Verified      bool                 `json:"verified"`
+	Revoked       *bool                `json:"revoked,omitempty"`
+	RevokedAt     string               `json:"revokedAt,omitempty"`
+	RevokedBy     string               `json:"revokedBy,omitempty"`
 	SigningKey    map[string]any       `json:"signingKey,omitempty"`
 	Subject       map[string]any       `json:"subject"`
 	CreatedBy     string               `json:"createdBy"`
@@ -125,6 +138,29 @@ func (g *getEvidenceBase) searchEvidence(client onemodel.Manager, queries search
 	return evidenceEntriesFromSearchResponse(response, g.includePredicate)
 }
 
+// revokedFragments fills the includeRevoked placeholders, with empty fragments when --include-revoked is off.
+func (g *getEvidenceBase) revokedFragments() map[string]string {
+	searchWhereArgs := ""
+	if g.includeRevoked {
+		searchWhereArgs = ", " + evidenceutils.IncludeRevokedArgument
+	}
+	return map[string]string{
+		searchWhereArgsPlaceholder:                searchWhereArgs,
+		evidenceConnectionArgsPlaceholder:         g.evidenceConnectionArgs(),
+		artifactEvidenceConnectionArgsPlaceholder: g.evidenceConnectionArgs("first: 0"),
+	}
+}
+
+func (g *getEvidenceBase) evidenceConnectionArgs(args ...string) string {
+	if g.includeRevoked {
+		args = append(args, evidenceutils.IncludeRevokedWhereArgument)
+	}
+	if len(args) == 0 {
+		return ""
+	}
+	return "(" + strings.Join(args, ", ") + ")"
+}
+
 func (g *getEvidenceBase) buildSearchEvidenceNodeFields(subjectField string, includeAttachments bool) string {
 	return evidenceutils.NewNodeFieldsBuilder(
 		evidenceutils.FieldPredicateSlug,
@@ -138,6 +174,8 @@ func (g *getEvidenceBase) buildSearchEvidenceNodeFields(subjectField string, inc
 	).
 		WithIf(includeAttachments, evidenceutils.AttachmentsFragment).
 		WithIf(g.includePredicate, evidenceutils.FieldPredicate).
+		WithIf(g.includeRevoked, evidenceutils.FieldRevoked).
+		WithIf(g.includeRevoked, evidenceutils.FieldRevocation).
 		Build()
 }
 
@@ -368,6 +406,15 @@ func createOrderedEvidenceEntry(node map[string]any, includePredicate bool) Evid
 
 	if verified, ok := node["verified"].(bool); ok {
 		entry.Verified = verified
+	}
+
+	if revoked, ok := node["revoked"].(bool); ok {
+		entry.Revoked = &revoked
+	}
+
+	if revocation, ok := node["revocation"].(map[string]any); ok {
+		entry.RevokedAt, _ = revocation["revokedAt"].(string)
+		entry.RevokedBy, _ = revocation["revokedBy"].(string)
 	}
 
 	if signingKeyRaw, exists := node["signingKey"]; exists && signingKeyRaw != nil {

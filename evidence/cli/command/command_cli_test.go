@@ -614,14 +614,15 @@ func TestGetAndValidateSubject_Entity(t *testing.T) {
 	ctx := cli.NewContext(app, &flag.FlagSet{}, nil)
 
 	tests := []struct {
-		name             string
-		flags            []components.Flag
-		expectError      bool
-		errorContains    string
-		expectedSubject  []string
-		expectEntityType string
-		expectEntityID   string
-		clearedAppKey    bool
+		name                 string
+		flags                []components.Flag
+		expectError          bool
+		errorContains        string
+		expectedSubject      []string
+		expectEntityType     string
+		expectEntityID       string
+		expectApplicationKey string
+		checkApplicationKey  bool
 	}{
 		{
 			name: "EntityType_WithEntityId",
@@ -648,10 +649,11 @@ func TestGetAndValidateSubject_Entity(t *testing.T) {
 			flags: []components.Flag{
 				test.SetDefaultValue(flags.ApplicationKey, "my-app"),
 			},
-			expectedSubject:  []string{flags.EntityType},
-			expectEntityType: "application",
-			expectEntityID:   "my-app",
-			clearedAppKey:    true,
+			expectedSubject:      []string{flags.EntityType},
+			expectEntityType:     "application",
+			expectEntityID:       "my-app",
+			expectApplicationKey: "my-app",
+			checkApplicationKey:  true,
 		},
 		{
 			name: "ApplicationKey_WithMatchingEntityId",
@@ -659,10 +661,11 @@ func TestGetAndValidateSubject_Entity(t *testing.T) {
 				test.SetDefaultValue(flags.ApplicationKey, "my-app"),
 				test.SetDefaultValue(flags.EntityId, "my-app"),
 			},
-			expectedSubject:  []string{flags.EntityType},
-			expectEntityType: "application",
-			expectEntityID:   "my-app",
-			clearedAppKey:    true,
+			expectedSubject:      []string{flags.EntityType},
+			expectEntityType:     "application",
+			expectEntityID:       "my-app",
+			expectApplicationKey: "my-app",
+			checkApplicationKey:  true,
 		},
 		{
 			name: "ApplicationKey_WithApplicationEntityType",
@@ -670,10 +673,57 @@ func TestGetAndValidateSubject_Entity(t *testing.T) {
 				test.SetDefaultValue(flags.ApplicationKey, "my-app"),
 				test.SetDefaultValue(flags.EntityType, "application"),
 			},
-			expectedSubject:  []string{flags.EntityType},
-			expectEntityType: "application",
-			expectEntityID:   "my-app",
-			clearedAppKey:    true,
+			expectedSubject:      []string{flags.EntityType},
+			expectEntityType:     "application",
+			expectEntityID:       "my-app",
+			expectApplicationKey: "my-app",
+			checkApplicationKey:  true,
+		},
+		{
+			name: "ApplicationEntityType_UsesEntityIdAsScope",
+			flags: []components.Flag{
+				test.SetDefaultValue(flags.EntityType, "application"),
+				test.SetDefaultValue(flags.EntityId, "my-app"),
+			},
+			expectedSubject:      []string{flags.EntityType},
+			expectEntityType:     "application",
+			expectEntityID:       "my-app",
+			expectApplicationKey: "my-app",
+			checkApplicationKey:  true,
+		},
+		{
+			name: "ApplicationEntityType_WithProjectKeepsProjectScope",
+			flags: []components.Flag{
+				test.SetDefaultValue(flags.EntityType, "application"),
+				test.SetDefaultValue(flags.EntityId, "my-app"),
+				test.SetDefaultValue(flags.Project, "proj"),
+			},
+			expectedSubject:     []string{flags.EntityType},
+			expectEntityType:    "application",
+			expectEntityID:      "my-app",
+			checkApplicationKey: true,
+		},
+		{
+			name: "ApplicationKey_WithEntityRepo_UsesExplicitRepo",
+			flags: []components.Flag{
+				test.SetDefaultValue(flags.ApplicationKey, "my-app"),
+				test.SetDefaultValue(flags.EntityRepo, "custom-application-entity"),
+			},
+			expectedSubject:     []string{flags.EntityType},
+			expectEntityType:    "application",
+			expectEntityID:      "my-app",
+			checkApplicationKey: true,
+		},
+		{
+			name: "ApplicationKey_WithProject_UsesExplicitProject",
+			flags: []components.Flag{
+				test.SetDefaultValue(flags.ApplicationKey, "my-app"),
+				test.SetDefaultValue(flags.Project, "proj"),
+			},
+			expectedSubject:     []string{flags.EntityType},
+			expectEntityType:    "application",
+			expectEntityID:      "my-app",
+			checkApplicationKey: true,
 		},
 		{
 			name: "ApplicationKey_WithConflictingEntityId",
@@ -724,8 +774,8 @@ func TestGetAndValidateSubject_Entity(t *testing.T) {
 				assert.Equal(t, tt.expectEntityType, context.GetStringFlagValue(flags.EntityType))
 				assert.Equal(t, tt.expectEntityID, context.GetStringFlagValue(flags.EntityId))
 			}
-			if tt.clearedAppKey {
-				assert.Empty(t, context.GetStringFlagValue(flags.ApplicationKey))
+			if tt.checkApplicationKey {
+				assert.Equal(t, tt.expectApplicationKey, context.GetStringFlagValue(flags.ApplicationKey))
 			}
 		})
 	}

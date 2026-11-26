@@ -772,8 +772,8 @@ func TestVerifyEvidenceBuild_Run_EscapesAqlValues(t *testing.T) {
 	assert.ErrorContains(t, err, "no build found")
 	require.Len(t, mockClient.AqlQueries, 1)
 	expectedQuery := `items.find({"repo":"artifactory-build-info",` +
-		`"path":"build\"},\"name\":{\"$match\":\"*",` +
-		`"name":"4\"}).include(\"*-1700000000000.json"})` +
+		`"path":"build\"},\"name\"%3A{\"$match\"%3A\"%2A",` +
+		`"name":"4\"}).include(\"%2A-1700000000000.json"})` +
 		`.include("repo","path","name","sha256")`
 	assert.Equal(t, expectedQuery, mockClient.AqlQueries[0])
 }
